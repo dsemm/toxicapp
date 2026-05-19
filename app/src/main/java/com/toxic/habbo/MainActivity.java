@@ -173,13 +173,13 @@ public class MainActivity extends Activity {
         inlineProgressPct = 0;
         inlineProgressMessage = "";
 
-        ProfileResult cached = profileCache.get(nickKey);
+        final ProfileResult cached = getCachedProfile(nickKey);
         if (cached != null) {
             searchBtn.setEnabled(false);
             searchBtn.setText("Atualizando...");
             statusText.setText("");
             inlineProgressPct = 8;
-            inlineProgressMessage = "Atualizando informações...";
+            inlineProgressMessage = "Verificando novas informações...";
             renderProfile(cached);
         } else {
             resultWrap.removeAllViews();
@@ -188,10 +188,12 @@ public class MainActivity extends Activity {
 
         executor.execute(() -> {
             try {
-                final ProfileResult r = loadProfile(nick, false);
+                ProfileResult fresh = loadProfile(nick, false);
                 if (!isActiveToken(token)) return;
-                profileCache.put(nickKey, r);
-                profileCache.put(normalizeNickKey(r.name), r);
+
+                final ProfileResult r = cached == null ? fresh : mergeFreshIntoCached(cached, fresh);
+                putProfileCache(r, nickKey);
+                saveProfileCache(r, nickKey);
 
                 runOnUiThread(() -> {
                     if (!isActiveToken(token)) return;
@@ -202,8 +204,8 @@ public class MainActivity extends Activity {
                 completeProfileSections(r, token);
 
                 if (!isActiveToken(token)) return;
-                profileCache.put(nickKey, r);
-                profileCache.put(normalizeNickKey(r.name), r);
+                putProfileCache(r, nickKey);
+                saveProfileCache(r, nickKey);
 
                 runOnUiThread(() -> {
                     if (!isActiveToken(token)) return;
@@ -316,41 +318,70 @@ public class MainActivity extends Activity {
     private void completeProfileSections(ProfileResult r, int token) {
         if (r == null || r.uniqueId == null || r.uniqueId.isEmpty() || !isActiveToken(token)) return;
 
-        try { r.photos = fetchAll(r.uniqueId, "photos", "photos", 100, 50); } catch(Exception ignored) {}
+        ArrayList<JSONObject> photos = null;
+        try { photos = fetchAll(r.uniqueId, "photos", "photos", 100, 50); } catch(Exception ignored) {}
+        if (photos != null) r.photos = photos;
         if (!isActiveToken(token)) return;
+        putProfileCache(r, activeSearchNick);
+        saveProfileCache(r, activeSearchNick);
         runOnUiThread(() -> {
             if (!isActiveToken(token)) return;
             showInlineLoading("Carregando histórico...");
             renderProfile(r);
         });
 
-        try { r.previousMottos = fetchAll(r.uniqueId, "previous-mottos", null, 100, 3); } catch(Exception ignored) {}
+        ArrayList<JSONObject> mottos = null;
+        try { mottos = fetchAll(r.uniqueId, "previous-mottos", null, 100, 3); } catch(Exception ignored) {}
+        if (mottos != null) r.previousMottos = mottos;
         if (!isActiveToken(token)) return;
+        putProfileCache(r, activeSearchNick);
+        saveProfileCache(r, activeSearchNick);
         runOnUiThread(() -> {
             if (!isActiveToken(token)) return;
             showInlineLoading("Carregando visuais e amigos...");
             renderProfile(r);
         });
 
-        try { r.previousStyles = fetchAll(r.uniqueId, "previous-styles", null, 100, 50); } catch(Exception ignored) {}
+        ArrayList<JSONObject> styles = null;
+        try { styles = fetchAll(r.uniqueId, "previous-styles", null, 100, 50); } catch(Exception ignored) {}
+        if (styles != null) r.previousStyles = styles;
         if (!isActiveToken(token)) return;
-        try { r.friends = mergeLists(fetchAll(r.uniqueId, "friends", "friends", 100, 3), r.friends); } catch(Exception ignored) {}
+
+        ArrayList<JSONObject> friendsNow = null;
+        try { friendsNow = fetchAll(r.uniqueId, "friends", "friends", 100, 3); } catch(Exception ignored) {}
+        if (friendsNow != null) r.friends = mergeLists(friendsNow, r.friends);
         if (!isActiveToken(token)) return;
-        try { r.oldFriends = fetchAll(r.uniqueId, "previous-friends", null, 30, 5); } catch(Exception ignored) {}
+
+        ArrayList<JSONObject> removedFriends = null;
+        try { removedFriends = fetchAll(r.uniqueId, "previous-friends", null, 30, 5); } catch(Exception ignored) {}
+        if (removedFriends != null) r.oldFriends = removedFriends;
         if (!isActiveToken(token)) return;
+        putProfileCache(r, activeSearchNick);
+        saveProfileCache(r, activeSearchNick);
         runOnUiThread(() -> {
             if (!isActiveToken(token)) return;
             showInlineLoading("Carregando quartos e grupos...");
             renderProfile(r);
         });
 
-        try { r.rooms = mergeLists(fetchAll(r.uniqueId, "rooms", "rooms", 100, 3), r.rooms); } catch(Exception ignored) {}
+        ArrayList<JSONObject> roomsNow = null;
+        try { roomsNow = fetchAll(r.uniqueId, "rooms", "rooms", 100, 3); } catch(Exception ignored) {}
+        if (roomsNow != null) r.rooms = mergeLists(roomsNow, r.rooms);
         if (!isActiveToken(token)) return;
-        try { r.oldRooms = fetchAll(r.uniqueId, "previous-rooms", "rooms", 100, 3); } catch(Exception ignored) {}
+
+        ArrayList<JSONObject> oldRoomsNow = null;
+        try { oldRoomsNow = fetchAll(r.uniqueId, "previous-rooms", "rooms", 100, 3); } catch(Exception ignored) {}
+        if (oldRoomsNow != null) r.oldRooms = oldRoomsNow;
         if (!isActiveToken(token)) return;
-        try { r.groups = mergeLists(fetchAll(r.uniqueId, "groups", "groups", 100, 3), r.groups); } catch(Exception ignored) {}
+
+        ArrayList<JSONObject> groupsNow = null;
+        try { groupsNow = fetchAll(r.uniqueId, "groups", "groups", 100, 3); } catch(Exception ignored) {}
+        if (groupsNow != null) r.groups = groupsNow;
         if (!isActiveToken(token)) return;
+
         try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
+        putProfileCache(r, activeSearchNick);
+        saveProfileCache(r, activeSearchNick);
     }
 
     private ArrayList<JSONObject> fetchAll(String uniqueId, String endpoint, String primaryKey, int limit, int maxPages) {
@@ -406,14 +437,14 @@ public class MainActivity extends Activity {
         if (!searchInProgress) setLoading(false, "");
         resultWrap.removeAllViews();
 
+        if (searchInProgress && inlineProgressMessage != null && !inlineProgressMessage.trim().isEmpty()) {
+            resultWrap.addView(loadingProgressCard(inlineProgressMessage, inlineProgressPct), lp(-1, -2, 0, 0, 0, 12));
+        }
+
         LinearLayout profile = card(dp(22));
         applyProfilePrivateBorder(profile, dp(22));
         profile.setPadding(dp(18), dp(18), dp(18), dp(18));
         resultWrap.addView(profile, lp(-1, -2, 0, 0, 0, 18));
-
-        if (inlineProgressPct > 0) {
-            profile.addView(inlineProgressBar(inlineProgressPct), lp(-1, dp(9), 0, 0, 0, 14));
-        }
 
         FrameLayout avatarFrame = new FrameLayout(this);
         avatarFrame.setBackground(round(Color.rgb(15, 8, 25), dp(20), Color.argb(22,255,255,255), 1));
@@ -1267,7 +1298,35 @@ public class MainActivity extends Activity {
         return bar;
     }
 
-    private int loadingProgressFor(String message) {
+    
+    private LinearLayout loadingProgressCard(String message, int pct) {
+        LinearLayout card = card(dp(18));
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(row, lp(-1, -2, 0, 0, 0, 10));
+
+        ProgressBar spinner = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
+        if (Build.VERSION.SDK_INT >= 21) {
+            spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(purple));
+        }
+        row.addView(spinner, new LinearLayout.LayoutParams(dp(30), dp(30)));
+
+        TextView tv = text(message == null ? "Carregando..." : message, 13, Color.argb(230,255,255,255), true);
+        tv.setSingleLine(true);
+        tv.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
+        tp.leftMargin = dp(10);
+        row.addView(tv, tp);
+
+        card.addView(inlineProgressBar(Math.max(8, pct)), lp(-1, dp(8), 0, 0, 0, 0));
+        return card;
+    }
+
+private int loadingProgressFor(String message) {
         String m = message == null ? "" : message.toLowerCase(Locale.ROOT);
         if (m.contains("detalhes")) return 20;
         if (m.contains("histórico") || m.contains("historico")) return 42;
@@ -1303,10 +1362,11 @@ public class MainActivity extends Activity {
             cachedFigure = "hr-831-45.hd-180-1.ch-255-92.lg-280-82.sh-290-80";
         }
         String walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&action=wlk&gesture=sml&direction=2&head_direction=2&headonly=0&size=l&img_format=gif";
+        String fallbackUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&gesture=sml&direction=2&head_direction=2&headonly=0&size=l";
         try {
-            Glide.with(this).asGif().load(walkerUrl).into(walker);
+            Glide.with(this).load(walkerUrl).error(Glide.with(this).load(fallbackUrl)).into(walker);
         } catch (Exception ex) {
-            loadImage(walker, "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&gesture=sml&direction=2&head_direction=2&headonly=0&size=l");
+            loadImage(walker, fallbackUrl);
         }
         startFloating(walker);
 
@@ -1512,6 +1572,192 @@ public class MainActivity extends Activity {
     private static class ProfileNotFoundException extends Exception {
         final String nick; final ArrayList<JSONObject> suggestions;
         ProfileNotFoundException(String nick, ArrayList<JSONObject> suggestions) { super("Perfil não encontrado."); this.nick = nick; this.suggestions = suggestions == null ? new ArrayList<>() : suggestions; }
+    }
+
+
+    private ProfileResult getCachedProfile(String nickKey) {
+        String key = normalizeNickKey(nickKey);
+        if (key.isEmpty()) return null;
+        ProfileResult cached = profileCache.get(key);
+        if (cached != null) return cached;
+        cached = loadProfileCache(key);
+        if (cached != null) putProfileCache(cached, key);
+        return cached;
+    }
+
+    private void putProfileCache(ProfileResult r, String aliasKey) {
+        if (r == null) return;
+        String alias = normalizeNickKey(aliasKey);
+        if (!alias.isEmpty()) profileCache.put(alias, r);
+        String nameKey = normalizeNickKey(r.name);
+        if (!nameKey.isEmpty()) profileCache.put(nameKey, r);
+        String searchedKey = normalizeNickKey(r.searchedNick);
+        if (!searchedKey.isEmpty()) profileCache.put(searchedKey, r);
+        String idKey = normalizeNickKey(r.uniqueId);
+        if (!idKey.isEmpty()) profileCache.put(idKey, r);
+    }
+
+    private File profileCacheDir() {
+        File dir = new File(getFilesDir(), "habbo_profile_cache");
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    private File profileCacheFile(String key) {
+        String safe = normalizeNickKey(key).replaceAll("[^a-z0-9._-]", "_");
+        if (safe.isEmpty()) safe = "profile";
+        return new File(profileCacheDir(), safe + ".json");
+    }
+
+    private ProfileResult loadProfileCache(String key) {
+        try {
+            File f = profileCacheFile(key);
+            if (!f.isFile()) return null;
+            String raw = readFile(f);
+            if (raw == null || raw.trim().isEmpty()) return null;
+            return profileFromJson(new JSONObject(raw));
+        } catch (Exception ignored) { return null; }
+    }
+
+    private void saveProfileCache(ProfileResult r, String aliasKey) {
+        if (r == null) return;
+        try {
+            JSONObject json = profileToJson(r);
+            writeFile(profileCacheFile(aliasKey), json.toString());
+            if (r.name != null && !normalizeNickKey(r.name).equals(normalizeNickKey(aliasKey))) {
+                writeFile(profileCacheFile(r.name), json.toString());
+            }
+            if (r.uniqueId != null && !r.uniqueId.trim().isEmpty()) {
+                writeFile(profileCacheFile(r.uniqueId), json.toString());
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private String readFile(File file) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        FileInputStream in = new FileInputStream(file);
+        byte[] buf = new byte[4096];
+        int n;
+        while ((n = in.read(buf)) >= 0) out.write(buf, 0, n);
+        in.close();
+        return out.toString("UTF-8");
+    }
+
+    private void writeFile(File file, String data) throws IOException {
+        FileOutputStream out = new FileOutputStream(file);
+        out.write(data.getBytes("UTF-8"));
+        out.flush();
+        out.close();
+    }
+
+    private JSONObject profileToJson(ProfileResult r) throws JSONException {
+        JSONObject o = new JSONObject();
+        o.put("_cachedAt", System.currentTimeMillis());
+        o.put("searchedNick", r.searchedNick);
+        o.put("uniqueId", r.uniqueId);
+        o.put("name", r.name);
+        o.put("motto", r.motto);
+        o.put("figure", r.figure);
+        o.put("memberSince", r.memberSince);
+        o.put("lastAccess", r.lastAccess);
+        o.put("level", r.level);
+        o.put("starGems", r.starGems);
+        o.put("online", r.online);
+        o.put("privateProfile", r.privateProfile);
+        o.put("banned", r.banned);
+        o.put("habboPublic", r.habboPublic);
+        o.put("dex", r.dex);
+        o.put("suggest", r.suggest);
+        o.put("dexProfile", r.dexProfile);
+        o.put("officialProfile", r.officialProfile);
+        o.put("previousNames", jsonArrayFromList(r.previousNames));
+        o.put("previousMottos", jsonArrayFromList(r.previousMottos));
+        o.put("previousStyles", jsonArrayFromList(r.previousStyles));
+        o.put("photos", jsonArrayFromList(r.photos));
+        o.put("friends", jsonArrayFromList(r.friends));
+        o.put("oldFriends", jsonArrayFromList(r.oldFriends));
+        o.put("rooms", jsonArrayFromList(r.rooms));
+        o.put("oldRooms", jsonArrayFromList(r.oldRooms));
+        o.put("groups", jsonArrayFromList(r.groups));
+        o.put("selectedBadges", jsonArrayFromList(r.selectedBadges));
+        return o;
+    }
+
+    private ProfileResult profileFromJson(JSONObject o) {
+        ProfileResult r = new ProfileResult();
+        r.searchedNick = o.optString("searchedNick", "");
+        r.uniqueId = o.optString("uniqueId", "");
+        r.name = o.optString("name", "");
+        r.motto = o.optString("motto", "");
+        r.figure = o.optString("figure", "");
+        r.memberSince = o.optString("memberSince", "");
+        r.lastAccess = o.optString("lastAccess", "");
+        r.level = o.optString("level", "");
+        r.starGems = o.optString("starGems", "");
+        r.online = o.optBoolean("online", false);
+        r.privateProfile = o.optBoolean("privateProfile", false);
+        r.banned = o.optBoolean("banned", false);
+        r.habboPublic = o.optJSONObject("habboPublic");
+        r.dex = o.optJSONObject("dex");
+        r.suggest = o.optJSONObject("suggest");
+        r.dexProfile = o.optJSONObject("dexProfile");
+        r.officialProfile = o.optJSONObject("officialProfile");
+        r.previousNames = jsonList(o.optJSONArray("previousNames"));
+        r.previousMottos = jsonList(o.optJSONArray("previousMottos"));
+        r.previousStyles = jsonList(o.optJSONArray("previousStyles"));
+        r.photos = jsonList(o.optJSONArray("photos"));
+        r.friends = jsonList(o.optJSONArray("friends"));
+        r.oldFriends = jsonList(o.optJSONArray("oldFriends"));
+        r.rooms = jsonList(o.optJSONArray("rooms"));
+        r.oldRooms = jsonList(o.optJSONArray("oldRooms"));
+        r.groups = jsonList(o.optJSONArray("groups"));
+        r.selectedBadges = jsonList(o.optJSONArray("selectedBadges"));
+        return r;
+    }
+
+    private JSONArray jsonArrayFromList(ArrayList<JSONObject> list) {
+        JSONArray a = new JSONArray();
+        if (list == null) return a;
+        for (JSONObject item : list) if (item != null) a.put(item);
+        return a;
+    }
+
+    private ArrayList<JSONObject> jsonList(JSONArray array) {
+        ArrayList<JSONObject> out = new ArrayList<>();
+        if (array == null) return out;
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject item = array.optJSONObject(i);
+            if (item != null) out.add(item);
+        }
+        return out;
+    }
+
+    private ProfileResult mergeFreshIntoCached(ProfileResult cached, ProfileResult fresh) {
+        if (cached == null) return fresh;
+        if (fresh == null) return cached;
+        cached.searchedNick = fresh.searchedNick;
+        cached.uniqueId = fresh.uniqueId;
+        cached.name = fresh.name;
+        cached.motto = fresh.motto;
+        cached.figure = fresh.figure;
+        cached.memberSince = fresh.memberSince;
+        cached.lastAccess = fresh.lastAccess;
+        cached.level = fresh.level;
+        cached.starGems = fresh.starGems;
+        cached.online = fresh.online;
+        cached.privateProfile = fresh.privateProfile;
+        cached.banned = fresh.banned;
+        cached.habboPublic = fresh.habboPublic;
+        cached.dex = fresh.dex;
+        cached.suggest = fresh.suggest;
+        cached.dexProfile = fresh.dexProfile;
+        cached.officialProfile = fresh.officialProfile;
+        cached.previousNames = mergeLists(fresh.previousNames, cached.previousNames);
+        cached.selectedBadges = mergeLists(fresh.selectedBadges, cached.selectedBadges);
+        if (!fresh.friends.isEmpty()) cached.friends = mergeLists(fresh.friends, cached.friends);
+        if (!fresh.rooms.isEmpty()) cached.rooms = mergeLists(fresh.rooms, cached.rooms);
+        if (!fresh.groups.isEmpty()) cached.groups = fresh.groups;
+        return cached;
     }
 
     private static class ProfileResult {
