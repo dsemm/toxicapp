@@ -34,6 +34,13 @@ public class MainActivity extends Activity {
     private ImageView currentAvatarImage;
     private String currentProfileFigure = "";
     private boolean currentProfilePrivate = false;
+    private volatile int activeSearchToken = 0;
+    private volatile boolean searchInProgress = false;
+    private volatile String activeSearchNick = "";
+    private String currentLoadedNick = "";
+    private int inlineProgressPct = 0;
+    private String inlineProgressMessage = "";
+    private final ConcurrentHashMap<String, ProfileResult> profileCache = new ConcurrentHashMap<>();
 
     private final int bg = Color.rgb(13, 13, 18);
     private final int purple = Color.rgb(139, 52, 217);
@@ -142,35 +149,100 @@ public class MainActivity extends Activity {
 
     private void search() {
         final String nick = searchInput.getText().toString().trim();
-        if (nick.isEmpty()) { toast("Digite um nick do Habbo."); return; }
+        final String nickKey = normalizeNickKey(nick);
+        if (nickKey.isEmpty()) { toast("Digite um nick do Habbo."); return; }
+
+        if (searchInProgress && nickKey.equals(activeSearchNick)) {
+            toast("Esse perfil já está sendo carregado.");
+            return;
+        }
+
+        if (!searchInProgress && !currentLoadedNick.isEmpty() && nickKey.equals(currentLoadedNick)) {
+            toast("Esse perfil já está aberto.");
+            return;
+        }
+
         hideKeyboard();
         suggestionsBox.setVisibility(View.GONE);
-        resultWrap.removeAllViews();
-        setLoading(true, "Buscando " + nick + "...");
+
+        final int token = ++activeSearchToken;
+        activeSearchNick = nickKey;
+        searchInProgress = true;
+        currentLoadedNick = "";
+        currentProfilePrivate = false;
+        inlineProgressPct = 0;
+        inlineProgressMessage = "";
+
+        ProfileResult cached = profileCache.get(nickKey);
+        if (cached != null) {
+            searchBtn.setEnabled(false);
+            searchBtn.setText("Atualizando...");
+            statusText.setText("");
+            inlineProgressPct = 8;
+            inlineProgressMessage = "Atualizando informações...";
+            renderProfile(cached);
+        } else {
+            resultWrap.removeAllViews();
+            setLoading(true, "Buscando " + nick + "...");
+        }
+
         executor.execute(() -> {
             try {
                 final ProfileResult r = loadProfile(nick, false);
+                if (!isActiveToken(token)) return;
+                profileCache.put(nickKey, r);
+                profileCache.put(normalizeNickKey(r.name), r);
+
                 runOnUiThread(() -> {
-                    renderProfile(r);
+                    if (!isActiveToken(token)) return;
                     showInlineLoading("Carregando detalhes do perfil...");
+                    renderProfile(r);
                 });
-                completeProfileSections(r);
+
+                completeProfileSections(r, token);
+
+                if (!isActiveToken(token)) return;
+                profileCache.put(nickKey, r);
+                profileCache.put(normalizeNickKey(r.name), r);
+
                 runOnUiThread(() -> {
+                    if (!isActiveToken(token)) return;
+                    inlineProgressPct = 0;
+                    inlineProgressMessage = "";
                     renderProfile(r);
                     statusText.setText("");
+                    searchInProgress = false;
+                    activeSearchNick = "";
+                    currentLoadedNick = normalizeNickKey(r.name);
+                    searchBtn.setEnabled(true);
+                    searchBtn.setText("Pesquisar");
                 });
             } catch (ProfileNotFoundException e) {
                 runOnUiThread(() -> {
+                    if (!isActiveToken(token)) return;
+                    searchInProgress = false;
+                    activeSearchNick = "";
                     setLoading(false, "");
                     showNotFoundState(e.nick, e.suggestions);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
+                    if (!isActiveToken(token)) return;
+                    searchInProgress = false;
+                    activeSearchNick = "";
                     setLoading(false, "");
                     showError(e.getMessage() == null ? "Falha ao buscar perfil." : e.getMessage());
                 });
             }
         });
+    }
+
+    private String normalizeNickKey(String raw) {
+        return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isActiveToken(int token) {
+        return token == activeSearchToken;
     }
 
     private ProfileResult loadProfile(String nick, boolean includeSections) throws Exception {
@@ -235,25 +307,49 @@ public class MainActivity extends Activity {
                 r.groups = mergeLists(r.groups, extractList(officialProfile, "groups"));
             }
             if (includeSections) {
-                completeProfileSections(r);
+                completeProfileSections(r, activeSearchToken);
             }
         }
         return r;
     }
 
-    private void completeProfileSections(ProfileResult r) {
-        if (r == null || r.uniqueId == null || r.uniqueId.isEmpty()) return;
+    private void completeProfileSections(ProfileResult r, int token) {
+        if (r == null || r.uniqueId == null || r.uniqueId.isEmpty() || !isActiveToken(token)) return;
+
         try { r.photos = fetchAll(r.uniqueId, "photos", "photos", 100, 50); } catch(Exception ignored) {}
-        runOnUiThread(() -> { renderProfile(r); showInlineLoading("Carregando histórico..."); });
+        if (!isActiveToken(token)) return;
+        runOnUiThread(() -> {
+            if (!isActiveToken(token)) return;
+            showInlineLoading("Carregando histórico...");
+            renderProfile(r);
+        });
+
         try { r.previousMottos = fetchAll(r.uniqueId, "previous-mottos", null, 100, 3); } catch(Exception ignored) {}
-        runOnUiThread(() -> { renderProfile(r); showInlineLoading("Carregando visuais e amigos..."); });
+        if (!isActiveToken(token)) return;
+        runOnUiThread(() -> {
+            if (!isActiveToken(token)) return;
+            showInlineLoading("Carregando visuais e amigos...");
+            renderProfile(r);
+        });
+
         try { r.previousStyles = fetchAll(r.uniqueId, "previous-styles", null, 100, 50); } catch(Exception ignored) {}
+        if (!isActiveToken(token)) return;
         try { r.friends = mergeLists(fetchAll(r.uniqueId, "friends", "friends", 100, 3), r.friends); } catch(Exception ignored) {}
+        if (!isActiveToken(token)) return;
         try { r.oldFriends = fetchAll(r.uniqueId, "previous-friends", null, 30, 5); } catch(Exception ignored) {}
-        runOnUiThread(() -> { renderProfile(r); showInlineLoading("Carregando quartos e grupos..."); });
+        if (!isActiveToken(token)) return;
+        runOnUiThread(() -> {
+            if (!isActiveToken(token)) return;
+            showInlineLoading("Carregando quartos e grupos...");
+            renderProfile(r);
+        });
+
         try { r.rooms = mergeLists(fetchAll(r.uniqueId, "rooms", "rooms", 100, 3), r.rooms); } catch(Exception ignored) {}
+        if (!isActiveToken(token)) return;
         try { r.oldRooms = fetchAll(r.uniqueId, "previous-rooms", "rooms", 100, 3); } catch(Exception ignored) {}
+        if (!isActiveToken(token)) return;
         try { r.groups = mergeLists(fetchAll(r.uniqueId, "groups", "groups", 100, 3), r.groups); } catch(Exception ignored) {}
+        if (!isActiveToken(token)) return;
         try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
     }
 
@@ -307,13 +403,17 @@ public class MainActivity extends Activity {
 
     private void renderProfile(ProfileResult r) {
         currentProfilePrivate = r != null && r.privateProfile;
-        setLoading(false, "");
+        if (!searchInProgress) setLoading(false, "");
         resultWrap.removeAllViews();
 
         LinearLayout profile = card(dp(22));
         applyProfilePrivateBorder(profile, dp(22));
         profile.setPadding(dp(18), dp(18), dp(18), dp(18));
         resultWrap.addView(profile, lp(-1, -2, 0, 0, 0, 18));
+
+        if (inlineProgressPct > 0) {
+            profile.addView(inlineProgressBar(inlineProgressPct), lp(-1, dp(9), 0, 0, 0, 14));
+        }
 
         FrameLayout avatarFrame = new FrameLayout(this);
         avatarFrame.setBackground(round(Color.rgb(15, 8, 25), dp(20), Color.argb(22,255,255,255), 1));
@@ -467,7 +567,7 @@ public class MainActivity extends Activity {
         for (int i=0; i<Math.min(list.size(), 12); i++) {
             JSONObject b = list.get(i); String code = firstText(b, "code", "badgeCode");
             ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(60), dp(60)); p.rightMargin = dp(10); row.addView(img, p);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(50), dp(50)); p.rightMargin = dp(10); row.addView(img, p);
             if (!code.isEmpty()) loadImage(img, "https://images.habbo.com/c_images/album1584/" + enc(code) + ".png");
         }
     }
@@ -608,7 +708,7 @@ public class MainActivity extends Activity {
                         clothesContainer.addView(mottoItem("Nenhuma peça encontrada", ""));
                         return;
                     }
-                    for (int i=0; i<Math.min(clothes.size(), 60); i++) {
+                    for (int i=0; i<Math.min(clothes.size(), 40); i++) {
                         clothesContainer.addView(clothingRow(clothes.get(i)));
                     }
                 });
@@ -621,7 +721,7 @@ public class MainActivity extends Activity {
     private LinearLayout clothingRow(JSONObject o) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(Color.argb(26,255,255,255), dp(14), Color.argb(28,255,255,255),1));
         row.setLayoutParams(lp(-1, -2, 0, 0, 0, 10));
-        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(60), dp(60)));
+        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(40), dp(40)));
         String code = firstText(o, "code", "classname", "className", "id");
         String icon = firstText(o, "iconUrl", "imageUrl", "url", "thumbnail");
         if (icon.isEmpty() && !code.isEmpty()) icon = "https://habbodex.com/images/furni/" + enc(code) + "/" + enc(code) + "_icon.png";
@@ -1150,46 +1250,21 @@ public class MainActivity extends Activity {
     }
 
     private void showInlineLoading(String message) {
-        statusText.setText(message == null ? "" : message);
-        if (resultWrap == null) return;
-        int pct = loadingProgressFor(message);
+        inlineProgressMessage = message == null ? "" : message;
+        inlineProgressPct = loadingProgressFor(message);
+        statusText.setText("");
+    }
 
-        LinearLayout c = card(dp(18));
-        applyProfilePrivateBorder(c, dp(18));
-        c.setPadding(dp(14), dp(12), dp(14), dp(12));
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
-        top.addView(pb, new LinearLayout.LayoutParams(dp(30), dp(30)));
-
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
-        tp.leftMargin = dp(12);
-        top.addView(texts, tp);
-
-        TextView tv = text(message == null ? "Carregando..." : message, 13, Color.argb(225,255,255,255), true);
-        texts.addView(tv);
-
-        TextView percent = text(pct + "%", 12, Color.argb(190,255,255,255), true);
-        percent.setGravity(Gravity.RIGHT);
-        top.addView(percent, new LinearLayout.LayoutParams(dp(46), -2));
-
-        c.addView(top, lp(-1, -2, 0, 0, 0, 10));
-
+    private View inlineProgressBar(int pct) {
         FrameLayout bar = new FrameLayout(this);
         bar.setBackground(round(Color.argb(34,255,255,255), dp(999), Color.argb(28,255,255,255), 1));
-        c.addView(bar, lp(-1, dp(8), 0, 0, 0, 0));
 
         View fill = new View(this);
         fill.setBackground(grad(dp(999), purple2, purple));
-        int width = Math.max(dp(24), (int)((getResources().getDisplayMetrics().widthPixels - dp(92)) * (pct / 100f)));
-        bar.addView(fill, new FrameLayout.LayoutParams(width, dp(8), Gravity.LEFT | Gravity.CENTER_VERTICAL));
-
-        resultWrap.addView(c, lp(-1, -2, 0, 0, 0, 18));
+        int available = Math.max(dp(80), getResources().getDisplayMetrics().widthPixels - dp(72));
+        int width = Math.max(dp(22), (int)(available * (Math.max(0, Math.min(100, pct)) / 100f)));
+        bar.addView(fill, new FrameLayout.LayoutParams(width, dp(9), Gravity.LEFT | Gravity.CENTER_VERTICAL));
+        return bar;
     }
 
     private int loadingProgressFor(String message) {
@@ -1221,15 +1296,19 @@ public class MainActivity extends Activity {
         walker.setPadding(dp(18), dp(4), dp(18), dp(4));
         avatar.addView(walker, new FrameLayout.LayoutParams(-1, -1));
         String nick = searchInput == null ? "" : searchInput.getText().toString().trim();
-        if (!nick.isEmpty()) {
-            String walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?user=" + enc(nick) + "&action=wlk&direction=2&head_direction=2&img_format=gif&headonly=0&size=b";
-            try {
-                Glide.with(this).asGif().load(walkerUrl).into(walker);
-            } catch (Exception ex) {
-                loadImage(walker, walkerUrl);
-            }
-            startFloating(walker);
+        String cachedFigure = "";
+        ProfileResult cachedProfile = profileCache.get(normalizeNickKey(nick));
+        if (cachedProfile != null) cachedFigure = cachedProfile.figure;
+        if (cachedFigure == null || cachedFigure.trim().isEmpty()) {
+            cachedFigure = "hr-831-45.hd-180-1.ch-255-92.lg-280-82.sh-290-80";
         }
+        String walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&action=wlk&gesture=sml&direction=2&head_direction=2&headonly=0&size=l&img_format=gif";
+        try {
+            Glide.with(this).asGif().load(walkerUrl).into(walker);
+        } catch (Exception ex) {
+            loadImage(walker, "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&gesture=sml&direction=2&head_direction=2&headonly=0&size=l");
+        }
+        startFloating(walker);
 
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
@@ -1329,7 +1408,13 @@ public class MainActivity extends Activity {
     private String avatarHead(String figure) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&headonly=1"; }
 
     private Drawable makeBg() { return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(30, 11, 45), Color.rgb(24,14,35), Color.rgb(12,12,18)}); }
-    private LinearLayout card(int radius) { LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL); l.setBackground(round(cardFill, radius, cardStroke, 1)); return l; }
+    private LinearLayout card(int radius) {
+        LinearLayout l = new LinearLayout(this);
+        l.setOrientation(LinearLayout.VERTICAL);
+        int stroke = currentProfilePrivate ? Color.argb(92, 255, 64, 64) : cardStroke;
+        l.setBackground(round(cardFill, radius, stroke, 1));
+        return l;
+    }
     private void applyProfilePrivateBorder(LinearLayout view, int radius) {
         if (currentProfilePrivate && view != null) {
             view.setBackground(round(cardFill, radius, Color.argb(92, 255, 64, 64), 1));
