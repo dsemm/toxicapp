@@ -33,6 +33,7 @@ public class MainActivity extends Activity {
     private int avatarDirection = 2;
     private ImageView currentAvatarImage;
     private String currentProfileFigure = "";
+    private boolean currentProfilePrivate = false;
 
     private final int bg = Color.rgb(13, 13, 18);
     private final int purple = Color.rgb(139, 52, 217);
@@ -305,13 +306,12 @@ public class MainActivity extends Activity {
     }
 
     private void renderProfile(ProfileResult r) {
+        currentProfilePrivate = r != null && r.privateProfile;
         setLoading(false, "");
         resultWrap.removeAllViews();
 
         LinearLayout profile = card(dp(22));
-        if (r.privateProfile) {
-            profile.setBackground(round(cardFill, dp(22), Color.argb(80, 255, 64, 64), 1));
-        }
+        applyProfilePrivateBorder(profile, dp(22));
         profile.setPadding(dp(18), dp(18), dp(18), dp(18));
         resultWrap.addView(profile, lp(-1, -2, 0, 0, 0, 18));
 
@@ -432,6 +432,7 @@ public class MainActivity extends Activity {
 
     private LinearLayout statRow(String icon, String label, String value) {
         LinearLayout row = card(dp(18));
+        applyProfilePrivateBorder(row, dp(18));
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(10), dp(7), dp(10), dp(7));
@@ -462,11 +463,11 @@ public class MainActivity extends Activity {
         row.setMinimumWidth(getResources().getDisplayMetrics().widthPixels - dp(36));
         row.setPadding(dp(2), dp(2), dp(2), dp(2));
         hsv.addView(row);
-        resultWrap.addView(hsv, lp(-1, dp(74), 0, 0, 0, 14));
+        resultWrap.addView(hsv, lp(-1, dp(72), 0, 0, 0, 14));
         for (int i=0; i<Math.min(list.size(), 12); i++) {
             JSONObject b = list.get(i); String code = firstText(b, "code", "badgeCode");
-            ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(62), dp(62)); p.rightMargin = dp(10); row.addView(img, p);
+            ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(60), dp(60)); p.rightMargin = dp(10); row.addView(img, p);
             if (!code.isEmpty()) loadImage(img, "https://images.habbo.com/c_images/album1584/" + enc(code) + ".png");
         }
     }
@@ -620,7 +621,7 @@ public class MainActivity extends Activity {
     private LinearLayout clothingRow(JSONObject o) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(Color.argb(26,255,255,255), dp(14), Color.argb(28,255,255,255),1));
         row.setLayoutParams(lp(-1, -2, 0, 0, 0, 10));
-        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(86), dp(86)));
+        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(60), dp(60)));
         String code = firstText(o, "code", "classname", "className", "id");
         String icon = firstText(o, "iconUrl", "imageUrl", "url", "thumbnail");
         if (icon.isEmpty() && !code.isEmpty()) icon = "https://habbodex.com/images/furni/" + enc(code) + "/" + enc(code) + "_icon.png";
@@ -873,7 +874,7 @@ public class MainActivity extends Activity {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER);
         card.setPadding(dp(8), dp(4), dp(8), dp(8));
-        card.setBackground(round(Color.argb(20,255,255,255), dp(18), removed ? Color.argb(75, 255, 64, 64) : Color.argb(25,255,255,255), 1));
+        card.setBackground(round(Color.argb(20,255,255,255), dp(18), (removed || currentProfilePrivate) ? Color.argb(75, 255, 64, 64) : Color.argb(25,255,255,255), 1));
 
         String n = firstText(f, "name", "username", "habboName"); if (n.isEmpty()) n = "Habbo";
         String fig = firstText(f, "figureString", "figure", "look", "avatarFigureString");
@@ -889,10 +890,12 @@ public class MainActivity extends Activity {
         headWrap.addView(head, hp);
         if (!fig.isEmpty()) loadImage(head, avatarHead(fig));
 
-        if (isToday(date) && !removed) {
+        if (isToday(date)) {
             TextView novo = text("NOVO", 9, Color.WHITE, true);
             novo.setGravity(Gravity.CENTER);
-            novo.setBackground(grad(dp(999), Color.rgb(31,184,106), Color.rgb(54,210,127)));
+            novo.setBackground(removed
+                ? grad(dp(999), Color.rgb(190, 45, 58), Color.rgb(255, 92, 92))
+                : grad(dp(999), Color.rgb(31,184,106), Color.rgb(54,210,127)));
             FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(dp(48), dp(18), Gravity.TOP|Gravity.CENTER_HORIZONTAL);
             headWrap.addView(novo,np);
         }
@@ -950,7 +953,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout roomRow(JSONObject room, boolean oldRoom) {
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(Color.argb(18,255,255,255), dp(16), oldRoom ? Color.argb(75, 255, 64, 64) : Color.argb(24,255,255,255), 1)); row.setLayoutParams(lp(-1, dp(116), 0, 0, 0, 12));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(Color.argb(18,255,255,255), dp(16), (oldRoom || currentProfilePrivate) ? Color.argb(75, 255, 64, 64) : Color.argb(24,255,255,255), 1)); row.setLayoutParams(lp(-1, dp(116), 0, 0, 0, 12));
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setBackground(round(Color.argb(25,255,255,255), dp(12), Color.argb(20,255,255,255),1)); applyRoundedClip(img, dp(12)); row.addView(img, new LinearLayout.LayoutParams(dp(112), dp(78)));
         String image = getRoomImageUrl(room);
         if (!image.isEmpty()) Glide.with(this).load(image).error(R.drawable.quarto).into(img); else img.setImageResource(R.drawable.quarto);
@@ -986,7 +989,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout groupRow(JSONObject g) {
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(12),dp(12),dp(12)); row.setBackground(round(Color.argb(18,255,255,255), dp(16), Color.argb(24,255,255,255), 1)); row.setLayoutParams(lp(-1, -2, 0, 0, 0, 12));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(12),dp(12),dp(12)); row.setBackground(round(Color.argb(18,255,255,255), dp(16), currentProfilePrivate ? Color.argb(75, 255, 64, 64) : Color.argb(24,255,255,255), 1)); row.setLayoutParams(lp(-1, -2, 0, 0, 0, 12));
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(58), dp(58)));
         String badge = firstText(g,"badgeCode","code"); String badgeUrl = normalizeUrl(firstText(g, "badgeUrl", "imageUrl", "url")); if(!badgeUrl.isEmpty()) loadImage(img, badgeUrl); else if(!badge.isEmpty()) loadImage(img,"https://www.habbo.com.br/habbo-imaging/badge/"+enc(badge)+".gif"); else img.setImageDrawable(new PlaceholderDrawable("groups"));
         LinearLayout txt = new LinearLayout(this); txt.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-2,1); tp.leftMargin=dp(12); row.addView(txt,tp);
@@ -998,6 +1001,7 @@ public class MainActivity extends Activity {
 
     private LinearLayout sectionCard(String title, int count, boolean showTitle) {
         LinearLayout c = card(dp(20));
+        applyProfilePrivateBorder(c, dp(20));
         c.setPadding(dp(16), dp(16), dp(16), dp(16));
         resultWrap.addView(c, lp(-1, -2, 0, 0, 0, 18));
         if (showTitle && title != null) {
@@ -1148,18 +1152,53 @@ public class MainActivity extends Activity {
     private void showInlineLoading(String message) {
         statusText.setText(message == null ? "" : message);
         if (resultWrap == null) return;
+        int pct = loadingProgressFor(message);
+
         LinearLayout c = card(dp(18));
+        applyProfilePrivateBorder(c, dp(18));
         c.setPadding(dp(14), dp(12), dp(14), dp(12));
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
         ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
-        row.addView(pb, new LinearLayout.LayoutParams(dp(32), dp(32)));
-        TextView tv = text(message == null ? "Carregando..." : message, 13, Color.argb(220,255,255,255), true);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1); tp.leftMargin = dp(12);
-        row.addView(tv, tp);
-        c.addView(row);
+        top.addView(pb, new LinearLayout.LayoutParams(dp(30), dp(30)));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
+        tp.leftMargin = dp(12);
+        top.addView(texts, tp);
+
+        TextView tv = text(message == null ? "Carregando..." : message, 13, Color.argb(225,255,255,255), true);
+        texts.addView(tv);
+
+        TextView percent = text(pct + "%", 12, Color.argb(190,255,255,255), true);
+        percent.setGravity(Gravity.RIGHT);
+        top.addView(percent, new LinearLayout.LayoutParams(dp(46), -2));
+
+        c.addView(top, lp(-1, -2, 0, 0, 0, 10));
+
+        FrameLayout bar = new FrameLayout(this);
+        bar.setBackground(round(Color.argb(34,255,255,255), dp(999), Color.argb(28,255,255,255), 1));
+        c.addView(bar, lp(-1, dp(8), 0, 0, 0, 0));
+
+        View fill = new View(this);
+        fill.setBackground(grad(dp(999), purple2, purple));
+        int width = Math.max(dp(24), (int)((getResources().getDisplayMetrics().widthPixels - dp(92)) * (pct / 100f)));
+        bar.addView(fill, new FrameLayout.LayoutParams(width, dp(8), Gravity.LEFT | Gravity.CENTER_VERTICAL));
+
         resultWrap.addView(c, lp(-1, -2, 0, 0, 0, 18));
+    }
+
+    private int loadingProgressFor(String message) {
+        String m = message == null ? "" : message.toLowerCase(Locale.ROOT);
+        if (m.contains("detalhes")) return 20;
+        if (m.contains("histórico") || m.contains("historico")) return 42;
+        if (m.contains("visuais") || m.contains("amigos")) return 66;
+        if (m.contains("quartos") || m.contains("grupos")) return 86;
+        return 10;
     }
 
     private void showLoadingSkeleton(String message) {
@@ -1183,7 +1222,12 @@ public class MainActivity extends Activity {
         avatar.addView(walker, new FrameLayout.LayoutParams(-1, -1));
         String nick = searchInput == null ? "" : searchInput.getText().toString().trim();
         if (!nick.isEmpty()) {
-            loadImage(walker, "https://www.habbo.com.br/habbo-imaging/avatarimage?user=" + enc(nick) + "&action=wlk&direction=2&head_direction=2&img_format=png&headonly=0&size=b");
+            String walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?user=" + enc(nick) + "&action=wlk&direction=2&head_direction=2&img_format=gif&headonly=0&size=b";
+            try {
+                Glide.with(this).asGif().load(walkerUrl).into(walker);
+            } catch (Exception ex) {
+                loadImage(walker, walkerUrl);
+            }
             startFloating(walker);
         }
 
@@ -1286,6 +1330,11 @@ public class MainActivity extends Activity {
 
     private Drawable makeBg() { return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(30, 11, 45), Color.rgb(24,14,35), Color.rgb(12,12,18)}); }
     private LinearLayout card(int radius) { LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL); l.setBackground(round(cardFill, radius, cardStroke, 1)); return l; }
+    private void applyProfilePrivateBorder(LinearLayout view, int radius) {
+        if (currentProfilePrivate && view != null) {
+            view.setBackground(round(cardFill, radius, Color.argb(92, 255, 64, 64), 1));
+        }
+    }
     private TextView text(String s, int sp, int color, boolean bold) { TextView v = new TextView(this); v.setText(s == null ? "" : s); v.setTextSize(sp); v.setTextColor(color); if (bold) v.setTypeface(Typeface.DEFAULT_BOLD); return v; }
     private TextView habboText(String s, int sp, boolean bold) { TextView v = text(s, sp, Color.WHITE, bold); v.setTypeface(habboFont); return v; }
     private TextView pill(String s, int color) { TextView v = text(s, 13, Color.WHITE, true); v.setGravity(Gravity.CENTER); v.setPadding(dp(14), dp(9), dp(14), dp(9)); v.setBackground(round(adjustAlpha(color, 0.32f), dp(999), adjustAlpha(color,0.55f), 1)); return v; }
@@ -1393,15 +1442,30 @@ public class MainActivity extends Activity {
         ArrowButtonDrawable(boolean left){ this.left = left; }
         @Override public void draw(Canvas c) {
             Rect b = getBounds(); float w=b.width(), h=b.height(), x=b.left, y=b.top;
-            LinearGradient lg = new LinearGradient(x, y, x+w, y+h, Color.rgb(92,35,132), Color.rgb(166,55,232), Shader.TileMode.CLAMP);
-            p.setShader(lg); p.setStyle(Paint.Style.FILL);
-            c.drawRoundRect(new RectF(x,y,x+w,y+h), dp(12), dp(12), p); p.setShader(null);
-            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(1)); p.setColor(Color.argb(70,255,255,255));
+            RectF r = new RectF(x, y, x+w, y+h);
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.rgb(38, 35, 45));
+            c.drawRoundRect(r, dp(12), dp(12), p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1));
+            p.setColor(Color.argb(80,255,255,255));
             c.drawRoundRect(new RectF(x+1,y+1,x+w-1,y+h-1), dp(12), dp(12), p);
-            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(3)); p.setStrokeCap(Paint.Cap.ROUND); p.setStrokeJoin(Paint.Join.ROUND); p.setColor(Color.WHITE);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setColor(Color.WHITE);
             Path path = new Path();
-            if (left) { path.moveTo(x+w*.58f, y+h*.28f); path.lineTo(x+w*.38f, y+h*.50f); path.lineTo(x+w*.58f, y+h*.72f); }
-            else { path.moveTo(x+w*.42f, y+h*.28f); path.lineTo(x+w*.62f, y+h*.50f); path.lineTo(x+w*.42f, y+h*.72f); }
+            if (left) {
+                path.moveTo(x+w*.60f, y+h*.25f);
+                path.lineTo(x+w*.38f, y+h*.50f);
+                path.lineTo(x+w*.60f, y+h*.75f);
+            } else {
+                path.moveTo(x+w*.40f, y+h*.25f);
+                path.lineTo(x+w*.62f, y+h*.50f);
+                path.lineTo(x+w*.40f, y+h*.75f);
+            }
             c.drawPath(path, p);
         }
         @Override public void setAlpha(int a){p.setAlpha(a);} @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);} @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
@@ -1411,15 +1475,41 @@ public class MainActivity extends Activity {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         @Override public void draw(Canvas c) {
             Rect b = getBounds(); float w=b.width(), h=b.height(), x=b.left, y=b.top;
-            LinearGradient lg = new LinearGradient(x, y, x+w, y+h, Color.rgb(92,35,132), Color.rgb(166,55,232), Shader.TileMode.CLAMP);
-            p.setShader(lg); p.setStyle(Paint.Style.FILL);
-            c.drawRoundRect(new RectF(x,y,x+w,y+h), dp(12), dp(12), p); p.setShader(null);
-            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(1)); p.setColor(Color.argb(70,255,255,255)); c.drawRoundRect(new RectF(x+1,y+1,x+w-1,y+h-1), dp(12), dp(12), p);
-            p.setStyle(Paint.Style.FILL); p.setColor(Color.rgb(238, 61, 73));
+            RectF r = new RectF(x, y, x+w, y+h);
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.rgb(38, 35, 45));
+            c.drawRoundRect(r, dp(12), dp(12), p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1));
+            p.setColor(Color.argb(80,255,255,255));
+            c.drawRoundRect(new RectF(x+1,y+1,x+w-1,y+h-1), dp(12), dp(12), p);
+
+            float sx = x + w * 0.22f, sy = y + h * 0.20f;
             Path shirt = new Path();
-            shirt.moveTo(x+w*.34f,y+h*.30f); shirt.lineTo(x+w*.24f,y+h*.38f); shirt.lineTo(x+w*.18f,y+h*.54f); shirt.lineTo(x+w*.31f,y+h*.59f); shirt.lineTo(x+w*.31f,y+h*.76f); shirt.lineTo(x+w*.69f,y+h*.76f); shirt.lineTo(x+w*.69f,y+h*.59f); shirt.lineTo(x+w*.82f,y+h*.54f); shirt.lineTo(x+w*.76f,y+h*.38f); shirt.lineTo(x+w*.66f,y+h*.30f); shirt.quadTo(x+w*.50f,y+h*.40f,x+w*.34f,y+h*.30f); shirt.close();
-            c.drawPath(shirt,p);
-            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(1)); p.setColor(Color.argb(120,255,255,255)); c.drawPath(shirt,p);
+            shirt.moveTo(x+w*.36f, y+h*.27f);
+            shirt.cubicTo(x+w*.43f, y+h*.36f, x+w*.57f, y+h*.36f, x+w*.64f, y+h*.27f);
+            shirt.lineTo(x+w*.79f, y+h*.36f);
+            shirt.lineTo(x+w*.87f, y+h*.53f);
+            shirt.lineTo(x+w*.72f, y+h*.60f);
+            shirt.lineTo(x+w*.72f, y+h*.78f);
+            shirt.lineTo(x+w*.28f, y+h*.78f);
+            shirt.lineTo(x+w*.28f, y+h*.60f);
+            shirt.lineTo(x+w*.13f, y+h*.53f);
+            shirt.lineTo(x+w*.21f, y+h*.36f);
+            shirt.close();
+
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.rgb(226, 56, 70));
+            c.drawPath(shirt, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1));
+            p.setColor(Color.argb(160,255,255,255));
+            c.drawPath(shirt, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1));
+            p.setColor(Color.argb(90,0,0,0));
+            c.drawLine(x+w*.40f, y+h*.30f, x+w*.60f, y+h*.30f, p);
         }
         @Override public void setAlpha(int a){p.setAlpha(a);} @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);} @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
