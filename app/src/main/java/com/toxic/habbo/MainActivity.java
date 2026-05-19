@@ -1425,6 +1425,166 @@ public class MainActivity extends Activity {
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
 
+
+    class IconView extends View {
+        private final String type;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        IconView(Context context, String type) {
+            super(context);
+            this.type = type == null ? "" : type;
+        }
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float w = getWidth();
+            float h = getHeight();
+            float cx = w / 2f;
+            float cy = h / 2f;
+            float s = Math.min(w, h);
+            paint.setShader(null);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            paint.setStrokeWidth(Math.max(2f, s * 0.09f));
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setColor(Color.WHITE);
+
+            String t = type.toLowerCase(Locale.ROOT);
+            if ("dot".equals(t)) {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(green);
+                canvas.drawCircle(cx, cy, s * 0.33f, paint);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(Math.max(1f, s * 0.08f));
+                paint.setColor(Color.argb(230, 255, 255, 255));
+                canvas.drawCircle(cx, cy, s * 0.33f, paint);
+                return;
+            }
+            if ("lock".equals(t)) {
+                RectF body = new RectF(cx - s*.26f, cy - s*.02f, cx + s*.26f, cy + s*.34f);
+                canvas.drawRoundRect(body, s*.07f, s*.07f, paint);
+                RectF arc = new RectF(cx - s*.22f, cy - s*.34f, cx + s*.22f, cy + s*.16f);
+                canvas.drawArc(arc, 205, 130, false, paint);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(cx, cy + s*.14f, s*.035f, paint);
+                return;
+            }
+            if ("clock".equals(t)) {
+                canvas.drawCircle(cx, cy, s*.35f, paint);
+                canvas.drawLine(cx, cy, cx, cy - s*.18f, paint);
+                canvas.drawLine(cx, cy, cx + s*.16f, cy + s*.10f, paint);
+                return;
+            }
+            if ("calendar".equals(t)) {
+                RectF r = new RectF(cx - s*.33f, cy - s*.28f, cx + s*.33f, cy + s*.32f);
+                canvas.drawRoundRect(r, s*.07f, s*.07f, paint);
+                canvas.drawLine(cx - s*.33f, cy - s*.10f, cx + s*.33f, cy - s*.10f, paint);
+                canvas.drawLine(cx - s*.18f, cy - s*.38f, cx - s*.18f, cy - s*.20f, paint);
+                canvas.drawLine(cx + s*.18f, cy - s*.38f, cx + s*.18f, cy - s*.20f, paint);
+                return;
+            }
+            if ("friends".equals(t)) {
+                paint.setStyle(Paint.Style.STROKE);
+                canvas.drawCircle(cx - s*.14f, cy - s*.14f, s*.12f, paint);
+                canvas.drawCircle(cx + s*.16f, cy - s*.10f, s*.10f, paint);
+                canvas.drawArc(new RectF(cx - s*.38f, cy + s*.02f, cx + s*.10f, cy + s*.48f), 205, 130, false, paint);
+                canvas.drawArc(new RectF(cx - s*.05f, cy + s*.04f, cx + s*.38f, cy + s*.44f), 210, 120, false, paint);
+                return;
+            }
+            if ("rooms".equals(t)) {
+                Path house = new Path();
+                house.moveTo(cx - s*.34f, cy - s*.02f);
+                house.lineTo(cx, cy - s*.34f);
+                house.lineTo(cx + s*.34f, cy - s*.02f);
+                house.moveTo(cx - s*.25f, cy - s*.02f);
+                house.lineTo(cx - s*.25f, cy + s*.32f);
+                house.lineTo(cx + s*.25f, cy + s*.32f);
+                house.lineTo(cx + s*.25f, cy - s*.02f);
+                canvas.drawPath(house, paint);
+                return;
+            }
+            if ("groups".equals(t)) {
+                RectF shield = new RectF(cx - s*.30f, cy - s*.34f, cx + s*.30f, cy + s*.34f);
+                Path path = new Path();
+                path.moveTo(cx, cy + s*.36f);
+                path.cubicTo(cx - s*.28f, cy + s*.20f, cx - s*.32f, cy - s*.08f, cx - s*.28f, cy - s*.30f);
+                path.quadTo(cx, cy - s*.40f, cx + s*.28f, cy - s*.30f);
+                path.cubicTo(cx + s*.32f, cy - s*.08f, cx + s*.28f, cy + s*.20f, cx, cy + s*.36f);
+                canvas.drawPath(path, paint);
+                return;
+            }
+            if ("photos".equals(t)) {
+                RectF cam = new RectF(cx - s*.34f, cy - s*.22f, cx + s*.34f, cy + s*.28f);
+                canvas.drawRoundRect(cam, s*.07f, s*.07f, paint);
+                canvas.drawCircle(cx, cy + s*.03f, s*.13f, paint);
+                canvas.drawLine(cx - s*.18f, cy - s*.22f, cx - s*.10f, cy - s*.34f, paint);
+                canvas.drawLine(cx - s*.10f, cy - s*.34f, cx + s*.10f, cy - s*.34f, paint);
+                canvas.drawLine(cx + s*.10f, cy - s*.34f, cx + s*.18f, cy - s*.22f, paint);
+                return;
+            }
+            if ("star".equals(t)) {
+                Path star = new Path();
+                for (int i=0; i<10; i++) {
+                    double a = -Math.PI/2 + i*Math.PI/5;
+                    float rr = (i%2==0) ? s*.34f : s*.14f;
+                    float x = cx + (float)Math.cos(a)*rr;
+                    float y = cy + (float)Math.sin(a)*rr;
+                    if (i==0) star.moveTo(x,y); else star.lineTo(x,y);
+                }
+                star.close();
+                canvas.drawPath(star, paint);
+                return;
+            }
+            if ("level".equals(t)) {
+                canvas.drawCircle(cx, cy, s*.34f, paint);
+                canvas.drawLine(cx - s*.16f, cy + s*.14f, cx + s*.16f, cy + s*.14f, paint);
+                canvas.drawLine(cx, cy + s*.14f, cx, cy - s*.18f, paint);
+                canvas.drawLine(cx, cy - s*.18f, cx - s*.10f, cy - s*.06f, paint);
+                canvas.drawLine(cx, cy - s*.18f, cx + s*.10f, cy - s*.06f, paint);
+                return;
+            }
+            if ("status".equals(t)) {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(red);
+                canvas.drawCircle(cx, cy, s*.30f, paint);
+                return;
+            }
+            // fallback: small rounded square
+            RectF r = new RectF(cx - s*.25f, cy - s*.25f, cx + s*.25f, cy + s*.25f);
+            canvas.drawRoundRect(r, s*.08f, s*.08f, paint);
+        }
+    }
+
+    class PlaceholderDrawable extends Drawable {
+        private final String type;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        PlaceholderDrawable(String type) { this.type = type == null ? "" : type; }
+        @Override public void draw(Canvas canvas) {
+            Rect b = getBounds();
+            RectF r = new RectF(b.left, b.top, b.right, b.bottom);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(36, 255, 255, 255));
+            canvas.drawRoundRect(r, dp(14), dp(14), paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(2));
+            paint.setColor(Color.argb(120, 255, 255, 255));
+            float cx = r.centerX(), cy = r.centerY();
+            float s = Math.min(r.width(), r.height());
+            if ("groups".equalsIgnoreCase(type)) {
+                Path shield = new Path();
+                shield.moveTo(cx, cy + s*.26f);
+                shield.cubicTo(cx - s*.25f, cy + s*.12f, cx - s*.30f, cy - s*.10f, cx - s*.24f, cy - s*.28f);
+                shield.quadTo(cx, cy - s*.36f, cx + s*.24f, cy - s*.28f);
+                shield.cubicTo(cx + s*.30f, cy - s*.10f, cx + s*.25f, cy + s*.12f, cx, cy + s*.26f);
+                canvas.drawPath(shield, paint);
+            } else {
+                canvas.drawCircle(cx, cy, s*.25f, paint);
+            }
+        }
+        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }
+        @Override public void setColorFilter(android.graphics.ColorFilter cf) { paint.setColorFilter(cf); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
     class ArrowButtonDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG); boolean left;
         ArrowButtonDrawable(boolean left){ this.left = left; }
