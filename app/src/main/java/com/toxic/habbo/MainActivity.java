@@ -1,7 +1,6 @@
 package com.toxic.habbo;
 
 import android.app.*;
-import android.animation.*;
 import android.os.*;
 import android.graphics.*;
 import android.graphics.drawable.*;
@@ -34,7 +33,6 @@ public class MainActivity extends Activity {
     private int avatarDirection = 2;
     private ImageView currentAvatarImage;
     private String currentProfileFigure = "";
-    private boolean currentRenderPrivate = false;
 
     private final int bg = Color.rgb(13, 13, 18);
     private final int purple = Color.rgb(139, 52, 217);
@@ -136,7 +134,6 @@ public class MainActivity extends Activity {
     }
 
     private void showStartState() {
-        currentRenderPrivate = false;
         resultWrap.removeAllViews();
         LinearLayout c = sectionCard("Pronto para buscar", 0, false);
         c.addView(centerNote("Digite um nick do Habbo BR para consultar perfil, fotos, missões anteriores, visuais, amigos, quartos e grupos."));
@@ -147,8 +144,8 @@ public class MainActivity extends Activity {
         if (nick.isEmpty()) { toast("Digite um nick do Habbo."); return; }
         hideKeyboard();
         suggestionsBox.setVisibility(View.GONE);
-        setLoading(true, "Buscando " + nick + "...");
         resultWrap.removeAllViews();
+        setLoading(true, "Buscando " + nick + "...");
         executor.execute(() -> {
             try {
                 final ProfileResult r = loadProfile(nick, false);
@@ -245,11 +242,11 @@ public class MainActivity extends Activity {
 
     private void completeProfileSections(ProfileResult r) {
         if (r == null || r.uniqueId == null || r.uniqueId.isEmpty()) return;
-        try { r.photos = fetchAll(r.uniqueId, "photos", "photos", 100, 3); } catch(Exception ignored) {}
+        try { r.photos = fetchAll(r.uniqueId, "photos", "photos", 100, 50); } catch(Exception ignored) {}
         runOnUiThread(() -> { renderProfile(r); showInlineLoading("Carregando histórico..."); });
         try { r.previousMottos = fetchAll(r.uniqueId, "previous-mottos", null, 100, 3); } catch(Exception ignored) {}
         runOnUiThread(() -> { renderProfile(r); showInlineLoading("Carregando visuais e amigos..."); });
-        try { r.previousStyles = fetchAll(r.uniqueId, "previous-styles", null, 100, 3); } catch(Exception ignored) {}
+        try { r.previousStyles = fetchAll(r.uniqueId, "previous-styles", null, 100, 50); } catch(Exception ignored) {}
         try { r.friends = mergeLists(fetchAll(r.uniqueId, "friends", "friends", 100, 3), r.friends); } catch(Exception ignored) {}
         try { r.oldFriends = fetchAll(r.uniqueId, "previous-friends", null, 30, 5); } catch(Exception ignored) {}
         runOnUiThread(() -> { renderProfile(r); showInlineLoading("Carregando quartos e grupos..."); });
@@ -271,7 +268,17 @@ public class MainActivity extends Activity {
                 out.addAll(items);
                 JSONObject next = pageData.optJSONObject("next");
                 int nextPage = next == null ? 0 : next.optInt("page", 0);
-                if (nextPage <= 0 || nextPage == page) break;
+                if (nextPage <= 0) {
+                    int totalPages = pageData.optInt("totalPages", pageData.optInt("pages", 0));
+                    JSONObject pagination = pageData.optJSONObject("pagination");
+                    if (pagination != null) {
+                        totalPages = Math.max(totalPages, pagination.optInt("totalPages", pagination.optInt("pages", 0)));
+                        nextPage = pagination.optInt("nextPage", 0);
+                    }
+                    if (nextPage <= 0 && totalPages > page) nextPage = page + 1;
+                    if (nextPage <= 0 && items.size() >= limit) nextPage = page + 1;
+                }
+                if (nextPage <= 0 || nextPage == page || nextPage > maxPages) break;
                 page = nextPage;
             } catch (Exception ignored) { break; }
         }
@@ -298,7 +305,6 @@ public class MainActivity extends Activity {
     }
 
     private void renderProfile(ProfileResult r) {
-        currentRenderPrivate = r != null && r.privateProfile;
         setLoading(false, "");
         resultWrap.removeAllViews();
 
@@ -426,9 +432,6 @@ public class MainActivity extends Activity {
 
     private LinearLayout statRow(String icon, String label, String value) {
         LinearLayout row = card(dp(18));
-        if (currentRenderPrivate) {
-            row.setBackground(round(cardFill, dp(18), Color.argb(80, 255, 64, 64), 1));
-        }
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(10), dp(7), dp(10), dp(7));
@@ -455,27 +458,19 @@ public class MainActivity extends Activity {
         HorizontalScrollView hsv = new HorizontalScrollView(this);
         hsv.setHorizontalScrollBarEnabled(false);
         hsv.setFillViewport(true);
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER);
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER);
         row.setMinimumWidth(getResources().getDisplayMetrics().widthPixels - dp(36));
-        row.setPadding(dp(2), dp(4), dp(2), dp(4));
+        row.setPadding(dp(2), dp(2), dp(2), dp(2));
         hsv.addView(row);
-        resultWrap.addView(hsv, lp(-1, dp(82), 0, 0, 0, 14));
+        resultWrap.addView(hsv, lp(-1, dp(74), 0, 0, 0, 14));
         for (int i=0; i<Math.min(list.size(), 12); i++) {
-            JSONObject b = list.get(i);
-            String code = firstText(b, "code", "badgeCode");
-            ImageView img = new ImageView(this);
-            img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            img.setAdjustViewBounds(false);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(60), dp(60));
-            p.rightMargin = dp(12);
-            row.addView(img, p);
+            JSONObject b = list.get(i); String code = firstText(b, "code", "badgeCode");
+            ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(62), dp(62)); p.rightMargin = dp(10); row.addView(img, p);
             if (!code.isEmpty()) loadImage(img, "https://images.habbo.com/c_images/album1584/" + enc(code) + ".png");
         }
     }
 
-    
     private void addPreviousNames(ArrayList<JSONObject> list) {
         if (list.isEmpty()) return;
         LinearLayout c = sectionCard("Nomes anteriores", list.size(), true);
@@ -534,7 +529,7 @@ public class MainActivity extends Activity {
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(172), 0, 0, 0, 8));
-        for (int i=0; i<Math.min(list.size(), 20); i++) {
+        for (int i=0; i<list.size(); i++) {
             JSONObject o = list.get(i);
             String fig = firstText(o, "figureString", "figure", "look");
             if (fig.isEmpty()) continue;
@@ -625,7 +620,7 @@ public class MainActivity extends Activity {
     private LinearLayout clothingRow(JSONObject o) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(Color.argb(26,255,255,255), dp(14), Color.argb(28,255,255,255),1));
         row.setLayoutParams(lp(-1, -2, 0, 0, 0, 10));
-        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(60), dp(60)));
+        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(86), dp(86)));
         String code = firstText(o, "code", "classname", "className", "id");
         String icon = firstText(o, "iconUrl", "imageUrl", "url", "thumbnail");
         if (icon.isEmpty() && !code.isEmpty()) icon = "https://habbodex.com/images/furni/" + enc(code) + "/" + enc(code) + "_icon.png";
@@ -751,7 +746,7 @@ public class MainActivity extends Activity {
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(165), 0, 0, 0, 0));
-        for (int i=0; i<Math.min(list.size(), 24); i++) {
+        for (int i=0; i<list.size(); i++) {
             JSONObject o = list.get(i);
             String url = getPhotoUrl(o);
             String date = getPhotoTimestamp(o);
@@ -1003,9 +998,6 @@ public class MainActivity extends Activity {
 
     private LinearLayout sectionCard(String title, int count, boolean showTitle) {
         LinearLayout c = card(dp(20));
-        if (currentRenderPrivate) {
-            c.setBackground(round(cardFill, dp(20), Color.argb(80, 255, 64, 64), 1));
-        }
         c.setPadding(dp(16), dp(16), dp(16), dp(16));
         resultWrap.addView(c, lp(-1, -2, 0, 0, 0, 18));
         if (showTitle && title != null) {
@@ -1171,96 +1163,93 @@ public class MainActivity extends Activity {
     }
 
     private void showLoadingSkeleton(String message) {
-        currentRenderPrivate = false;
         resultWrap.removeAllViews();
 
         LinearLayout c = card(dp(22));
         c.setPadding(dp(18), dp(18), dp(18), dp(18));
         resultWrap.addView(c, lp(-1, -2, 0, 0, 0, 18));
 
-        TextView title = habboText(message == null ? "Buscando perfil..." : message, 18, true);
+        TextView title = habboText(message, 18, true);
         title.setGravity(Gravity.CENTER);
-        c.addView(title, lp(-1, -2, 0, 0, 0, 14));
+        c.addView(title, lp(-1,-2,0,0,0,12));
 
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.VERTICAL);
-        top.setGravity(Gravity.CENTER);
-        top.setPadding(dp(12), dp(10), dp(12), dp(10));
-        top.setBackground(round(Color.argb(18, 255, 255, 255), dp(18), Color.argb(24, 255, 255, 255), 1));
-        c.addView(top, lp(-1, dp(224), 0, 0, 0, 16));
+        FrameLayout avatar = new FrameLayout(this);
+        avatar.setBackground(round(Color.rgb(15, 8, 25), dp(18), Color.argb(24,255,255,255), 1));
+        c.addView(avatar, lp(-1, dp(190), 0,0,0,16));
 
         ImageView walker = new ImageView(this);
         walker.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        top.addView(walker, new LinearLayout.LayoutParams(-1, dp(156)));
-
+        walker.setPadding(dp(18), dp(4), dp(18), dp(4));
+        avatar.addView(walker, new FrameLayout.LayoutParams(-1, -1));
         String nick = searchInput == null ? "" : searchInput.getText().toString().trim();
         if (!nick.isEmpty()) {
             loadImage(walker, "https://www.habbo.com.br/habbo-imaging/avatarimage?user=" + enc(nick) + "&action=wlk&direction=2&head_direction=2&img_format=png&headonly=0&size=b");
+            startFloating(walker);
         }
-
-        ObjectAnimator floatAnim = ObjectAnimator.ofFloat(walker, "translationY", 0f, -dp(12), 0f);
-        floatAnim.setDuration(1300);
-        floatAnim.setRepeatCount(ValueAnimator.INFINITE);
-        floatAnim.start();
-
-        TextView loadingText = text("Carregando informações...", 13, Color.argb(210,255,255,255), true);
-        loadingText.setGravity(Gravity.CENTER);
-        top.addView(loadingText, lp(-1, -2, 0, 4, 0, 0));
-
-        LinearLayout lines = new LinearLayout(this);
-        lines.setOrientation(LinearLayout.VERTICAL);
-        c.addView(lines, lp(-1, -2, 0, 0, 0, 16));
-        addSkeletonLine(lines, 28, 54, 54, 12);
-        addSkeletonLine(lines, 18, 18, 18, 10);
-        addSkeletonLine(lines, 18, 36, 36, 14);
 
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
         c.addView(grid, lp(-1, -2, 0, 0, 0, 0));
+        grid.addView(skeletonLine(dp(180), dp(28), true));
+        grid.addView(skeletonLine(-1, dp(16), false));
+        grid.addView(skeletonLine(-1, dp(16), false));
+
         for (int rowIndex = 0; rowIndex < 3; rowIndex++) {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            grid.addView(row, lp(-1, dp(58), 0, 0, 0, 10));
+            grid.addView(row, lp(-1, dp(58), 0, 6, 0, 8));
             for (int col = 0; col < 2; col++) {
-                LinearLayout box = new LinearLayout(this);
-                box.setOrientation(LinearLayout.HORIZONTAL);
-                box.setGravity(Gravity.CENTER_VERTICAL);
-                box.setPadding(dp(10), dp(8), dp(10), dp(8));
-                box.setBackground(round(Color.argb(18,255,255,255), dp(16), Color.argb(22,255,255,255), 1));
-                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, -1, 1);
-                if (col == 1) bp.leftMargin = dp(10);
-                row.addView(box, bp);
-
-                View icon = skeletonView(dp(22), dp(22), dp(999));
-                box.addView(icon);
-                LinearLayout textCol = new LinearLayout(this);
-                textCol.setOrientation(LinearLayout.VERTICAL);
-                LinearLayout.LayoutParams tcp = new LinearLayout.LayoutParams(0, -2, 1);
-                tcp.leftMargin = dp(10);
-                box.addView(textCol, tcp);
-                addSkeletonLine(textCol, 10, 0, 28, 6);
-                addSkeletonLine(textCol, 14, 0, 0, 0);
+                LinearLayout mini = new LinearLayout(this);
+                mini.setOrientation(LinearLayout.HORIZONTAL);
+                mini.setGravity(Gravity.CENTER_VERTICAL);
+                mini.setPadding(dp(10), dp(7), dp(10), dp(7));
+                mini.setBackground(round(Color.argb(22,255,255,255), dp(16), Color.argb(24,255,255,255), 1));
+                LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -1, 1);
+                if (col == 1) mp.leftMargin = dp(8);
+                row.addView(mini, mp);
+                mini.addView(skeletonBlock(dp(24), dp(24), dp(999)));
+                LinearLayout lines = new LinearLayout(this);
+                lines.setOrientation(LinearLayout.VERTICAL);
+                LinearLayout.LayoutParams lpLines = new LinearLayout.LayoutParams(0, -2, 1);
+                lpLines.leftMargin = dp(9);
+                mini.addView(lines, lpLines);
+                lines.addView(skeletonLine(dp(70), dp(10), false));
+                lines.addView(skeletonLine(dp(110), dp(14), false));
             }
         }
     }
 
-    private void addSkeletonLine(LinearLayout parent, int heightDp, int leftDp, int rightDp, int bottomDp) {
-        View v = skeletonView(-1, dp(heightDp), dp(999));
-        parent.addView(v, lp(-1, dp(heightDp), leftDp, 0, rightDp, bottomDp));
-    }
-
-    private View skeletonView(int width, int height, int radius) {
-        View v = new View(this);
-        v.setBackground(new ShimmerDrawable(radius));
-        if (width > 0 || height > 0) v.setLayoutParams(new LinearLayout.LayoutParams(width, height));
-        ObjectAnimator pulse = ObjectAnimator.ofFloat(v, "alpha", 0.45f, 1f, 0.45f);
-        pulse.setDuration(1200);
-        pulse.setRepeatCount(ValueAnimator.INFINITE);
-        pulse.start();
+    private View skeletonLine(int width, int height, boolean centered) {
+        View v = skeletonBlock(width < 0 ? -1 : width, height, dp(999));
+        LinearLayout.LayoutParams p = lp(width < 0 ? -1 : width, height, centered ? 40 : 0, 0, centered ? 40 : 0, 10);
+        v.setLayoutParams(p);
         return v;
     }
 
-    
+    private View skeletonBlock(int width, int height, int radius) {
+        View v = new View(this);
+        v.setBackground(round(Color.argb(28,255,255,255), radius, Color.argb(18,255,255,255), 1));
+        v.setAlpha(0.72f);
+        v.animate().alpha(1f).setDuration(650).withEndAction(() -> v.animate().alpha(0.55f).setDuration(650).withEndAction(() -> pulseSkeleton(v)).start()).start();
+        v.setLayoutParams(new LinearLayout.LayoutParams(width, height));
+        return v;
+    }
+
+    private void pulseSkeleton(View v) {
+        if (v == null || v.getWindowToken() == null) return;
+        v.animate().alpha(1f).setDuration(650).withEndAction(() -> {
+            if (v.getWindowToken() != null) v.animate().alpha(0.55f).setDuration(650).withEndAction(() -> pulseSkeleton(v)).start();
+        }).start();
+    }
+
+    private void startFloating(View v) {
+        if (v == null) return;
+        v.setTranslationY(dp(5));
+        v.animate().translationY(-dp(7)).setDuration(900).withEndAction(() -> {
+            if (v.getWindowToken() != null) v.animate().translationY(dp(5)).setDuration(900).withEndAction(() -> startFloating(v)).start();
+        }).start();
+    }
+
     private Object getJsonAny(String u) throws Exception { HttpURLConnection c = (HttpURLConnection)new URL(u).openConnection(); c.setConnectTimeout(12000); c.setReadTimeout(24000); c.setRequestProperty("Accept", "application/json, text/plain, */*"); c.setRequestProperty("User-Agent", "ToxicHabboApp/2.0 Android"); int code = c.getResponseCode(); InputStream is = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream(); String body = readAll(is); if (code < 200 || code >= 300 || body == null || body.trim().isEmpty()) throw new IOException("HTTP " + code); String clean = body.trim(); return clean.startsWith("[") ? new JSONArray(clean) : new JSONObject(clean); }
     private JSONObject getJson(String u) throws Exception { Object any = getJsonAny(u); if (any instanceof JSONObject) return (JSONObject)any; JSONObject wrap = new JSONObject(); wrap.put("data", any); return wrap; }
     private JSONObject tryJson(String u) { try { return getJson(u); } catch (Exception e) { return null; } }
@@ -1399,288 +1388,67 @@ public class MainActivity extends Activity {
     }
 
 
-    public class ShimmerDrawable extends Drawable {
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        int radius;
-        ShimmerDrawable(int radius) { this.radius = radius; }
-        @Override public void draw(Canvas c) {
-            Rect b = getBounds();
-            float x=b.left, y=b.top, w=b.width(), h=b.height();
-            LinearGradient lg = new LinearGradient(x, y, x+w, y, new int[]{
-                Color.argb(18,255,255,255),
-                Color.argb(48,255,255,255),
-                Color.argb(18,255,255,255)
-            }, new float[]{0f,.5f,1f}, Shader.TileMode.CLAMP);
-            p.setShader(lg);
-            p.setStyle(Paint.Style.FILL);
-            c.drawRoundRect(new RectF(x,y,x+w,y+h), radius, radius, p);
-            p.setShader(null);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(1));
-            p.setColor(Color.argb(18,255,255,255));
-            c.drawRoundRect(new RectF(x+1,y+1,x+w-1,y+h-1), radius, radius, p);
-        }
-        @Override public void setAlpha(int a){p.setAlpha(a);}
-        @Override public void setColorFilter(android.graphics.ColorFilter cf){p.setColorFilter(cf);}
-        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
-    }
-
-
-    class IconView extends View {
-        private final String type;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        IconView(Context context, String type) {
-            super(context);
-            this.type = type == null ? "" : type;
-        }
-        @Override protected void onDraw(Canvas canvas) {
-            super.onDraw(canvas);
-            float w = getWidth();
-            float h = getHeight();
-            float cx = w / 2f;
-            float cy = h / 2f;
-            float s = Math.min(w, h);
-            paint.setShader(null);
-            paint.setStrokeCap(Paint.Cap.ROUND);
-            paint.setStrokeJoin(Paint.Join.ROUND);
-            paint.setStrokeWidth(Math.max(2f, s * 0.09f));
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(Color.WHITE);
-
-            String t = type.toLowerCase(Locale.ROOT);
-            if ("dot".equals(t)) {
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(green);
-                canvas.drawCircle(cx, cy, s * 0.33f, paint);
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(Math.max(1f, s * 0.08f));
-                paint.setColor(Color.argb(230, 255, 255, 255));
-                canvas.drawCircle(cx, cy, s * 0.33f, paint);
-                return;
-            }
-            if ("lock".equals(t)) {
-                RectF body = new RectF(cx - s*.26f, cy - s*.02f, cx + s*.26f, cy + s*.34f);
-                canvas.drawRoundRect(body, s*.07f, s*.07f, paint);
-                RectF arc = new RectF(cx - s*.22f, cy - s*.34f, cx + s*.22f, cy + s*.16f);
-                canvas.drawArc(arc, 205, 130, false, paint);
-                paint.setStyle(Paint.Style.FILL);
-                canvas.drawCircle(cx, cy + s*.14f, s*.035f, paint);
-                return;
-            }
-            if ("clock".equals(t)) {
-                canvas.drawCircle(cx, cy, s*.35f, paint);
-                canvas.drawLine(cx, cy, cx, cy - s*.18f, paint);
-                canvas.drawLine(cx, cy, cx + s*.16f, cy + s*.10f, paint);
-                return;
-            }
-            if ("calendar".equals(t)) {
-                RectF r = new RectF(cx - s*.33f, cy - s*.28f, cx + s*.33f, cy + s*.32f);
-                canvas.drawRoundRect(r, s*.07f, s*.07f, paint);
-                canvas.drawLine(cx - s*.33f, cy - s*.10f, cx + s*.33f, cy - s*.10f, paint);
-                canvas.drawLine(cx - s*.18f, cy - s*.38f, cx - s*.18f, cy - s*.20f, paint);
-                canvas.drawLine(cx + s*.18f, cy - s*.38f, cx + s*.18f, cy - s*.20f, paint);
-                return;
-            }
-            if ("friends".equals(t)) {
-                paint.setStyle(Paint.Style.STROKE);
-                canvas.drawCircle(cx - s*.14f, cy - s*.14f, s*.12f, paint);
-                canvas.drawCircle(cx + s*.16f, cy - s*.10f, s*.10f, paint);
-                canvas.drawArc(new RectF(cx - s*.38f, cy + s*.02f, cx + s*.10f, cy + s*.48f), 205, 130, false, paint);
-                canvas.drawArc(new RectF(cx - s*.05f, cy + s*.04f, cx + s*.38f, cy + s*.44f), 210, 120, false, paint);
-                return;
-            }
-            if ("rooms".equals(t)) {
-                Path house = new Path();
-                house.moveTo(cx - s*.34f, cy - s*.02f);
-                house.lineTo(cx, cy - s*.34f);
-                house.lineTo(cx + s*.34f, cy - s*.02f);
-                house.moveTo(cx - s*.25f, cy - s*.02f);
-                house.lineTo(cx - s*.25f, cy + s*.32f);
-                house.lineTo(cx + s*.25f, cy + s*.32f);
-                house.lineTo(cx + s*.25f, cy - s*.02f);
-                canvas.drawPath(house, paint);
-                return;
-            }
-            if ("groups".equals(t)) {
-                RectF shield = new RectF(cx - s*.30f, cy - s*.34f, cx + s*.30f, cy + s*.34f);
-                Path path = new Path();
-                path.moveTo(cx, cy + s*.36f);
-                path.cubicTo(cx - s*.28f, cy + s*.20f, cx - s*.32f, cy - s*.08f, cx - s*.28f, cy - s*.30f);
-                path.quadTo(cx, cy - s*.40f, cx + s*.28f, cy - s*.30f);
-                path.cubicTo(cx + s*.32f, cy - s*.08f, cx + s*.28f, cy + s*.20f, cx, cy + s*.36f);
-                canvas.drawPath(path, paint);
-                return;
-            }
-            if ("photos".equals(t)) {
-                RectF cam = new RectF(cx - s*.34f, cy - s*.22f, cx + s*.34f, cy + s*.28f);
-                canvas.drawRoundRect(cam, s*.07f, s*.07f, paint);
-                canvas.drawCircle(cx, cy + s*.03f, s*.13f, paint);
-                canvas.drawLine(cx - s*.18f, cy - s*.22f, cx - s*.10f, cy - s*.34f, paint);
-                canvas.drawLine(cx - s*.10f, cy - s*.34f, cx + s*.10f, cy - s*.34f, paint);
-                canvas.drawLine(cx + s*.10f, cy - s*.34f, cx + s*.18f, cy - s*.22f, paint);
-                return;
-            }
-            if ("star".equals(t)) {
-                Path star = new Path();
-                for (int i=0; i<10; i++) {
-                    double a = -Math.PI/2 + i*Math.PI/5;
-                    float rr = (i%2==0) ? s*.34f : s*.14f;
-                    float x = cx + (float)Math.cos(a)*rr;
-                    float y = cy + (float)Math.sin(a)*rr;
-                    if (i==0) star.moveTo(x,y); else star.lineTo(x,y);
-                }
-                star.close();
-                canvas.drawPath(star, paint);
-                return;
-            }
-            if ("level".equals(t)) {
-                canvas.drawCircle(cx, cy, s*.34f, paint);
-                canvas.drawLine(cx - s*.16f, cy + s*.14f, cx + s*.16f, cy + s*.14f, paint);
-                canvas.drawLine(cx, cy + s*.14f, cx, cy - s*.18f, paint);
-                canvas.drawLine(cx, cy - s*.18f, cx - s*.10f, cy - s*.06f, paint);
-                canvas.drawLine(cx, cy - s*.18f, cx + s*.10f, cy - s*.06f, paint);
-                return;
-            }
-            if ("status".equals(t)) {
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(red);
-                canvas.drawCircle(cx, cy, s*.30f, paint);
-                return;
-            }
-            // fallback: small rounded square
-            RectF r = new RectF(cx - s*.25f, cy - s*.25f, cx + s*.25f, cy + s*.25f);
-            canvas.drawRoundRect(r, s*.08f, s*.08f, paint);
-        }
-    }
-
-    class PlaceholderDrawable extends Drawable {
-        private final String type;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        PlaceholderDrawable(String type) { this.type = type == null ? "" : type; }
-        @Override public void draw(Canvas canvas) {
-            Rect b = getBounds();
-            RectF r = new RectF(b.left, b.top, b.right, b.bottom);
-            paint.setShader(null);
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(Color.argb(36, 255, 255, 255));
-            canvas.drawRoundRect(r, dp(14), dp(14), paint);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(dp(2));
-            paint.setColor(Color.argb(120, 255, 255, 255));
-            float cx = r.centerX(), cy = r.centerY();
-            float s = Math.min(r.width(), r.height());
-            if ("groups".equalsIgnoreCase(type)) {
-                Path shield = new Path();
-                shield.moveTo(cx, cy + s*.26f);
-                shield.cubicTo(cx - s*.25f, cy + s*.12f, cx - s*.30f, cy - s*.10f, cx - s*.24f, cy - s*.28f);
-                shield.quadTo(cx, cy - s*.36f, cx + s*.24f, cy - s*.28f);
-                shield.cubicTo(cx + s*.30f, cy - s*.10f, cx + s*.25f, cy + s*.12f, cx, cy + s*.26f);
-                canvas.drawPath(shield, paint);
-            } else {
-                canvas.drawCircle(cx, cy, s*.25f, paint);
-            }
-        }
-        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }
-        @Override public void setColorFilter(android.graphics.ColorFilter cf) { paint.setColorFilter(cf); }
-        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
-    }
-
-    class ArrowButtonDrawable extends Drawable {
+    public class ArrowButtonDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG); boolean left;
         ArrowButtonDrawable(boolean left){ this.left = left; }
         @Override public void draw(Canvas c) {
             Rect b = getBounds(); float w=b.width(), h=b.height(), x=b.left, y=b.top;
-            RectF r = new RectF(x, y, x+w, y+h);
-            p.setShader(null);
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.rgb(34, 31, 42));
-            c.drawRoundRect(r, dp(12), dp(12), p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(1));
-            p.setColor(Color.argb(80,255,255,255));
+            LinearGradient lg = new LinearGradient(x, y, x+w, y+h, Color.rgb(92,35,132), Color.rgb(166,55,232), Shader.TileMode.CLAMP);
+            p.setShader(lg); p.setStyle(Paint.Style.FILL);
+            c.drawRoundRect(new RectF(x,y,x+w,y+h), dp(12), dp(12), p); p.setShader(null);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(1)); p.setColor(Color.argb(70,255,255,255));
             c.drawRoundRect(new RectF(x+1,y+1,x+w-1,y+h-1), dp(12), dp(12), p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(2));
-            p.setStrokeCap(Paint.Cap.ROUND);
-            p.setStrokeJoin(Paint.Join.ROUND);
-            p.setColor(Color.WHITE);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(3)); p.setStrokeCap(Paint.Cap.ROUND); p.setStrokeJoin(Paint.Join.ROUND); p.setColor(Color.WHITE);
             Path path = new Path();
-            if (left) {
-                path.moveTo(x+w*.43f, y+h*.30f);
-                path.lineTo(x+w*.24f, y+h*.50f);
-                path.lineTo(x+w*.43f, y+h*.70f);
-                c.drawPath(path, p);
-                c.drawLine(x+w*.28f, y+h*.50f, x+w*.72f, y+h*.50f, p);
-            } else {
-                path.moveTo(x+w*.57f, y+h*.30f);
-                path.lineTo(x+w*.76f, y+h*.50f);
-                path.lineTo(x+w*.57f, y+h*.70f);
-                c.drawPath(path, p);
-                c.drawLine(x+w*.28f, y+h*.50f, x+w*.72f, y+h*.50f, p);
-            }
+            if (left) { path.moveTo(x+w*.58f, y+h*.28f); path.lineTo(x+w*.38f, y+h*.50f); path.lineTo(x+w*.58f, y+h*.72f); }
+            else { path.moveTo(x+w*.42f, y+h*.28f); path.lineTo(x+w*.62f, y+h*.50f); path.lineTo(x+w*.42f, y+h*.72f); }
+            c.drawPath(path, p);
         }
-        @Override public void setAlpha(int a){p.setAlpha(a);}
-        @Override public void setColorFilter(android.graphics.ColorFilter cf){p.setColorFilter(cf);}
-        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+        @Override public void setAlpha(int a){p.setAlpha(a);} @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);} @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
 
-    class ShirtDrawable extends Drawable {
+    public class ShirtDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         @Override public void draw(Canvas c) {
             Rect b = getBounds(); float w=b.width(), h=b.height(), x=b.left, y=b.top;
-            RectF r = new RectF(x, y, x+w, y+h);
-            p.setShader(null);
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.rgb(34, 31, 42));
-            c.drawRoundRect(r, dp(12), dp(12), p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(1));
-            p.setColor(Color.argb(80,255,255,255));
-            c.drawRoundRect(new RectF(x+1,y+1,x+w-1,y+h-1), dp(12), dp(12), p);
-
-            Path leftSleeve = new Path();
-            leftSleeve.moveTo(x+w*.30f, y+h*.26f);
-            leftSleeve.lineTo(x+w*.15f, y+h*.36f);
-            leftSleeve.lineTo(x+w*.25f, y+h*.56f);
-            leftSleeve.lineTo(x+w*.38f, y+h*.45f);
-            leftSleeve.close();
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.rgb(255, 107, 122));
-            c.drawPath(leftSleeve, p);
-
-            Path rightSleeve = new Path();
-            rightSleeve.moveTo(x+w*.70f, y+h*.26f);
-            rightSleeve.lineTo(x+w*.85f, y+h*.36f);
-            rightSleeve.lineTo(x+w*.75f, y+h*.56f);
-            rightSleeve.lineTo(x+w*.62f, y+h*.45f);
-            rightSleeve.close();
-            c.drawPath(rightSleeve, p);
-
-            Path body = new Path();
-            body.moveTo(x+w*.38f, y+h*.26f);
-            body.lineTo(x+w*.30f, y+h*.32f);
-            body.lineTo(x+w*.30f, y+h*.48f);
-            body.lineTo(x+w*.35f, y+h*.54f);
-            body.lineTo(x+w*.35f, y+h*.78f);
-            body.lineTo(x+w*.65f, y+h*.78f);
-            body.lineTo(x+w*.65f, y+h*.54f);
-            body.lineTo(x+w*.70f, y+h*.48f);
-            body.lineTo(x+w*.70f, y+h*.32f);
-            body.lineTo(x+w*.62f, y+h*.26f);
-            body.quadTo(x+w*.50f, y+h*.36f, x+w*.38f, y+h*.26f);
-            body.close();
-            p.setColor(Color.rgb(217, 75, 66));
-            c.drawPath(body, p);
-
-            p.setColor(Color.rgb(182, 58, 51));
-            c.drawRect(x+w*.35f, y+h*.54f, x+w*.40f, y+h*.78f, p);
-            c.drawRect(x+w*.60f, y+h*.54f, x+w*.65f, y+h*.78f, p);
-
-            p.setColor(Color.rgb(255, 107, 122));
-            c.drawRoundRect(new RectF(x+w*.42f, y+h*.70f, x+w*.58f, y+h*.75f), dp(2), dp(2), p);
+            LinearGradient lg = new LinearGradient(x, y, x+w, y+h, Color.rgb(92,35,132), Color.rgb(166,55,232), Shader.TileMode.CLAMP);
+            p.setShader(lg); p.setStyle(Paint.Style.FILL);
+            c.drawRoundRect(new RectF(x,y,x+w,y+h), dp(12), dp(12), p); p.setShader(null);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(1)); p.setColor(Color.argb(70,255,255,255)); c.drawRoundRect(new RectF(x+1,y+1,x+w-1,y+h-1), dp(12), dp(12), p);
+            p.setStyle(Paint.Style.FILL); p.setColor(Color.rgb(238, 61, 73));
+            Path shirt = new Path();
+            shirt.moveTo(x+w*.34f,y+h*.30f); shirt.lineTo(x+w*.24f,y+h*.38f); shirt.lineTo(x+w*.18f,y+h*.54f); shirt.lineTo(x+w*.31f,y+h*.59f); shirt.lineTo(x+w*.31f,y+h*.76f); shirt.lineTo(x+w*.69f,y+h*.76f); shirt.lineTo(x+w*.69f,y+h*.59f); shirt.lineTo(x+w*.82f,y+h*.54f); shirt.lineTo(x+w*.76f,y+h*.38f); shirt.lineTo(x+w*.66f,y+h*.30f); shirt.quadTo(x+w*.50f,y+h*.40f,x+w*.34f,y+h*.30f); shirt.close();
+            c.drawPath(shirt,p);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(1)); p.setColor(Color.argb(120,255,255,255)); c.drawPath(shirt,p);
         }
-        @Override public void setAlpha(int a){p.setAlpha(a);}
-        @Override public void setColorFilter(android.graphics.ColorFilter cf){p.setColorFilter(cf);}
-        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+        @Override public void setAlpha(int a){p.setAlpha(a);} @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);} @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
+
+    public class PlaceholderDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG); String type;
+        PlaceholderDrawable(String t){type=t;}
+        @Override public void draw(Canvas c){ Rect b=getBounds(); p.setStyle(Paint.Style.FILL); p.setColor(Color.argb(32,255,255,255)); c.drawRoundRect(new RectF(b), dp(12), dp(12), p); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(2)); p.setColor(Color.argb(190,255,255,255)); float cx=b.centerX(), cy=b.centerY(); if("groups".equals(type)){ c.drawCircle(cx,cy,Math.min(b.width(),b.height())*.25f,p); c.drawCircle(cx,cy,Math.min(b.width(),b.height())*.12f,p);} else { Path path=new Path(); path.moveTo(cx,b.top+dp(12)); path.lineTo(b.right-dp(12),cy-dp(4)); path.lineTo(b.right-dp(12),cy+dp(18)); path.lineTo(cx,b.bottom-dp(10)); path.lineTo(b.left+dp(12),cy+dp(18)); path.lineTo(b.left+dp(12),cy-dp(4)); path.close(); c.drawPath(path,p);} }
+        @Override public void setAlpha(int a){p.setAlpha(a);} @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);} @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
+
+    public class IconView extends View {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG); String type;
+        public IconView(Context c, String t) { super(c); type = t; }
+        @Override protected void onDraw(Canvas c) {
+            super.onDraw(c);
+            float w=getWidth(), h=getHeight(), cx=w/2f, cy=h/2f, m=Math.min(w,h);
+            p.setShader(null); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(Math.max(2f, m*.11f)); p.setStrokeCap(Paint.Cap.ROUND); p.setStrokeJoin(Paint.Join.ROUND); p.setColor(Color.WHITE);
+            if ("dot".equals(type)) { p.setStyle(Paint.Style.FILL); p.setColor(green); c.drawCircle(cx,cy,m*.28f,p); return; }
+            if ("lock".equals(type)) { RectF body = new RectF(cx-m*.26f, cy-m*.02f, cx+m*.26f, cy+m*.30f); c.drawRoundRect(body, m*.08f, m*.08f, p); c.drawArc(new RectF(cx-m*.22f, cy-m*.36f, cx+m*.22f, cy+m*.12f), 200, 140, false, p); return; }
+            if ("status".equals(type)) { p.setColor(Color.rgb(255,120,135)); c.drawCircle(cx,cy,m*.34f,p); p.setStyle(Paint.Style.FILL); p.setColor(Color.rgb(240,40,54)); c.drawCircle(cx,cy,m*.18f,p); return; }
+            if ("clock".equals(type)) { c.drawCircle(cx,cy,m*.36f,p); c.drawLine(cx,cy,cx,cy-m*.20f,p); c.drawLine(cx,cy,cx+m*.17f,cy+m*.11f,p); return; }
+            if ("calendar".equals(type)) { RectF r=new RectF(w*.16f,h*.22f,w*.84f,h*.82f); c.drawRoundRect(r,m*.10f,m*.10f,p); c.drawLine(w*.16f,h*.42f,w*.84f,h*.42f,p); c.drawLine(w*.32f,h*.12f,w*.32f,h*.30f,p); c.drawLine(w*.68f,h*.12f,w*.68f,h*.30f,p); return; }
+            if ("friends".equals(type)) { c.drawCircle(cx-m*.18f,cy-m*.08f,m*.11f,p); c.drawCircle(cx+m*.18f,cy-m*.08f,m*.11f,p); c.drawArc(new RectF(cx-m*.43f,cy+m*.05f, cx-m*.02f, cy+m*.46f),205,130,false,p); c.drawArc(new RectF(cx+m*.02f,cy+m*.05f, cx+m*.43f, cy+m*.46f),205,130,false,p); return; }
+            if ("rooms".equals(type)) { Path path=new Path(); path.moveTo(cx,h*.14f); path.lineTo(w*.82f,h*.38f); path.lineTo(w*.82f,h*.68f); path.lineTo(cx,h*.86f); path.lineTo(w*.18f,h*.68f); path.lineTo(w*.18f,h*.38f); path.close(); c.drawPath(path,p); return; }
+            if ("groups".equals(type)) { c.drawCircle(cx,cy,m*.36f,p); c.drawCircle(cx,cy,m*.17f,p); Path chk=new Path(); chk.moveTo(cx-m*.10f,cy); chk.lineTo(cx-m*.02f,cy+m*.09f); chk.lineTo(cx+m*.15f,cy-m*.11f); c.drawPath(chk,p); return; }
+            if ("photos".equals(type)) { RectF r=new RectF(w*.16f,h*.22f,w*.84f,h*.78f); c.drawRoundRect(r,m*.09f,m*.09f,p); c.drawCircle(w*.32f,h*.38f,m*.06f,p); c.drawLine(w*.22f,h*.68f,w*.43f,h*.52f,p); c.drawLine(w*.43f,h*.52f,w*.78f,h*.68f,p); return; }
+            if ("star".equals(type)) { Path path=new Path(); for(int i=0;i<10;i++){ double a=-Math.PI/2+i*Math.PI/5; float rr=(i%2==0)?m*.40f:m*.17f; float x=cx+(float)Math.cos(a)*rr, y=cy+(float)Math.sin(a)*rr; if(i==0) path.moveTo(x,y); else path.lineTo(x,y);} path.close(); c.drawPath(path,p); return; }
+            if ("level".equals(type)) { p.setStyle(Paint.Style.FILL); Path path=new Path(); path.moveTo(cx,h*.16f); path.lineTo(w*.80f,h*.48f); path.lineTo(w*.62f,h*.48f); path.lineTo(w*.62f,h*.84f); path.lineTo(w*.38f,h*.84f); path.lineTo(w*.38f,h*.48f); path.lineTo(w*.20f,h*.48f); path.close(); c.drawPath(path,p); }
+        }
     }
 }
