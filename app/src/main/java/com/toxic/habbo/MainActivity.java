@@ -41,6 +41,14 @@ public class MainActivity extends Activity {
     private int inlineProgressPct = 0;
     private String inlineProgressMessage = "";
     private final ConcurrentHashMap<String, ProfileResult> profileCache = new ConcurrentHashMap<>();
+    private ProfileResult activeRenderedProfile = null;
+    private int visiblePhotosCount = 20;
+    private int visibleStylesCount = 20;
+    private static final int PAGE_CHUNK = 20;
+    private static final String PREFS = "habbo_check_settings";
+    private static final String PREF_MAX_PROFILES = "max_profiles";
+    private static final String PREF_CACHE_DAYS = "cache_days";
+    private static final String PREF_MAX_CACHE_MB = "max_cache_mb";
 
     private final int bg = Color.rgb(13, 13, 18);
     private final int purple = Color.rgb(139, 52, 217);
@@ -53,6 +61,10 @@ public class MainActivity extends Activity {
     private final int cardStroke = Color.argb(28, 255, 255, 255);
     private final int muted = Color.argb(178, 255, 255, 255);
     private Typeface habboFont;
+
+    private interface IntChangeListener {
+        void onChange(int value);
+    }
 
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
@@ -89,7 +101,14 @@ public class MainActivity extends Activity {
         root.addView(logo, lp(-1, -2, 0, 0, 0, 4));
         TextView subtitle = text("Buscar Habbos", 14, muted, false);
         subtitle.setGravity(Gravity.CENTER);
-        root.addView(subtitle, lp(-1, -2, 0, 0, 0, 18));
+        root.addView(subtitle, lp(-1, -2, 0, 0, 0, 10));
+
+        TextView settingsBtn = text("⚙ Configurações", 13, Color.argb(220,255,255,255), true);
+        settingsBtn.setGravity(Gravity.CENTER);
+        settingsBtn.setPadding(dp(12), dp(8), dp(12), dp(8));
+        settingsBtn.setBackground(round(Color.argb(18,255,255,255), dp(14), Color.argb(28,255,255,255), 1));
+        settingsBtn.setOnClickListener(v -> showSettingsDialog());
+        root.addView(settingsBtn, lp(-1, dp(38), dp(52), 0, dp(52), 18));
 
         LinearLayout searchOuter = card(dp(24));
         searchOuter.setPadding(dp(16), dp(16), dp(16), dp(16));
@@ -172,15 +191,20 @@ public class MainActivity extends Activity {
         currentProfilePrivate = false;
         inlineProgressPct = 0;
         inlineProgressMessage = "";
+        visiblePhotosCount = PAGE_CHUNK;
+        visibleStylesCount = PAGE_CHUNK;
 
         final ProfileResult cached = getCachedProfile(nickKey);
         if (cached != null) {
-            searchBtn.setEnabled(false);
-            searchBtn.setText("Atualizando...");
+            searchInProgress = false;
+            activeSearchNick = "";
+            currentLoadedNick = normalizeNickKey(cached.name);
+            searchBtn.setEnabled(true);
+            searchBtn.setText("Pesquisar");
             statusText.setText("");
-            inlineProgressPct = 8;
-            inlineProgressMessage = "Verificando novas informações...";
             renderProfile(cached);
+            toast("Perfil carregado do cache.");
+            return;
         } else {
             resultWrap.removeAllViews();
             setLoading(true, "Buscando " + nick + "...");
@@ -433,6 +457,7 @@ public class MainActivity extends Activity {
     }
 
     private void renderProfile(ProfileResult r) {
+        activeRenderedProfile = r;
         currentProfilePrivate = r != null && r.privateProfile;
         if (!searchInProgress) setLoading(false, "");
         resultWrap.removeAllViews();
@@ -657,11 +682,13 @@ public class MainActivity extends Activity {
 
     private void addPreviousStyles(ArrayList<JSONObject> list) {
         if (list.isEmpty()) return;
-        LinearLayout c = sectionCard("Visuais anteriores", list.size(), true);
+        final int total = list.size();
+        final int limit = Math.min(total, Math.max(PAGE_CHUNK, visibleStylesCount));
+        LinearLayout c = sectionCard("Visuais anteriores", total, true);
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(172), 0, 0, 0, 8));
-        for (int i=0; i<list.size(); i++) {
+        for (int i=0; i<limit; i++) {
             JSONObject o = list.get(i);
             String fig = firstText(o, "figureString", "figure", "look");
             if (fig.isEmpty()) continue;
@@ -672,6 +699,11 @@ public class MainActivity extends Activity {
             TextView dt = text(niceDate(firstText(o, "changedAt", "date", "createdAt", "creationTime")), 12, Color.argb(185,255,255,255), false); dt.setGravity(Gravity.CENTER); dt.setMaxLines(2); box.addView(dt, lp(-1,-2,0,4,0,0));
             final String finalFig = fig;
             box.setOnClickListener(v -> showClothesDialog(finalFig, niceDate(firstText(o, "changedAt", "date", "createdAt", "creationTime"))));
+        }
+        if (limit < total) {
+            TextView more = loadMoreButton("Carregar mais 20 visuais", limit, total);
+            more.setOnClickListener(v -> { visibleStylesCount = Math.min(total, visibleStylesCount + PAGE_CHUNK); if (activeRenderedProfile != null) renderProfile(activeRenderedProfile); });
+            c.addView(more, lp(-1, dp(46), 0, 4, 0, 0));
         }
     }
 
@@ -874,11 +906,13 @@ public class MainActivity extends Activity {
 
     private void addPhotos(ArrayList<JSONObject> list) {
         if (list.isEmpty()) return;
-        LinearLayout c = sectionCard("Fotos do usuário", list.size(), true);
+        final int total = list.size();
+        final int limit = Math.min(total, Math.max(PAGE_CHUNK, visiblePhotosCount));
+        LinearLayout c = sectionCard("Fotos do usuário", total, true);
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(165), 0, 0, 0, 0));
-        for (int i=0; i<list.size(); i++) {
+        for (int i=0; i<limit; i++) {
             JSONObject o = list.get(i);
             String url = getPhotoUrl(o);
             String date = getPhotoTimestamp(o);
@@ -888,8 +922,21 @@ public class MainActivity extends Activity {
             TextView dt = text(date, 12, Color.argb(190,255,255,255), false); dt.setGravity(Gravity.CENTER); box.addView(dt, lp(-1,-2,0,8,0,0));
             if (!url.isEmpty()) { loadImage(img, url); final JSONObject photoObj = o; box.setOnClickListener(v -> showPhotoDialog(photoObj)); }
         }
+        if (limit < total) {
+            TextView more = loadMoreButton("Carregar mais 20 fotos", limit, total);
+            more.setOnClickListener(v -> { visiblePhotosCount = Math.min(total, visiblePhotosCount + PAGE_CHUNK); if (activeRenderedProfile != null) renderProfile(activeRenderedProfile); });
+            c.addView(more, lp(-1, dp(46), 0, 12, 0, 0));
+        }
     }
 
+    private TextView loadMoreButton(String label, int shown, int total) {
+        TextView more = habboText(label + "  •  " + shown + "/" + total, 15, true);
+        more.setGravity(Gravity.CENTER);
+        more.setTextColor(Color.WHITE);
+        more.setPadding(dp(12), 0, dp(12), 0);
+        more.setBackground(grad(dp(14), purple2, purple));
+        return more;
+    }
 
     private String getPhotoUrl(JSONObject photo) {
         String url = firstText(photo, "previewUrl", "url", "imageUrl", "photoUrl");
@@ -1361,8 +1408,13 @@ private int loadingProgressFor(String message) {
         if (cachedFigure == null || cachedFigure.trim().isEmpty()) {
             cachedFigure = "hr-831-45.hd-180-1.ch-255-92.lg-280-82.sh-290-80";
         }
-        String walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&action=wlk&gesture=sml&direction=2&head_direction=2&headonly=0&size=l&img_format=gif";
-        String fallbackUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&gesture=sml&direction=2&head_direction=2&headonly=0&size=l";
+        String walkerUrl;
+        if (nick != null && !nick.trim().isEmpty()) {
+            walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?&user=" + enc(nick.trim()) + "&action=wlk&direction=2&head_direction=2&img_format=png&headonly=0&size=b";
+        } else {
+            walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&action=wlk&direction=2&head_direction=2&headonly=0&size=b&img_format=png";
+        }
+        String fallbackUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&action=wlk&direction=2&head_direction=2&headonly=0&size=b&img_format=png";
         try {
             Glide.with(this).load(walkerUrl).error(Glide.with(this).load(fallbackUrl)).into(walker);
         } catch (Exception ex) {
@@ -1613,6 +1665,14 @@ private int loadingProgressFor(String message) {
         try {
             File f = profileCacheFile(key);
             if (!f.isFile()) return null;
+            int days = getCacheDaysSetting();
+            if (days > 0) {
+                long age = System.currentTimeMillis() - f.lastModified();
+                if (age > days * 86400000L) {
+                    f.delete();
+                    return null;
+                }
+            }
             String raw = readFile(f);
             if (raw == null || raw.trim().isEmpty()) return null;
             return profileFromJson(new JSONObject(raw));
@@ -1627,9 +1687,7 @@ private int loadingProgressFor(String message) {
             if (r.name != null && !normalizeNickKey(r.name).equals(normalizeNickKey(aliasKey))) {
                 writeFile(profileCacheFile(r.name), json.toString());
             }
-            if (r.uniqueId != null && !r.uniqueId.trim().isEmpty()) {
-                writeFile(profileCacheFile(r.uniqueId), json.toString());
-            }
+            cleanupProfileCache();
         } catch (Exception ignored) {}
     }
 
@@ -1758,6 +1816,252 @@ private int loadingProgressFor(String message) {
         if (!fresh.rooms.isEmpty()) cached.rooms = mergeLists(fresh.rooms, cached.rooms);
         if (!fresh.groups.isEmpty()) cached.groups = fresh.groups;
         return cached;
+    }
+
+
+    private SharedPreferences appPrefs() {
+        return getSharedPreferences(PREFS, MODE_PRIVATE);
+    }
+
+    private int getMaxProfilesSetting() {
+        return Math.max(1, appPrefs().getInt(PREF_MAX_PROFILES, 50));
+    }
+
+    private int getCacheDaysSetting() {
+        return Math.max(1, appPrefs().getInt(PREF_CACHE_DAYS, 7));
+    }
+
+    private int getMaxCacheMbSetting() {
+        return Math.max(0, appPrefs().getInt(PREF_MAX_CACHE_MB, 0));
+    }
+
+    private void showSettingsDialog() {
+        final Dialog dialog = new Dialog(this);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
+        wrap.setBackground(round(Color.rgb(28, 18, 42), dp(22), Color.argb(42,255,255,255), 1));
+        scroll.addView(wrap, new ScrollView.LayoutParams(-1, -2));
+        dialog.setContentView(scroll);
+
+        TextView title = habboText("Configurações", 24, true);
+        title.setGravity(Gravity.CENTER);
+        wrap.addView(title, lp(-1, -2, 0, 0, 0, 8));
+        TextView sub = text("Cache e desempenho do aplicativo", 13, muted, false);
+        sub.setGravity(Gravity.CENTER);
+        wrap.addView(sub, lp(-1, -2, 0, 0, 0, 18));
+
+        TextView current = text(cacheStatsText(), 13, Color.argb(220,255,255,255), false);
+        current.setGravity(Gravity.CENTER);
+        current.setPadding(dp(10), dp(10), dp(10), dp(10));
+        current.setBackground(round(Color.argb(18,255,255,255), dp(14), Color.argb(28,255,255,255), 1));
+
+        wrap.addView(settingsSlider(
+            "Perfis guardados",
+            "Ao atingir o limite, perfis antigos são substituídos pelos novos.",
+            getMaxProfilesSetting(),
+            5,
+            200,
+            5,
+            value -> {
+                appPrefs().edit().putInt(PREF_MAX_PROFILES, Math.max(1, value)).apply();
+                cleanupProfileCache();
+                current.setText(cacheStatsText());
+            }
+        ), lp(-1, -2, 0, 0, 0, 12));
+
+        wrap.addView(settingsSlider(
+            "Tempo de cache",
+            "Quantidade de dias antes de uma informação salva expirar.",
+            getCacheDaysSetting(),
+            1,
+            30,
+            1,
+            value -> {
+                appPrefs().edit().putInt(PREF_CACHE_DAYS, Math.max(1, value)).apply();
+                cleanupProfileCache();
+                current.setText(cacheStatsText());
+            }
+        ), lp(-1, -2, 0, 0, 0, 12));
+
+        wrap.addView(settingsSlider(
+            "Limite do cache",
+            "0 MB significa sem limite de tamanho.",
+            getMaxCacheMbSetting(),
+            0,
+            1000,
+            25,
+            value -> {
+                appPrefs().edit().putInt(PREF_MAX_CACHE_MB, Math.max(0, value)).apply();
+                cleanupProfileCache();
+                current.setText(cacheStatsText());
+            }
+        ), lp(-1, -2, 0, 0, 0, 14));
+
+        wrap.addView(current, lp(-1, -2, 0, 0, 0, 14));
+
+        TextView hint = text("As alterações são aplicadas automaticamente.", 12, Color.argb(190,255,255,255), false);
+        hint.setGravity(Gravity.CENTER);
+        wrap.addView(hint, lp(-1, -2, 0, 0, 0, 12));
+
+        TextView clear = dialogButton("Limpar cache agora");
+        clear.setBackground(grad(dp(14), Color.rgb(120, 36, 46), Color.rgb(210, 54, 77)));
+        wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 10));
+        clear.setOnClickListener(v -> {
+            clearProfileCache();
+            current.setText(cacheStatsText());
+            toast("Cache limpo.");
+        });
+
+        TextView close = dialogButton("Fechar");
+        close.setBackground(round(Color.argb(20,255,255,255), dp(14), Color.argb(32,255,255,255), 1));
+        wrap.addView(close, lp(-1, dp(48), 0, 0, 0, 0));
+        close.setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(w.getAttributes());
+            params.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(460));
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            w.setAttributes(params);
+        }
+    }
+
+    private LinearLayout settingsSlider(String title, String description, int value, int min, int max, int step, IntChangeListener listener) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(14), dp(12), dp(14), dp(12));
+        box.setBackground(round(Color.argb(22,255,255,255), dp(16), Color.argb(32,255,255,255), 1));
+
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        TextView label = text(title, 14, Color.WHITE, true);
+        top.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView valueLabel = text(formatSettingValue(title, value), 14, Color.WHITE, true);
+        valueLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        valueLabel.setPadding(dp(8), dp(4), dp(8), dp(4));
+        valueLabel.setBackground(round(Color.argb(28,139,52,217), dp(999), Color.argb(72,139,52,217), 1));
+        top.addView(valueLabel, new LinearLayout.LayoutParams(-2, -2));
+        box.addView(top, lp(-1, -2, 0, 0, 0, 6));
+
+        TextView desc = text(description, 12, muted, false);
+        desc.setLineSpacing(dp(2), 1f);
+        box.addView(desc, lp(-1, -2, 0, 0, 0, 8));
+
+        SeekBar seek = new SeekBar(this);
+        int safeStep = Math.max(1, step);
+        int steps = Math.max(1, (max - min) / safeStep);
+        seek.setMax(steps);
+        int clamped = Math.max(min, Math.min(max, value));
+        seek.setProgress(Math.round((clamped - min) / (float)safeStep));
+        if (Build.VERSION.SDK_INT >= 21) {
+            seek.setProgressTintList(android.content.res.ColorStateList.valueOf(purple));
+            seek.setThumbTintList(android.content.res.ColorStateList.valueOf(Color.rgb(190, 122, 255)));
+            seek.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.argb(40,255,255,255)));
+        }
+        box.addView(seek, lp(-1, dp(42), 0, 0, 0, 0));
+
+        seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                int actual = min + (progress * safeStep);
+                if (actual > max) actual = max;
+                valueLabel.setText(formatSettingValue(title, actual));
+                if (fromUser && listener != null) listener.onChange(actual);
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) {}
+            @Override public void onStopTrackingTouch(SeekBar bar) {}
+        });
+        return box;
+    }
+
+    private String formatSettingValue(String title, int value) {
+        if (title != null && title.toLowerCase(Locale.ROOT).contains("tempo")) {
+            return value + (value == 1 ? " dia" : " dias");
+        }
+        if (title != null && title.toLowerCase(Locale.ROOT).contains("limite")) {
+            return value <= 0 ? "Sem limite" : value + " MB";
+        }
+        return value + (value == 1 ? " perfil" : " perfis");
+    }
+
+    private TextView dialogButton(String label) {
+        TextView b = text(label, 15, Color.WHITE, true);
+        b.setGravity(Gravity.CENTER);
+        b.setBackground(grad(dp(14), purple2, purple));
+        return b;
+    }
+
+    private int safeInt(String raw, int fallback) {
+        try { return Integer.parseInt(raw == null ? "" : raw.trim()); } catch(Exception e) { return fallback; }
+    }
+
+    private String cacheStatsText() {
+        File[] files = profileCacheDir().listFiles();
+        int count = files == null ? 0 : files.length;
+        long bytes = cacheDirSize(profileCacheDir());
+        return "Cache atual: " + count + " arquivos • " + formatBytes(bytes) + "\n" +
+            "Padrão: 50 perfis, 7 dias, sem limite de tamanho";
+    }
+
+    private long cacheDirSize(File dir) {
+        if (dir == null || !dir.exists()) return 0;
+        long total = 0;
+        File[] files = dir.listFiles();
+        if (files == null) return 0;
+        for (File f : files) {
+            if (f.isDirectory()) total += cacheDirSize(f); else total += Math.max(0, f.length());
+        }
+        return total;
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        double kb = bytes / 1024.0;
+        if (kb < 1024) return String.format(Locale.US, "%.1f KB", kb);
+        double mb = kb / 1024.0;
+        return String.format(Locale.US, "%.2f MB", mb);
+    }
+
+    private void clearProfileCache() {
+        profileCache.clear();
+        File[] files = profileCacheDir().listFiles();
+        if (files != null) for (File f : files) if (f.isFile()) f.delete();
+    }
+
+    private void cleanupProfileCache() {
+        try {
+            File[] files = profileCacheDir().listFiles();
+            if (files == null || files.length == 0) return;
+            long now = System.currentTimeMillis();
+            int days = getCacheDaysSetting();
+            for (File f : files) {
+                if (f.isFile() && days > 0 && now - f.lastModified() > days * 86400000L) f.delete();
+            }
+            files = profileCacheDir().listFiles();
+            if (files == null) return;
+            Arrays.sort(files, (a,b) -> Long.compare(b.lastModified(), a.lastModified()));
+            int maxProfiles = getMaxProfilesSetting();
+            for (int i = maxProfiles; i < files.length; i++) if (files[i].isFile()) files[i].delete();
+            int maxMb = getMaxCacheMbSetting();
+            if (maxMb > 0) {
+                long maxBytes = maxMb * 1024L * 1024L;
+                files = profileCacheDir().listFiles();
+                if (files == null) return;
+                Arrays.sort(files, (a,b) -> Long.compare(b.lastModified(), a.lastModified()));
+                long total = cacheDirSize(profileCacheDir());
+                for (int i = files.length - 1; i >= 0 && total > maxBytes; i--) {
+                    if (files[i].isFile()) {
+                        long len = files[i].length();
+                        if (files[i].delete()) total -= len;
+                    }
+                }
+            }
+        } catch(Exception ignored) {}
     }
 
     private static class ProfileResult {
