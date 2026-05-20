@@ -1855,6 +1855,75 @@ private int loadingProgressFor(String message) {
         }
     }
 
+
+    private ProfileResult mergeFreshIntoCached(ProfileResult cached, ProfileResult fresh) {
+        if (cached == null) return fresh;
+        if (fresh == null) return cached;
+
+        cached.searchedNick = pickText(fresh.searchedNick, cached.searchedNick);
+        cached.uniqueId = pickText(fresh.uniqueId, cached.uniqueId);
+        cached.name = pickText(fresh.name, cached.name);
+        cached.motto = pickText(fresh.motto, cached.motto);
+        cached.figure = pickText(fresh.figure, cached.figure);
+        cached.memberSince = pickText(fresh.memberSince, cached.memberSince);
+        cached.lastAccess = pickText(fresh.lastAccess, cached.lastAccess);
+        cached.level = pickText(fresh.level, cached.level);
+        cached.starGems = pickText(fresh.starGems, cached.starGems);
+        cached.online = fresh.online;
+        cached.privateProfile = fresh.privateProfile;
+        cached.banned = fresh.banned;
+
+        if (fresh.habboPublic != null) cached.habboPublic = fresh.habboPublic;
+        if (fresh.dex != null) cached.dex = fresh.dex;
+        if (fresh.suggest != null) cached.suggest = fresh.suggest;
+        if (fresh.dexProfile != null) cached.dexProfile = fresh.dexProfile;
+        if (fresh.officialProfile != null) cached.officialProfile = fresh.officialProfile;
+
+        cached.previousNames = mergeLists(fresh.previousNames, cached.previousNames);
+        cached.previousMottos = mergeLists(fresh.previousMottos, cached.previousMottos);
+        cached.previousStyles = mergeLists(fresh.previousStyles, cached.previousStyles);
+        cached.photos = mergeLists(fresh.photos, cached.photos);
+        cached.friends = mergeLists(fresh.friends, cached.friends);
+        cached.oldFriends = mergeLists(fresh.oldFriends, cached.oldFriends);
+        cached.rooms = mergeLists(fresh.rooms, cached.rooms);
+        cached.oldRooms = mergeLists(fresh.oldRooms, cached.oldRooms);
+        cached.groups = mergeLists(fresh.groups, cached.groups);
+        cached.selectedBadges = mergeLists(fresh.selectedBadges, cached.selectedBadges);
+        return cached;
+    }
+
+    private String pickText(String fresh, String old) {
+        if (fresh != null && !fresh.trim().isEmpty() && !"null".equalsIgnoreCase(fresh.trim())) return fresh;
+        return old == null ? "" : old;
+    }
+
+    private String readFile(File file) throws IOException {
+        if (file == null || !file.isFile()) return "";
+        StringBuilder sb = new StringBuilder();
+        BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+        try {
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line).append('\\n');
+        } finally {
+            try { br.close(); } catch(Exception ignored) {}
+        }
+        return sb.toString();
+    }
+
+    private ProfileResult profileFromJson(JSONObject json) {
+        // Cache em disco está desativado nesta versão; este parser mínimo existe apenas para compatibilidade de compilação.
+        return null;
+    }
+
+    private TextView dialogButton(String label) {
+        TextView v = habboText(label, 15, true);
+        v.setGravity(Gravity.CENTER);
+        v.setTextColor(Color.WHITE);
+        v.setPadding(dp(12), 0, dp(12), 0);
+        v.setBackground(grad(dp(14), purple2, purple));
+        return v;
+    }
+
     private static class ProfileResult {
         String searchedNick = "", uniqueId = "", name = "", motto = "", figure = "", memberSince = "", lastAccess = "", level = "", starGems = "";
         boolean online = false, privateProfile = false, banned = false;
