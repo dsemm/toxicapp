@@ -1903,7 +1903,7 @@ private int loadingProgressFor(String message) {
         BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
         try {
             String line;
-            while ((line = br.readLine()) != null) sb.append(line).append('\\n');
+            while ((line = br.readLine()) != null) sb.append(line).append('\n');
         } finally {
             try { br.close(); } catch(Exception ignored) {}
         }
