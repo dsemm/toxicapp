@@ -1799,9 +1799,7 @@ private int loadingProgressFor(String message) {
 
     private String cacheStatsText() {
         cleanupSessionProfileCache();
-        return "Perfis na sessão: " + profileCache.size() + "
-Validade: 5 minutos
-Cache em disco: desativado";
+        return "Perfis na sessão: " + profileCache.size() + "\nValidade: 5 minutos\nCache em disco: desativado";
     }
 
     private void clearProfileCache() {
@@ -1825,9 +1823,7 @@ Cache em disco: desativado";
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
-        TextView info = text(cacheStatsText() + "
-
-O app consulta a HabboDex diretamente e usa o cache só para acelerar perfis vistos nos últimos minutos.", 13, muted, false);
+        TextView info = text(cacheStatsText() + "\n\nO app consulta a HabboDex diretamente e usa o cache só para acelerar perfis vistos nos últimos minutos.", 13, muted, false);
         info.setGravity(Gravity.CENTER);
         info.setPadding(dp(10), dp(10), dp(10), dp(10));
         info.setBackground(round(Color.argb(18,255,255,255), dp(14), Color.argb(28,255,255,255), 1));
@@ -1838,9 +1834,7 @@ O app consulta a HabboDex diretamente e usa o cache só para acelerar perfis vis
         wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 10));
         clear.setOnClickListener(v -> {
             clearProfileCache();
-            info.setText(cacheStatsText() + "
-
-O app consulta a HabboDex diretamente e usa o cache só para acelerar perfis vistos nos últimos minutos.");
+            info.setText(cacheStatsText() + "\n\nO app consulta a HabboDex diretamente e usa o cache só para acelerar perfis vistos nos últimos minutos.");
             toast("Cache da sessão limpo.");
         });
 
