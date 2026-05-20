@@ -46,6 +46,8 @@ public class MainActivity extends Activity {
     private ProfileResult activeRenderedProfile = null;
     private int visiblePhotosCount = 20;
     private int visibleStylesCount = 20;
+    private int photosScrollX = 0;
+    private int stylesScrollX = 0;
     private static final int PAGE_CHUNK = 20;
     private static final String PREFS = "habbo_check_settings";
     private static final String PREF_MAX_PROFILES = "max_profiles";
@@ -198,6 +200,8 @@ public class MainActivity extends Activity {
         inlineProgressMessage = "";
         visiblePhotosCount = PAGE_CHUNK;
         visibleStylesCount = PAGE_CHUNK;
+        photosScrollX = 0;
+        stylesScrollX = 0;
 
         final ProfileResult cached = getCachedProfile(nickKey);
         if (cached != null) {
@@ -687,6 +691,8 @@ public class MainActivity extends Activity {
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(172), 0, 0, 0, 8));
+        final HorizontalScrollView stylesHsv = hsv;
+        if (stylesScrollX > 0) stylesHsv.post(() -> stylesHsv.scrollTo(stylesScrollX, 0));
         for (int i=0; i<limit; i++) {
             JSONObject o = list.get(i);
             String fig = firstText(o, "figureString", "figure", "look");
@@ -701,7 +707,11 @@ public class MainActivity extends Activity {
         }
         if (limit < total) {
             TextView more = loadMoreButton("Carregar mais", limit, total);
-            more.setOnClickListener(v -> { visibleStylesCount = Math.min(total, visibleStylesCount + PAGE_CHUNK); if (activeRenderedProfile != null) renderProfile(activeRenderedProfile); });
+            more.setOnClickListener(v -> {
+                stylesScrollX = stylesHsv.getScrollX();
+                visibleStylesCount = Math.min(total, visibleStylesCount + PAGE_CHUNK);
+                if (activeRenderedProfile != null) renderProfile(activeRenderedProfile);
+            });
             c.addView(more, lp(-1, dp(46), 0, 4, 0, 0));
         }
     }
@@ -848,9 +858,13 @@ public class MainActivity extends Activity {
                 try {
                     String rn = firstText(room, "name", "roomName", "caption", "title");
                     String ro = firstNestedText(room, "owner", "name");
+                    String roFig = firstNestedText(room, "owner", "figureString");
+                    if (roFig.isEmpty()) roFig = firstNestedText(room, "owner", "figure");
                     if (ro.isEmpty()) ro = firstText(room, "ownerName", "owner_name", "roomOwner");
+                    if (roFig.isEmpty()) roFig = firstText(room, "ownerFigureString", "ownerFigure", "owner_figure_string");
                     if (!rn.isEmpty() && firstText(photo, "room_name", "roomName", "roomname").isEmpty()) photo.put("room_name", rn);
-                    if (!ro.isEmpty() && firstText(photo, "roomOwner", "roomOwnerName", "ownerName").isEmpty()) photo.put("roomOwner", ro);
+                    if (!ro.isEmpty() && getPhotoRoomOwnerName(photo).isEmpty()) photo.put("roomOwner", ro);
+                    if (!roFig.isEmpty() && getPhotoRoomOwnerFigure(photo).isEmpty()) photo.put("roomOwnerFigureString", roFig);
                 } catch(Exception ignored) {}
             }
             if (getPhotoRoomName(photo).isEmpty() || getPhotoRoomOwner(photo).isEmpty()) {
@@ -858,9 +872,13 @@ public class MainActivity extends Activity {
                 if (info != null) {
                     try {
                         String rn = firstText(info, "name", "roomName", "room_name", "caption", "title");
-                        String ro = firstText(info, "owner", "ownerName", "owner_name", "roomOwner");
+                        String ro = extractNameFromUnknown(info.opt("owner"));
+                        if (ro.isEmpty()) ro = firstText(info, "ownerName", "owner_name", "roomOwner");
+                        String roFig = extractFigureFromUnknown(info.opt("owner"));
+                        if (roFig.isEmpty()) roFig = firstText(info, "ownerFigureString", "ownerFigure", "owner_figure_string");
                         if (!rn.isEmpty()) photo.put("room_name", rn);
                         if (!ro.isEmpty()) photo.put("roomOwner", ro);
+                        if (!roFig.isEmpty()) photo.put("roomOwnerFigureString", roFig);
                     } catch(Exception ignored) {}
                 }
             }
@@ -902,14 +920,111 @@ public class MainActivity extends Activity {
     }
 
     private String getPhotoRoomOwner(JSONObject photo) {
-        String roomOwner = firstText(photo, "roomOwner", "roomOwnerName", "ownerName", "owner_name");
-        JSONObject roomObj = photo == null ? null : photo.optJSONObject("room");
-        if (roomOwner.isEmpty() && roomObj != null) {
-            JSONObject owner = roomObj.optJSONObject("owner");
-            if (owner != null) roomOwner = firstText(owner, "name", "username", "habboName");
-            if (roomOwner.isEmpty()) roomOwner = firstText(roomObj, "ownerName", "owner_name", "roomOwner");
+        return getPhotoRoomOwnerName(photo);
+    }
+
+    private String getPhotoRoomOwnerName(JSONObject photo) {
+        if (photo == null) return "";
+        String[] directKeys = {"roomOwner", "roomOwnerName", "ownerName", "owner_name"};
+        for (String key : directKeys) {
+            Object value = photo.opt(key);
+            String name = extractNameFromUnknown(value);
+            if (!name.isEmpty()) return name;
         }
-        return roomOwner;
+
+        JSONObject roomObj = photo.optJSONObject("room");
+        if (roomObj != null) {
+            JSONObject owner = roomObj.optJSONObject("owner");
+            String name = extractNameFromUnknown(owner);
+            if (!name.isEmpty()) return name;
+
+            for (String key : directKeys) {
+                name = extractNameFromUnknown(roomObj.opt(key));
+                if (!name.isEmpty()) return name;
+            }
+        }
+        return "";
+    }
+
+    private String getPhotoRoomOwnerFigure(JSONObject photo) {
+        if (photo == null) return "";
+        String[] directKeys = {"roomOwnerFigureString", "ownerFigureString", "ownerFigure", "figureString", "figure"};
+
+        for (String key : directKeys) {
+            String figure = extractFigureFromUnknown(photo.opt(key));
+            if (!figure.isEmpty()) return figure;
+        }
+
+        JSONObject roomObj = photo.optJSONObject("room");
+        if (roomObj != null) {
+            JSONObject owner = roomObj.optJSONObject("owner");
+            String figure = extractFigureFromUnknown(owner);
+            if (!figure.isEmpty()) return figure;
+
+            for (String key : directKeys) {
+                figure = extractFigureFromUnknown(roomObj.opt(key));
+                if (!figure.isEmpty()) return figure;
+            }
+        }
+        return "";
+    }
+
+    private String extractNameFromUnknown(Object value) {
+        if (value == null || value == JSONObject.NULL) return "";
+        if (value instanceof JSONObject) {
+            JSONObject o = (JSONObject) value;
+            String name = firstText(o, "name", "username", "habboName", "ownerName");
+            if (!name.isEmpty()) return name;
+            JSONObject owner = o.optJSONObject("owner");
+            if (owner != null) return extractNameFromUnknown(owner);
+            return "";
+        }
+        if (value instanceof JSONArray) {
+            JSONArray a = (JSONArray) value;
+            for (int i = 0; i < a.length(); i++) {
+                String name = extractNameFromUnknown(a.opt(i));
+                if (!name.isEmpty()) return name;
+            }
+            return "";
+        }
+        String s = String.valueOf(value).trim();
+        if (s.isEmpty() || "null".equalsIgnoreCase(s)) return "";
+        if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
+            try {
+                if (s.startsWith("{")) return extractNameFromUnknown(new JSONObject(s));
+                return extractNameFromUnknown(new JSONArray(s));
+            } catch (Exception ignored) {}
+        }
+        return s;
+    }
+
+    private String extractFigureFromUnknown(Object value) {
+        if (value == null || value == JSONObject.NULL) return "";
+        if (value instanceof JSONObject) {
+            JSONObject o = (JSONObject) value;
+            String figure = firstText(o, "figureString", "figure_string", "figure", "avatarFigureString", "ownerFigureString");
+            if (!figure.isEmpty()) return figure;
+            JSONObject owner = o.optJSONObject("owner");
+            if (owner != null) return extractFigureFromUnknown(owner);
+            return "";
+        }
+        if (value instanceof JSONArray) {
+            JSONArray a = (JSONArray) value;
+            for (int i = 0; i < a.length(); i++) {
+                String figure = extractFigureFromUnknown(a.opt(i));
+                if (!figure.isEmpty()) return figure;
+            }
+            return "";
+        }
+        String s = String.valueOf(value).trim();
+        if (s.isEmpty() || "null".equalsIgnoreCase(s)) return "";
+        if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
+            try {
+                if (s.startsWith("{")) return extractFigureFromUnknown(new JSONObject(s));
+                return extractFigureFromUnknown(new JSONArray(s));
+            } catch (Exception ignored) {}
+        }
+        return s.contains("-") ? s : "";
     }
 
     private String getRoomImageUrl(JSONObject room) {
@@ -925,6 +1040,8 @@ public class MainActivity extends Activity {
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(165), 0, 0, 0, 0));
+        final HorizontalScrollView photosHsv = hsv;
+        if (photosScrollX > 0) photosHsv.post(() -> photosHsv.scrollTo(photosScrollX, 0));
         for (int i=0; i<limit; i++) {
             JSONObject o = list.get(i);
             String url = getPhotoUrl(o);
@@ -937,13 +1054,17 @@ public class MainActivity extends Activity {
         }
         if (limit < total) {
             TextView more = loadMoreButton("Carregar mais", limit, total);
-            more.setOnClickListener(v -> { visiblePhotosCount = Math.min(total, visiblePhotosCount + PAGE_CHUNK); if (activeRenderedProfile != null) renderProfile(activeRenderedProfile); });
+            more.setOnClickListener(v -> {
+                photosScrollX = photosHsv.getScrollX();
+                visiblePhotosCount = Math.min(total, visiblePhotosCount + PAGE_CHUNK);
+                if (activeRenderedProfile != null) renderProfile(activeRenderedProfile);
+            });
             c.addView(more, lp(-1, dp(46), 0, 12, 0, 0));
         }
     }
 
     private TextView loadMoreButton(String label, int shown, int total) {
-        TextView more = habboText(label + "  —  " + shown + "/" + total, 15, true);
+        TextView more = habboText(label + "  -  " + shown + "/" + total, 15, true);
         more.setGravity(Gravity.CENTER);
         more.setTextColor(Color.WHITE);
         more.setPadding(dp(12), 0, dp(12), 0);
@@ -964,58 +1085,211 @@ public class MainActivity extends Activity {
     }
 
     private int getPhotoLikesCount(JSONObject photo) {
-        if (photo == null) return 0;
-        JSONArray likerNames = photo.optJSONArray("likerNames");
-        if (likerNames != null) return likerNames.length();
-
-        Object rawLikerNames = photo.opt("likerNames");
-        if (rawLikerNames instanceof String) {
-            String raw = ((String) rawLikerNames).trim();
-            if (!raw.isEmpty() && !"null".equalsIgnoreCase(raw)) {
-                try {
-                    JSONArray parsed = new JSONArray(raw);
-                    return parsed.length();
-                } catch (Exception ignored) {
-                    return raw.split(",").length;
-                }
-            }
-        }
-
-        // Fallbacks só para compatibilidade com payloads antigos. A prioridade correta é likerNames.
-        if (photo.has("likes_count")) return Math.max(0, photo.optInt("likes_count", 0));
-        if (photo.has("likesCount")) return Math.max(0, photo.optInt("likesCount", 0));
-        return 0;
+        return getPhotoLikerNames(photo).size();
     }
 
     private void showPhotoDialog(JSONObject photo) {
         String url = getPhotoUrl(photo);
         if (url.isEmpty()) return;
+
         final Dialog dialog = new Dialog(this);
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(14), dp(14), dp(14), dp(14));
         wrap.setBackground(round(Color.rgb(28, 18, 42), dp(22), Color.argb(42,255,255,255), 1));
         dialog.setContentView(wrap);
+
         Window w = dialog.getWindow();
-        if (w != null) { w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT)); w.setLayout(-1, -2); }
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            w.setLayout(-1, -2);
+        }
+
         ImageView img = new ImageView(this);
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        applyRoundedClip(img, dp(16));
         wrap.addView(img, lp(-1, dp(260), 0,0,0,12));
         loadImage(img, url);
+
         String room = getPhotoRoomName(photo);
-        String roomOwner = getPhotoRoomOwner(photo);
-        int likes = getPhotoLikesCount(photo);
-        TextView meta = habboText(
-            getPhotoTimestamp(photo) +
-            (room.isEmpty()?"":"\nQuarto: " + room) +
-            (roomOwner.isEmpty()?"":"\nDono do quarto: " + roomOwner) +
-            "\nCurtidas: " + likes, 15, true);
-        meta.setTextColor(Color.WHITE);
-        meta.setLineSpacing(dp(4),1f);
-        wrap.addView(meta, lp(-1, -2, 0,0,0,12));
-        Button close = new Button(this); close.setText("Fechar"); close.setAllCaps(false); close.setTextColor(Color.WHITE); close.setBackground(grad(dp(14), purple2, purple)); wrap.addView(close, lp(-1, dp(46), 0, 0, 0, 0));
+        String ownerName = getPhotoRoomOwnerName(photo);
+        String ownerFigure = getPhotoRoomOwnerFigure(photo);
+        ArrayList<String> likers = getPhotoLikerNames(photo);
+
+        LinearLayout infoGrid = new LinearLayout(this);
+        infoGrid.setOrientation(LinearLayout.VERTICAL);
+        wrap.addView(infoGrid, lp(-1, -2, 0, 0, 0, 12));
+
+        infoGrid.addView(photoInfoCard("Data", getPhotoTimestamp(photo), "", ""));
+        if (!room.isEmpty()) infoGrid.addView(photoInfoCard("Quarto", room, "", ""));
+        if (!ownerName.isEmpty()) infoGrid.addView(photoInfoCard("Dono", ownerName, ownerFigure, ownerName));
+        infoGrid.addView(photoInfoCard("Curtidas", String.valueOf(likers.size()), "", ""));
+
+        if (!likers.isEmpty()) {
+            TextView likesTitle = habboText("Quem curtiu", 17, true);
+            likesTitle.setTextColor(Color.WHITE);
+            wrap.addView(likesTitle, lp(-1, -2, 0, 0, 0, 8));
+
+            ScrollView likesScroll = new ScrollView(this);
+            likesScroll.setVerticalScrollBarEnabled(true);
+            likesScroll.setScrollbarFadingEnabled(false);
+            tintScrollBar(likesScroll);
+            likesScroll.setOnTouchListener((view, event) -> {
+                view.getParent().requestDisallowInterceptTouchEvent(true);
+                return false;
+            });
+
+            LinearLayout likesList = new LinearLayout(this);
+            likesList.setOrientation(LinearLayout.VERTICAL);
+            likesScroll.addView(likesList, new ScrollView.LayoutParams(-1, -2));
+            wrap.addView(likesScroll, lp(-1, dp(Math.min(230, Math.max(82, 54 * Math.min(likers.size(), 4)))), 0, 0, 0, 12));
+
+            for (String liker : likers) {
+                likesList.addView(likerRow(liker, dialog));
+            }
+        }
+
+        Button close = new Button(this);
+        close.setText("Fechar");
+        close.setAllCaps(false);
+        close.setTextColor(Color.WHITE);
+        close.setBackground(grad(dp(14), purple2, purple));
+        wrap.addView(close, lp(-1, dp(46), 0, 0, 0, 0));
         close.setOnClickListener(v -> dialog.dismiss());
+
         dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.92f);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            shownWindow.setAttributes(params);
+        }
+    }
+
+    private LinearLayout photoInfoCard(String label, String value, String figure, String nickToOpen) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setBackground(round(Color.argb(24,255,255,255), dp(15), Color.argb(30,255,255,255), 1));
+        row.setLayoutParams(lp(-1, -2, 0, 0, 0, 8));
+
+        if (figure != null && !figure.isEmpty()) {
+            ImageView head = new ImageView(this);
+            head.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            row.addView(head, new LinearLayout.LayoutParams(dp(42), dp(42)));
+            loadImage(head, avatarHead(figure));
+        }
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
+        if (figure != null && !figure.isEmpty()) tp.leftMargin = dp(10);
+        row.addView(texts, tp);
+
+        TextView lb = text(label, 12, Color.argb(185,255,255,255), false);
+        texts.addView(lb);
+        TextView val = habboText(value == null || value.isEmpty() ? "—" : value, 15, true);
+        val.setTextColor(Color.WHITE);
+        val.setMaxLines(2);
+        val.setEllipsize(TextUtils.TruncateAt.END);
+        texts.addView(val);
+
+        if (nickToOpen != null && !nickToOpen.trim().isEmpty()) {
+            final String nick = nickToOpen.trim();
+            row.setOnClickListener(v -> {
+                searchInput.setText(nick);
+                search();
+            });
+        }
+        return row;
+    }
+
+    private LinearLayout likerRow(String nick, Dialog dialogToClose) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(10), dp(7), dp(10), dp(7));
+        row.setBackground(round(Color.argb(20,255,255,255), dp(14), Color.argb(25,255,255,255), 1));
+        row.setLayoutParams(lp(-1, -2, 0, 0, 0, 7));
+
+        ImageView head = new ImageView(this);
+        head.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        row.addView(head, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        loadImage(head, avatarHeadByName(nick));
+
+        TextView name = habboText(nick, 15, true);
+        name.setTextColor(Color.WHITE);
+        name.setMaxLines(1);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(0, -2, 1);
+        np.leftMargin = dp(10);
+        row.addView(name, np);
+
+        row.setOnClickListener(v -> {
+            if (dialogToClose != null) dialogToClose.dismiss();
+            searchInput.setText(nick);
+            search();
+        });
+
+        return row;
+    }
+
+    private ArrayList<String> getPhotoLikerNames(JSONObject photo) {
+        ArrayList<String> names = new ArrayList<>();
+        if (photo == null) return names;
+
+        Object raw = photo.opt("likerNames");
+        addLikerNamesFromUnknown(names, raw);
+
+        if (names.isEmpty()) addLikerNamesFromUnknown(names, photo.opt("likes"));
+        if (names.isEmpty()) addLikerNamesFromUnknown(names, photo.opt("likers"));
+
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        for (String n : names) {
+            String clean = n == null ? "" : n.trim();
+            if (!clean.isEmpty() && !"null".equalsIgnoreCase(clean)) unique.add(clean);
+        }
+        return new ArrayList<>(unique);
+    }
+
+    private void addLikerNamesFromUnknown(ArrayList<String> out, Object raw) {
+        if (out == null || raw == null || raw == JSONObject.NULL) return;
+
+        if (raw instanceof JSONArray) {
+            JSONArray a = (JSONArray) raw;
+            for (int i = 0; i < a.length(); i++) addLikerNamesFromUnknown(out, a.opt(i));
+            return;
+        }
+
+        if (raw instanceof JSONObject) {
+            String name = extractNameFromUnknown(raw);
+            if (!name.isEmpty()) out.add(name);
+            return;
+        }
+
+        String s = String.valueOf(raw).trim();
+        if (s.isEmpty() || "null".equalsIgnoreCase(s)) return;
+
+        if (s.startsWith("[") || s.startsWith("{")) {
+            try {
+                if (s.startsWith("[")) addLikerNamesFromUnknown(out, new JSONArray(s));
+                else addLikerNamesFromUnknown(out, new JSONObject(s));
+                return;
+            } catch (Exception ignored) {}
+        }
+
+        if (s.contains(",")) {
+            for (String part : s.split(",")) {
+                String n = part.trim();
+                if (!n.isEmpty()) out.add(n);
+            }
+        } else {
+            out.add(s);
+        }
     }
 
     private void addFriendsTabs(ArrayList<JSONObject> friendsList, ArrayList<JSONObject> removedList) {
@@ -1551,6 +1825,7 @@ private int loadingProgressFor(String message) {
     private String avatarFull(String figure, int direction) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=l&direction=" + direction + "&head_direction=" + direction + "&gesture=std&action=std&headonly=0"; }
     private String avatarSmall(String figure) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&gesture=sml&action=std&headonly=0"; }
     private String avatarHead(String figure) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&headonly=1"; }
+    private String avatarHeadByName(String name) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?user=" + enc(name) + "&size=m&direction=2&head_direction=2&headonly=1"; }
 
     private Drawable makeBg() { return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(30, 11, 45), Color.rgb(24,14,35), Color.rgb(12,12,18)}); }
     private LinearLayout card(int radius) {
@@ -1799,7 +2074,7 @@ private int loadingProgressFor(String message) {
 
     private String cacheStatsText() {
         cleanupSessionProfileCache();
-        return "Perfis na sessão: " + profileCache.size() + "\nValidade: 5 minutos\nCache em disco: desativado";
+        return "Perfis na sessão: " + profileCache.size() + "\nValidade: 5 minutos";
     }
 
     private void clearProfileCache() {
@@ -1823,7 +2098,7 @@ private int loadingProgressFor(String message) {
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
-        TextView info = text(cacheStatsText() + "\n\nO app consulta a HabboDex diretamente e usa o cache só para acelerar perfis vistos nos últimos minutos.", 13, muted, false);
+        TextView info = text(cacheStatsText() + "\n\nO app usa o cache só para acelerar perfis vistos nos últimos minutos.", 13, muted, false);
         info.setGravity(Gravity.CENTER);
         info.setPadding(dp(10), dp(10), dp(10), dp(10));
         info.setBackground(round(Color.argb(18,255,255,255), dp(14), Color.argb(28,255,255,255), 1));
