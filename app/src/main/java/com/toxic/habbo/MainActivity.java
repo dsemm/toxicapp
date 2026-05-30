@@ -81,6 +81,7 @@ public class MainActivity extends Activity {
         }
         getWindow().setStatusBarColor(Color.rgb(20, 10, 30));
         getWindow().setNavigationBarColor(Color.rgb(10, 10, 15));
+        clearProfileCache();
         buildUi();
     }
 
@@ -185,11 +186,6 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (!searchInProgress && !currentLoadedNick.isEmpty() && nickKey.equals(currentLoadedNick)) {
-            toast("Esse perfil já está aberto.");
-            return;
-        }
-
         hideKeyboard();
         suggestionsBox.setVisibility(View.GONE);
 
@@ -205,22 +201,16 @@ public class MainActivity extends Activity {
         photosScrollX = 0;
         stylesScrollX = 0;
 
-        final ProfileResult cached = getCachedProfile(nickKey);
-        if (cached != null) {
-            statusText.setText("");
-            renderProfile(cached);
-            showInlineLoading("Atualizando informações...");
-        } else {
-            resultWrap.removeAllViews();
-            setLoading(true, "Buscando " + nick + "...");
-        }
+        resultWrap.removeAllViews();
+        setLoading(true, "Buscando " + nick + "...");
 
         executor.execute(() -> {
             try {
                 ProfileResult fresh = loadProfile(nick, false);
                 if (!isActiveToken(token)) return;
 
-                final ProfileResult r = cached == null ? fresh : mergeFreshIntoCached(cached, fresh);
+                ProfileResult cached = getCachedProfile(nickKey);
+                final ProfileResult r = mergeFreshIntoCachedSafely(cached, fresh);
                 putProfileCache(r, nickKey);
                 saveProfileCache(r, nickKey);
 
@@ -347,9 +337,10 @@ public class MainActivity extends Activity {
     private void completeProfileSections(ProfileResult r, int token) {
         if (r == null || r.uniqueId == null || r.uniqueId.isEmpty() || !isActiveToken(token)) return;
 
-        ArrayList<JSONObject> photos = null;
-        try { photos = fetchAll(r.uniqueId, "photos", "photos", 100, 50); } catch(Exception ignored) {}
-        if (photos != null) r.photos = photos;
+        PageResult photosPage = null;
+        try { photosPage = fetchPage(r.uniqueId, "photos", "photos", 1, PAGE_CHUNK); } catch(Exception ignored) {}
+        if (photosPage != null) applyPhotosPage(r, photosPage, true);
+        try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
         if (!isActiveToken(token)) return;
         putProfileCache(r, activeSearchNick);
         saveProfileCache(r, activeSearchNick);
@@ -371,9 +362,9 @@ public class MainActivity extends Activity {
             renderProfile(r);
         });
 
-        ArrayList<JSONObject> styles = null;
-        try { styles = fetchAll(r.uniqueId, "previous-styles", null, 100, 50); } catch(Exception ignored) {}
-        if (styles != null) r.previousStyles = styles;
+        PageResult stylesPage = null;
+        try { stylesPage = fetchPage(r.uniqueId, "previous-styles", null, 1, PAGE_CHUNK); } catch(Exception ignored) {}
+        if (stylesPage != null) applyStylesPage(r, stylesPage, true);
         if (!isActiveToken(token)) return;
 
         ArrayList<JSONObject> friendsNow = null;
@@ -442,6 +433,119 @@ public class MainActivity extends Activity {
         return out;
     }
 
+
+
+    private PageResult fetchPage(String uniqueId, String endpoint, String primaryKey, int page, int limit) {
+        PageResult out = new PageResult();
+        out.page = Math.max(1, page);
+        out.nextPage = 0;
+        out.hasMore = false;
+        out.total = 0;
+        try {
+            JSONObject pageData = unwrap(getJson(habbodexEndpointUrl(uniqueId, endpoint, out.page, limit)));
+            if (pageData == null) return out;
+            out.items = extractList(pageData, primaryKey);
+            out.total = extractTotalCount(pageData);
+            JSONObject next = pageData.optJSONObject("next");
+            int nextPage = next == null ? 0 : next.optInt("page", 0);
+            if (nextPage <= 0) {
+                JSONObject pagination = pageData.optJSONObject("pagination");
+                if (pagination != null) nextPage = pagination.optInt("nextPage", 0);
+            }
+            if (nextPage <= 0) {
+                int totalPages = pageData.optInt("totalPages", pageData.optInt("pages", 0));
+                JSONObject pagination = pageData.optJSONObject("pagination");
+                if (pagination != null) totalPages = Math.max(totalPages, pagination.optInt("totalPages", pagination.optInt("pages", 0)));
+                if (totalPages > out.page) nextPage = out.page + 1;
+            }
+            if (nextPage <= 0 && out.items.size() >= limit) nextPage = out.page + 1;
+            out.nextPage = nextPage > out.page ? nextPage : 0;
+            out.hasMore = out.nextPage > 0;
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    private int extractTotalCount(JSONObject data) {
+        if (data == null) return 0;
+        int total = firstPositiveInt(data, "total", "totalItems", "totalCount", "count", "recordsTotal");
+        JSONObject pagination = data.optJSONObject("pagination");
+        if (total <= 0 && pagination != null) total = firstPositiveInt(pagination, "total", "totalItems", "totalCount", "count");
+        JSONObject meta = data.optJSONObject("meta");
+        if (total <= 0 && meta != null) total = firstPositiveInt(meta, "total", "totalItems", "totalCount", "count");
+        return total;
+    }
+
+    private int firstPositiveInt(JSONObject data, String... keys) {
+        if (data == null || keys == null) return 0;
+        for (String key : keys) {
+            if (data.has(key)) {
+                int v = data.optInt(key, 0);
+                if (v > 0) return v;
+            }
+        }
+        return 0;
+    }
+
+    private void applyPhotosPage(ProfileResult r, PageResult page, boolean reset) {
+        if (r == null || page == null) return;
+        if (reset) r.photos.clear();
+        r.photos = mergeLists(r.photos, page.items);
+        r.photosNextPage = page.nextPage;
+        r.photosHasMore = page.hasMore;
+        if (page.total > 0) r.photosTotal = page.total;
+    }
+
+    private void applyStylesPage(ProfileResult r, PageResult page, boolean reset) {
+        if (r == null || page == null) return;
+        if (reset) r.previousStyles.clear();
+        r.previousStyles = mergeLists(r.previousStyles, page.items);
+        r.stylesNextPage = page.nextPage;
+        r.stylesHasMore = page.hasMore;
+        if (page.total > 0) r.stylesTotal = page.total;
+    }
+
+    private void loadMorePhotos(ProfileResult r, HorizontalScrollView photosHsv) {
+        if (r == null || r.photosLoading || !r.photosHasMore || r.uniqueId == null || r.uniqueId.isEmpty()) return;
+        final int token = activeSearchToken;
+        final int page = r.photosNextPage <= 0 ? 2 : r.photosNextPage;
+        r.photosLoading = true;
+        photosScrollX = photosHsv == null ? 0 : photosHsv.getScrollX();
+        renderProfile(r);
+        executor.execute(() -> {
+            PageResult next = fetchPage(r.uniqueId, "photos", "photos", page, PAGE_CHUNK);
+            if (!isActiveToken(token)) return;
+            applyPhotosPage(r, next, false);
+            try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
+            r.photosLoading = false;
+            putProfileCache(r, activeSearchNick);
+            saveProfileCache(r, activeSearchNick);
+            runOnUiThread(() -> {
+                if (!isActiveToken(token)) return;
+                renderProfile(r);
+            });
+        });
+    }
+
+    private void loadMoreStyles(ProfileResult r, HorizontalScrollView stylesHsv) {
+        if (r == null || r.stylesLoading || !r.stylesHasMore || r.uniqueId == null || r.uniqueId.isEmpty()) return;
+        final int token = activeSearchToken;
+        final int page = r.stylesNextPage <= 0 ? 2 : r.stylesNextPage;
+        r.stylesLoading = true;
+        stylesScrollX = stylesHsv == null ? 0 : stylesHsv.getScrollX();
+        renderProfile(r);
+        executor.execute(() -> {
+            PageResult next = fetchPage(r.uniqueId, "previous-styles", null, page, PAGE_CHUNK);
+            if (!isActiveToken(token)) return;
+            applyStylesPage(r, next, false);
+            r.stylesLoading = false;
+            putProfileCache(r, activeSearchNick);
+            saveProfileCache(r, activeSearchNick);
+            runOnUiThread(() -> {
+                if (!isActiveToken(token)) return;
+                renderProfile(r);
+            });
+        });
+    }
 
     private ArrayList<JSONObject> fetchOfficialPhotos(String uniqueId) {
         ArrayList<JSONObject> out = new ArrayList<>();
@@ -524,9 +628,9 @@ public class MainActivity extends Activity {
 
         addSelectedBadges(r.selectedBadges);
         addPreviousNames(r.previousNames);
-        addPhotos(r.photos);
+        addPhotos(r);
         addPreviousMottos(r.previousMottos);
-        addPreviousStyles(r.previousStyles);
+        addPreviousStyles(r);
         addStats(r);
         addFriendsTabs(r.friends, r.oldFriends);
         addRoomsTabs(r.rooms, r.oldRooms);
@@ -717,17 +821,19 @@ public class MainActivity extends Activity {
         return v;
     }
 
-    private void addPreviousStyles(ArrayList<JSONObject> list) {
-        if (list.isEmpty()) return;
-        final int total = list.size();
-        final int limit = Math.min(total, Math.max(PAGE_CHUNK, visibleStylesCount));
-        LinearLayout c = sectionCard("Visuais anteriores", total, true);
+    private void addPreviousStyles(ProfileResult profileResult) {
+        if (profileResult == null) return;
+        ArrayList<JSONObject> list = profileResult.previousStyles;
+        if (list.isEmpty() && !profileResult.stylesHasMore && !profileResult.stylesLoading) return;
+        final int loaded = list.size();
+        final int totalLabel = Math.max(profileResult.stylesTotal, loaded);
+        LinearLayout c = sectionCard("Visuais anteriores", totalLabel > 0 ? totalLabel : loaded, true);
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(172), 0, 0, 0, 8));
         final HorizontalScrollView stylesHsv = hsv;
         if (stylesScrollX > 0) stylesHsv.post(() -> stylesHsv.scrollTo(stylesScrollX, 0));
-        for (int i=0; i<limit; i++) {
+        for (int i=0; i<loaded; i++) {
             JSONObject o = list.get(i);
             String fig = firstText(o, "figureString", "figure", "look");
             if (fig.isEmpty()) continue;
@@ -739,13 +845,11 @@ public class MainActivity extends Activity {
             final String finalFig = fig;
             box.setOnClickListener(v -> showClothesDialog(finalFig, niceDate(firstText(o, "changedAt", "date", "createdAt", "creationTime"))));
         }
-        if (limit < total) {
-            TextView more = loadMoreButton("Carregar mais", limit, total);
-            more.setOnClickListener(v -> {
-                stylesScrollX = stylesHsv.getScrollX();
-                visibleStylesCount = Math.min(total, visibleStylesCount + PAGE_CHUNK);
-                if (activeRenderedProfile != null) renderProfile(activeRenderedProfile);
-            });
+        if (profileResult.stylesLoading) {
+            c.addView(loadMoreButton("Carregando...", loaded, totalLabel > 0 ? totalLabel : loaded), lp(-1, dp(46), 0, 4, 0, 0));
+        } else if (profileResult.stylesHasMore) {
+            TextView more = loadMoreButton("Carregar mais", loaded, totalLabel > loaded ? totalLabel : loaded + PAGE_CHUNK);
+            more.setOnClickListener(v -> loadMoreStyles(profileResult, stylesHsv));
             c.addView(more, lp(-1, dp(46), 0, 4, 0, 0));
         }
     }
@@ -1074,17 +1178,19 @@ public class MainActivity extends Activity {
         return url == null ? "" : url.trim();
     }
 
-    private void addPhotos(ArrayList<JSONObject> list) {
-        if (list.isEmpty()) return;
-        final int total = list.size();
-        final int limit = Math.min(total, Math.max(PAGE_CHUNK, visiblePhotosCount));
-        LinearLayout c = sectionCard("Fotos do usuário", total, true);
+    private void addPhotos(ProfileResult profileResult) {
+        if (profileResult == null) return;
+        ArrayList<JSONObject> list = profileResult.photos;
+        if (list.isEmpty() && !profileResult.photosHasMore && !profileResult.photosLoading) return;
+        final int loaded = list.size();
+        final int totalLabel = Math.max(profileResult.photosTotal, loaded);
+        LinearLayout c = sectionCard("Fotos do usuário", totalLabel > 0 ? totalLabel : loaded, true);
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(165), 0, 0, 0, 0));
         final HorizontalScrollView photosHsv = hsv;
         if (photosScrollX > 0) photosHsv.post(() -> photosHsv.scrollTo(photosScrollX, 0));
-        for (int i=0; i<limit; i++) {
+        for (int i=0; i<loaded; i++) {
             JSONObject o = list.get(i);
             String url = getPhotoUrl(o);
             String date = getPhotoTimestamp(o);
@@ -1094,13 +1200,11 @@ public class MainActivity extends Activity {
             TextView dt = text(date, 12, Color.argb(190,255,255,255), false); dt.setGravity(Gravity.CENTER); box.addView(dt, lp(-1,-2,0,8,0,0));
             if (!url.isEmpty()) { loadImage(img, url); final JSONObject photoObj = o; box.setOnClickListener(v -> showPhotoDialog(photoObj)); }
         }
-        if (limit < total) {
-            TextView more = loadMoreButton("Carregar mais", limit, total);
-            more.setOnClickListener(v -> {
-                photosScrollX = photosHsv.getScrollX();
-                visiblePhotosCount = Math.min(total, visiblePhotosCount + PAGE_CHUNK);
-                if (activeRenderedProfile != null) renderProfile(activeRenderedProfile);
-            });
+        if (profileResult.photosLoading) {
+            c.addView(loadMoreButton("Carregando...", loaded, totalLabel > 0 ? totalLabel : loaded), lp(-1, dp(46), 0, 12, 0, 0));
+        } else if (profileResult.photosHasMore) {
+            TextView more = loadMoreButton("Carregar mais", loaded, totalLabel > loaded ? totalLabel : loaded + PAGE_CHUNK);
+            more.setOnClickListener(v -> loadMorePhotos(profileResult, photosHsv));
             c.addView(more, lp(-1, dp(46), 0, 12, 0, 0));
         }
     }
@@ -2151,7 +2255,7 @@ private int loadingProgressFor(String message) {
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
-        TextView info = text(cacheStatsText() + "\n\nO app usa o cache só para acelerar perfis vistos nos últimos minutos.", 13, muted, false);
+        TextView info = text(cacheStatsText() + "\n\nO app consulta o perfil atual novamente ao pesquisar e usa o cache só para acelerar dados do mesmo usuário.", 13, muted, false);
         info.setGravity(Gravity.CENTER);
         info.setPadding(dp(10), dp(10), dp(10), dp(10));
         info.setBackground(round(Color.argb(18,255,255,255), dp(14), Color.argb(28,255,255,255), 1));
@@ -2177,7 +2281,7 @@ private int loadingProgressFor(String message) {
         wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 10));
         clear.setOnClickListener(v -> {
             clearProfileCache();
-            info.setText(cacheStatsText() + "\n\nO app consulta a HabboDex diretamente e usa o cache só para acelerar perfis vistos nos últimos minutos.");
+            info.setText(cacheStatsText() + "\n\nO app consulta o perfil atual novamente ao pesquisar e usa o cache só para acelerar dados do mesmo usuário.");
             toast("Cache da sessão limpo.");
         });
 
@@ -2198,6 +2302,33 @@ private int loadingProgressFor(String message) {
         }
     }
 
+
+    private ProfileResult mergeFreshIntoCachedSafely(ProfileResult cached, ProfileResult fresh) {
+        if (fresh == null) return cached;
+        if (cached == null) return fresh;
+
+        String freshId = normalizeNickKey(fresh.uniqueId);
+        String cachedId = normalizeNickKey(cached.uniqueId);
+        if (!freshId.isEmpty() && !cachedId.isEmpty() && !freshId.equals(cachedId)) {
+            return fresh;
+        }
+
+        ProfileResult merged = mergeFreshIntoCached(cached, fresh);
+
+        // Fotos e visuais antigos são carregados por página. Não reaproveite estes blocos
+        // do cache, para evitar mostrar histórico antigo antes da primeira página atual.
+        merged.photos.clear();
+        merged.previousStyles.clear();
+        merged.photosNextPage = 0;
+        merged.stylesNextPage = 0;
+        merged.photosTotal = 0;
+        merged.stylesTotal = 0;
+        merged.photosHasMore = false;
+        merged.stylesHasMore = false;
+        merged.photosLoading = false;
+        merged.stylesLoading = false;
+        return merged;
+    }
 
     private ProfileResult mergeFreshIntoCached(ProfileResult cached, ProfileResult fresh) {
         if (cached == null) return fresh;
@@ -2272,6 +2403,14 @@ private int loadingProgressFor(String message) {
         boolean online = false, privateProfile = false, banned = false;
         JSONObject habboPublic, dex, suggest, dexProfile, officialProfile;
         ArrayList<JSONObject> previousNames = new ArrayList<>(), previousMottos = new ArrayList<>(), previousStyles = new ArrayList<>(), photos = new ArrayList<>(), friends = new ArrayList<>(), oldFriends = new ArrayList<>(), rooms = new ArrayList<>(), oldRooms = new ArrayList<>(), groups = new ArrayList<>(), selectedBadges = new ArrayList<>();
+        int photosNextPage = 0, stylesNextPage = 0, photosTotal = 0, stylesTotal = 0;
+        boolean photosHasMore = false, stylesHasMore = false, photosLoading = false, stylesLoading = false;
+    }
+
+    private static class PageResult {
+        ArrayList<JSONObject> items = new ArrayList<>();
+        int page = 1, nextPage = 0, total = 0;
+        boolean hasMore = false;
     }
 
 
