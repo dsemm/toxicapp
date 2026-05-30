@@ -44,6 +44,8 @@ public class MainActivity extends Activity {
     private final ConcurrentHashMap<String, Long> profileCacheTimes = new ConcurrentHashMap<>();
     private static final long SESSION_CACHE_TTL_MS = 5L * 60L * 1000L;
     private ProfileResult activeRenderedProfile = null;
+    private final ArrayDeque<ProfileResult> profileHistory = new ArrayDeque<>();
+    private static final int PROFILE_HISTORY_LIMIT = 25;
     private int visiblePhotosCount = 20;
     private int visibleStylesCount = 20;
     private int photosScrollX = 0;
@@ -81,7 +83,6 @@ public class MainActivity extends Activity {
         }
         getWindow().setStatusBarColor(Color.rgb(20, 10, 30));
         getWindow().setNavigationBarColor(Color.rgb(10, 10, 15));
-        clearProfileCache();
         buildUi();
     }
 
@@ -101,6 +102,18 @@ public class MainActivity extends Activity {
         root.setPadding(dp(18), dp(26), dp(18), dp(42));
         scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
         screen.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+        screen.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN && searchInput != null && searchInput.hasFocus() && !isTouchInsideView(searchInput, event)) {
+                clearSearchFocus();
+            }
+            return false;
+        });
+        root.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN && searchInput != null && searchInput.hasFocus() && !isTouchInsideView(searchInput, event)) {
+                clearSearchFocus();
+            }
+            return false;
+        });
 
         TextView settingsBtn = text("⚙", 24, Color.argb(230,255,255,255), true);
         settingsBtn.setGravity(Gravity.CENTER);
@@ -137,6 +150,8 @@ public class MainActivity extends Activity {
         searchInput.setGravity(Gravity.CENTER_VERTICAL);
         searchInput.setPadding(dp(16), 0, dp(16), 0);
         searchInput.setBackground(round(Color.argb(28,255,255,255), dp(14), Color.argb(35,255,255,255), 1));
+        searchInput.setCursorVisible(false);
+        searchInput.setOnFocusChangeListener((v, hasFocus) -> searchInput.setCursorVisible(hasFocus));
         searchCard.addView(searchInput, lp(-1, dp(42), 0, 0, 0, 8));
 
         suggestionsBox = new LinearLayout(this);
@@ -186,7 +201,7 @@ public class MainActivity extends Activity {
             return;
         }
 
-        hideKeyboard();
+        clearSearchFocus();
         suggestionsBox.setVisibility(View.GONE);
 
         final int token = ++activeSearchToken;
@@ -200,6 +215,7 @@ public class MainActivity extends Activity {
         visibleStylesCount = PAGE_CHUNK;
         photosScrollX = 0;
         stylesScrollX = 0;
+        pushCurrentProfileToHistory(nickKey);
 
         resultWrap.removeAllViews();
         setLoading(true, "Buscando " + nick + "...");
@@ -273,7 +289,7 @@ public class MainActivity extends Activity {
         JSONObject dexByName = unwrap(tryJson(habbodexProfileByNameUrl(nick)));
         JSONObject suggest = unwrap(tryJson(habbodexSuggestUrl(nick)));
         r.habboPublic = habboPublic; r.dex = dexByName; r.suggest = suggest;
-        JSONObject base = firstObject(validProfileObject(dexByName), validProfileObject(habboPublic));
+        JSONObject base = firstObject(validProfileObject(habboPublic), validProfileObject(dexByName));
         if (base == null) throw new ProfileNotFoundException(nick, filterPreviousNickSuggestions(suggest, nick));
 
         r.uniqueId = firstText(base, "uniqueId", "id", "habboId");
@@ -289,7 +305,7 @@ public class MainActivity extends Activity {
         if (habboPublic != null && habboPublic.has("online")) r.online = habboPublic.optBoolean("online", r.online);
         r.privateProfile = !optBoolAny(base, true, "profileVisible", "isProfileVisible", "visible");
         if (habboPublic != null && habboPublic.has("profileVisible")) r.privateProfile = !habboPublic.optBoolean("profileVisible", true);
-        r.banned = optBoolTrue(base, "isBanned", "banned", "ban", "is_banned");
+        r.banned = isSameProfileObject(base, habboPublic) ? false : optBoolTrue(base, "isBanned", "banned", "ban", "is_banned");
         r.memberSince = firstText(base, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
         if (r.memberSince.isEmpty() && habboPublic != null) r.memberSince = habboPublic.optString("memberSince", "");
         r.lastAccess = firstText(base, "lastAccessTime", "lastLoginTime", "lastOnline", "lastVisit");
@@ -685,8 +701,8 @@ public class MainActivity extends Activity {
         wrap.setOrientation(LinearLayout.VERTICAL);
         resultWrap.addView(wrap, lp(-1, -2, 0, 0, 0, 18));
         wrap.addView(statRow("status", "Status", r.online ? "Online" : "Offline"));
-        wrap.addView(statRow("clock", "Último login", niceDate(r.lastAccess)));
-        wrap.addView(statRow("calendar", "Criação", niceDate(r.memberSince)));
+        wrap.addView(statRow("clock", "Último login", niceDate(r.lastAccess), timeAgoText(r.lastAccess)));
+        wrap.addView(statRow("calendar", "Criação", niceDateOnly(r.memberSince), timeAgoText(r.memberSince)));
         wrap.addView(statRow("friends", "Amigos", String.valueOf(r.friends.size())));
         wrap.addView(statRow("rooms", "Quartos", String.valueOf(r.rooms.size())));
         wrap.addView(statRow("groups", "Grupos", String.valueOf(r.groups.size())));
@@ -696,6 +712,10 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout statRow(String icon, String label, String value) {
+        return statRow(icon, label, value, "");
+    }
+
+    private LinearLayout statRow(String icon, String label, String value, String tooltip) {
         LinearLayout row = card(dp(18));
         applyProfilePrivateBorder(row, dp(18));
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -716,6 +736,9 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1); tp.leftMargin = dp(9); row.addView(texts, tp);
         texts.addView(text(label, 11, Color.argb(190,255,255,255), false));
         texts.addView(text(value == null || value.isEmpty() || "null".equalsIgnoreCase(value) ? "—" : value, 14, Color.WHITE, true));
+        if (tooltip != null && !tooltip.trim().isEmpty() && !"—".equals(tooltip.trim())) {
+            row.setOnClickListener(v -> toast(tooltip));
+        }
         return row;
     }
 
@@ -2002,42 +2025,84 @@ private int loadingProgressFor(String message) {
     private String enc(String s) { try { return URLEncoder.encode(s == null ? "" : s, "UTF-8"); } catch(Exception e){ return s; } }
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
     private void hideKeyboard(){ try{ ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(searchInput.getWindowToken(),0);}catch(Exception ignored){} }
+    private void clearSearchFocus(){ try { if (searchInput != null) { searchInput.clearFocus(); searchInput.setCursorVisible(false); hideKeyboard(); } } catch(Exception ignored) {} }
+    private boolean isTouchInsideView(View view, MotionEvent event) {
+        if (view == null || event == null) return false;
+        int[] loc = new int[2];
+        view.getLocationOnScreen(loc);
+        float x = event.getRawX();
+        float y = event.getRawY();
+        return x >= loc[0] && x <= loc[0] + view.getWidth() && y >= loc[1] && y <= loc[1] + view.getHeight();
+    }
     private void openUrl(String url){ try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch(Exception ignored){} }
     private String normalizeUrl(String url) { String s = url == null ? "" : url.trim(); if (s.startsWith("//")) return "https:" + s; if (s.startsWith("/")) return "https://atoxic.com.br" + s; return s; }
 
     private String emptyDash(String s) { return s == null || s.trim().isEmpty() ? "—" : s.trim(); }
 
-    private String niceDate(String in) {
-        if (in == null || in.trim().isEmpty()) return "—";
+    private Date parseHabboDate(String in) {
+        if (in == null || in.trim().isEmpty()) return null;
         String s = in.trim();
         try {
             if (s.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
                 SimpleDateFormat only = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-                Date d0 = only.parse(s);
-                return new SimpleDateFormat("dd/MM/yyyy", new Locale("pt", "BR")).format(d0);
+                only.setTimeZone(TimeZone.getTimeZone("UTC"));
+                return only.parse(s);
             }
-            Date d;
             if (s.matches("^\\d{10,13}$")) {
-                long ts = Long.parseLong(s); if (s.length() == 10) ts *= 1000; d = new Date(ts);
-            } else {
-                String iso = s.replace("Z", "+0000").replaceAll("([+-]\\d{2}):(\\d{2})$", "$1$2");
-                String[] patterns = {"yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss"};
-                Date parsed = null;
-                for (String p: patterns) {
-                    try {
-                        SimpleDateFormat f = new SimpleDateFormat(p, Locale.US);
-                        if (p.endsWith("Z")) f.setTimeZone(TimeZone.getTimeZone("UTC"));
-                        else f.setTimeZone(TimeZone.getTimeZone("UTC"));
-                        parsed = f.parse(iso); break;
-                    } catch(Exception ignored){}
-                }
-                if (parsed == null) return s.replace('T',' ').replace("Z", "");
-                d = parsed;
+                long ts = Long.parseLong(s);
+                if (s.length() == 10) ts *= 1000;
+                return new Date(ts);
             }
-            SimpleDateFormat out = new SimpleDateFormat("dd/MM/yyyy, HH:mm", new Locale("pt", "BR"));
-            out.setTimeZone(TimeZone.getTimeZone("America/Sao_Paulo"));
-            return out.format(d);
-        } catch(Exception e) { return s.replace('T',' ').replace("Z", ""); }
+            String iso = s.replace("Z", "+0000").replaceAll("([+-]\\d{2}):(\\d{2})$", "$1$2");
+            String[] patterns = {"yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss"};
+            for (String pattern : patterns) {
+                try {
+                    SimpleDateFormat f = new SimpleDateFormat(pattern, Locale.US);
+                    f.setTimeZone(TimeZone.getTimeZone("UTC"));
+                    return f.parse(iso);
+                } catch(Exception ignored) {}
+            }
+        } catch(Exception ignored) {}
+        return null;
+    }
+
+    private String niceDate(String in) {
+        Date d = parseHabboDate(in);
+        if (d == null) {
+            if (in == null || in.trim().isEmpty()) return "—";
+            return in.trim().replace('T',' ').replace("Z", "");
+        }
+        SimpleDateFormat out = new SimpleDateFormat("dd/MM/yyyy, HH:mm", new Locale("pt", "BR"));
+        out.setTimeZone(TimeZone.getTimeZone("America/Sao_Paulo"));
+        return out.format(d);
+    }
+
+    private String niceDateOnly(String in) {
+        Date d = parseHabboDate(in);
+        if (d == null) {
+            if (in == null || in.trim().isEmpty()) return "—";
+            String clean = in.trim().replace('T',' ').replace("Z", "");
+            return clean.length() >= 10 ? clean.substring(0, 10) : clean;
+        }
+        SimpleDateFormat out = new SimpleDateFormat("dd/MM/yyyy", new Locale("pt", "BR"));
+        out.setTimeZone(TimeZone.getTimeZone("America/Sao_Paulo"));
+        return out.format(d);
+    }
+
+    private String timeAgoText(String in) {
+        Date d = parseHabboDate(in);
+        if (d == null) return "";
+        long diff = Math.max(0L, System.currentTimeMillis() - d.getTime()) / 1000L;
+        long value;
+        String unit;
+        if (diff < 60) { value = Math.max(1, diff); unit = value == 1 ? "segundo" : "segundos"; }
+        else if (diff < 3600) { value = diff / 60; unit = value == 1 ? "minuto" : "minutos"; }
+        else if (diff < 86400) { value = diff / 3600; unit = value == 1 ? "hora" : "horas"; }
+        else if (diff < 604800) { value = diff / 86400; unit = value == 1 ? "dia" : "dias"; }
+        else if (diff < 2629800) { value = diff / 604800; unit = value == 1 ? "semana" : "semanas"; }
+        else if (diff < 31557600) { value = diff / 2629800; unit = value == 1 ? "mês" : "meses"; }
+        else { value = diff / 31557600; unit = value == 1 ? "ano" : "anos"; }
+        return "há " + value + " " + unit;
     }
 
     private boolean isToday(String in) { if (in == null || in.trim().isEmpty()) return false; String d = niceDate(in); String today = new SimpleDateFormat("dd/MM/yyyy", new Locale("pt","BR")).format(new Date()); return d.startsWith(today); }
@@ -2225,7 +2290,7 @@ private int loadingProgressFor(String message) {
 
     private String cacheStatsText() {
         cleanupSessionProfileCache();
-        return "Perfis na sessão: " + profileCache.size() + "\nValidade: 5 minutos";
+        return "Perfis na sessão: " + profileCache.size() + "\nCache do app: " + formatBytes(cacheDirSize(getCacheDir()) + cacheDirSize(profileCacheDir())) + "\nValidade do cache de sessão: 5 minutos";
     }
 
     private void rebuildUiPreservingProfile() {
@@ -2237,10 +2302,28 @@ private int loadingProgressFor(String message) {
     private void clearProfileCache() {
         profileCache.clear();
         profileCacheTimes.clear();
-        try {
-            File[] files = profileCacheDir().listFiles();
-            if (files != null) for (File f : files) if (f != null && f.isFile()) f.delete();
-        } catch (Exception ignored) {}
+        profileHistory.clear();
+        try { Glide.get(this).clearMemory(); } catch (Exception ignored) {}
+        executor.execute(() -> {
+            try { Glide.get(MainActivity.this).clearDiskCache(); } catch (Exception ignored) {}
+            deleteContents(profileCacheDir(), true);
+            deleteContents(getCacheDir(), false);
+            if (Build.VERSION.SDK_INT >= 21) deleteContents(getCodeCacheDir(), false);
+            try { File ext = getExternalCacheDir(); if (ext != null) deleteContents(ext, false); } catch(Exception ignored) {}
+        });
+    }
+
+    private void deleteContents(File dir, boolean deleteRoot) {
+        if (dir == null || !dir.exists()) return;
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f == null) continue;
+                if (f.isDirectory()) deleteContents(f, true);
+                else { try { f.delete(); } catch(Exception ignored) {} }
+            }
+        }
+        if (deleteRoot) { try { dir.delete(); } catch(Exception ignored) {} }
     }
 
     private void showSettingsDialog() {
@@ -2276,13 +2359,13 @@ private int loadingProgressFor(String message) {
         lightBtn.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "light").apply(); lightTheme = true; dialog.dismiss(); rebuildUiPreservingProfile(); });
         darkBtn.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "dark").apply(); lightTheme = false; dialog.dismiss(); rebuildUiPreservingProfile(); });
 
-        TextView clear = dialogButton("Limpar cache da sessão");
+        TextView clear = dialogButton("Limpar cache do app");
         clear.setBackground(grad(dp(14), Color.rgb(120, 36, 46), Color.rgb(210, 54, 77)));
         wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 10));
         clear.setOnClickListener(v -> {
             clearProfileCache();
             info.setText(cacheStatsText() + "\n\nO app consulta o perfil atual novamente ao pesquisar e usa o cache só para acelerar dados do mesmo usuário.");
-            toast("Cache da sessão limpo.");
+            toast("Cache do app limpo.");
         });
 
         TextView close = dialogButton("Fechar");
@@ -2302,6 +2385,73 @@ private int loadingProgressFor(String message) {
         }
     }
 
+
+    private boolean isSameProfileObject(JSONObject a, JSONObject b) {
+        if (a == null || b == null) return false;
+        if (a == b) return true;
+        String aId = normalizeNickKey(firstText(a, "uniqueId", "id", "habboId"));
+        String bId = normalizeNickKey(firstText(b, "uniqueId", "id", "habboId"));
+        return !aId.isEmpty() && aId.equals(bId);
+    }
+
+    private void pushCurrentProfileToHistory(String nextNickKey) {
+        if (activeRenderedProfile == null || activeRenderedProfile.name == null || activeRenderedProfile.name.trim().isEmpty()) return;
+        String currentId = normalizeNickKey(activeRenderedProfile.uniqueId);
+        String currentName = normalizeNickKey(activeRenderedProfile.name);
+        if ((!currentId.isEmpty() && currentId.equals(nextNickKey)) || (!currentName.isEmpty() && currentName.equals(nextNickKey))) return;
+        if (!profileHistory.isEmpty()) {
+            ProfileResult last = profileHistory.peekLast();
+            if (sameProfile(last, activeRenderedProfile)) return;
+        }
+        profileHistory.addLast(copyProfileResult(activeRenderedProfile));
+        while (profileHistory.size() > PROFILE_HISTORY_LIMIT) profileHistory.removeFirst();
+    }
+
+    private boolean sameProfile(ProfileResult a, ProfileResult b) {
+        if (a == null || b == null) return false;
+        String aId = normalizeNickKey(a.uniqueId);
+        String bId = normalizeNickKey(b.uniqueId);
+        if (!aId.isEmpty() && !bId.isEmpty()) return aId.equals(bId);
+        return normalizeNickKey(a.name).equals(normalizeNickKey(b.name));
+    }
+
+    private ProfileResult copyProfileResult(ProfileResult src) {
+        ProfileResult c = new ProfileResult();
+        if (src == null) return c;
+        c.searchedNick = src.searchedNick; c.uniqueId = src.uniqueId; c.name = src.name; c.motto = src.motto; c.figure = src.figure; c.memberSince = src.memberSince; c.lastAccess = src.lastAccess; c.level = src.level; c.starGems = src.starGems;
+        c.online = src.online; c.privateProfile = src.privateProfile; c.banned = src.banned;
+        c.habboPublic = src.habboPublic; c.dex = src.dex; c.suggest = src.suggest; c.dexProfile = src.dexProfile; c.officialProfile = src.officialProfile;
+        c.previousNames = new ArrayList<>(src.previousNames); c.previousMottos = new ArrayList<>(src.previousMottos); c.previousStyles = new ArrayList<>(src.previousStyles); c.photos = new ArrayList<>(src.photos); c.friends = new ArrayList<>(src.friends); c.oldFriends = new ArrayList<>(src.oldFriends); c.rooms = new ArrayList<>(src.rooms); c.oldRooms = new ArrayList<>(src.oldRooms); c.groups = new ArrayList<>(src.groups); c.selectedBadges = new ArrayList<>(src.selectedBadges);
+        c.photosNextPage = src.photosNextPage; c.stylesNextPage = src.stylesNextPage; c.photosTotal = src.photosTotal; c.stylesTotal = src.stylesTotal;
+        c.photosHasMore = src.photosHasMore; c.stylesHasMore = src.stylesHasMore; c.photosLoading = false; c.stylesLoading = false;
+        return c;
+    }
+
+    @Override public void onBackPressed() {
+        if (searchInput != null && searchInput.hasFocus()) {
+            clearSearchFocus();
+            return;
+        }
+        if (!profileHistory.isEmpty()) {
+            activeSearchToken++;
+            searchInProgress = false;
+            activeSearchNick = "";
+            inlineProgressPct = 0;
+            inlineProgressMessage = "";
+            ProfileResult previous = profileHistory.removeLast();
+            activeRenderedProfile = previous;
+            currentLoadedNick = normalizeNickKey(previous.name);
+            if (searchInput != null) {
+                searchInput.setText(previous.name == null ? "" : previous.name);
+                searchInput.setSelection(searchInput.getText().length());
+                clearSearchFocus();
+            }
+            statusText.setText("");
+            renderProfile(previous);
+            return;
+        }
+        super.onBackPressed();
+    }
 
     private ProfileResult mergeFreshIntoCachedSafely(ProfileResult cached, ProfileResult fresh) {
         if (fresh == null) return cached;
