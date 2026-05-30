@@ -55,6 +55,14 @@ public class MainActivity extends Activity {
     private static final String PREF_MAX_PROFILES = "max_profiles";
     private static final String PREF_CACHE_DAYS = "cache_days";
     private static final String PREF_MAX_CACHE_MB = "max_cache_mb";
+    private static final String PREF_HOTEL = "hotel";
+    private static final long PROFILE_REFRESH_COOLDOWN_MS = 60L * 1000L;
+    private ScrollView mainScroll;
+    private long lastSameNickRefreshAt = 0L;
+    private float pullStartY = 0f;
+    private boolean pullStartedAtTop = false;
+    private final ArrayList<ProfileHistoryItem> openedProfilesHistory = new ArrayList<>();
+    private String currentHotelKey = "br";
 
     private final int bg = Color.rgb(13, 13, 18);
     private final int purple = Color.rgb(139, 52, 217);
@@ -76,13 +84,18 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
         lightTheme = getSharedPreferences(PREFS, MODE_PRIVATE).getString("theme", "dark").equals("light");
+        currentHotelKey = normalizeHotelKey(getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_HOTEL, ""));
+        if (currentHotelKey.isEmpty()) {
+            currentHotelKey = defaultHotelForDeviceLocale();
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
+        }
         try {
             habboFont = Typeface.createFromAsset(getAssets(), "fonts/ubuntu_habbo.ttf");
         } catch (Exception e) {
             habboFont = Typeface.create("sans-serif-condensed", Typeface.BOLD);
         }
-        getWindow().setStatusBarColor(Color.rgb(20, 10, 30));
-        getWindow().setNavigationBarColor(Color.rgb(10, 10, 15));
+        getWindow().setStatusBarColor(lightTheme ? Color.WHITE : Color.rgb(20, 10, 30));
+        getWindow().setNavigationBarColor(lightTheme ? Color.WHITE : Color.rgb(10, 10, 15));
         buildUi();
     }
 
@@ -95,8 +108,16 @@ public class MainActivity extends Activity {
         screen = new FrameLayout(this);
         screen.setBackground(makeBg());
         ScrollView scroll = new ScrollView(this);
+        mainScroll = scroll;
         scroll.setFillViewport(true);
         scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        scroll.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN && searchInput != null && searchInput.hasFocus() && !isTouchInsideView(searchInput, event)) {
+                clearSearchFocus();
+            }
+            handlePullToRefresh(scroll, event);
+            return false;
+        });
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(18), dp(26), dp(18), dp(42));
@@ -115,7 +136,17 @@ public class MainActivity extends Activity {
             return false;
         });
 
-        TextView settingsBtn = text("⚙", 24, Color.argb(230,255,255,255), true);
+        TextView historyBtn = text("", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
+        historyBtn.setGravity(Gravity.CENTER);
+        historyBtn.setPadding(0, 0, 0, 0);
+        historyBtn.setBackground(new HistoryClockDrawable());
+        historyBtn.setOnClickListener(v -> showOpenedProfilesHistoryDialog());
+        FrameLayout.LayoutParams historyLp = new FrameLayout.LayoutParams(dp(46), dp(46), Gravity.TOP | Gravity.LEFT);
+        historyLp.topMargin = dp(14);
+        historyLp.leftMargin = dp(8);
+        screen.addView(historyBtn, historyLp);
+
+        TextView settingsBtn = text("⚙", 24, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
         settingsBtn.setGravity(Gravity.CENTER);
         settingsBtn.setPadding(0, 0, 0, 0);
         settingsBtn.setBackgroundColor(Color.TRANSPARENT);
@@ -129,7 +160,7 @@ public class MainActivity extends Activity {
         logo.setGravity(Gravity.CENTER);
         logo.setLetterSpacing(0.02f);
         root.addView(logo, lp(-1, -2, 0, 0, 0, 4));
-        TextView subtitle = text("Buscar Habbos", 14, muted, false);
+        TextView subtitle = text("Buscar Habbos • " + hotelLabel(currentHotelKey), 14, muted, false);
         subtitle.setGravity(Gravity.CENTER);
         root.addView(subtitle, lp(-1, -2, 0, 0, 0, 10));
 
@@ -188,7 +219,7 @@ public class MainActivity extends Activity {
     private void showStartState() {
         resultWrap.removeAllViews();
         LinearLayout c = sectionCard("Pronto para buscar", 0, false);
-        c.addView(centerNote("Digite um nick do Habbo BR para consultar perfil, fotos, missões anteriores, visuais, amigos, quartos e grupos."));
+        c.addView(centerNote("Digite um nick do " + hotelName(currentHotelKey) + " para consultar perfil, fotos, missões anteriores, visuais, amigos, quartos e grupos."));
     }
 
     private void search() {
@@ -199,6 +230,15 @@ public class MainActivity extends Activity {
         if (searchInProgress && nickKey.equals(activeSearchNick)) {
             toast("Esse perfil já está sendo carregado.");
             return;
+        }
+
+        if (!searchInProgress && activeRenderedProfile != null && nickKey.equals(currentLoadedNick) && normalizeHotelKey(activeRenderedProfile.hotelKey).equals(currentHotelKey)) {
+            long now = System.currentTimeMillis();
+            long wait = PROFILE_REFRESH_COOLDOWN_MS - (now - lastSameNickRefreshAt);
+            if (wait > 0) {
+                toast("Aguarde " + Math.max(1, (int)Math.ceil(wait / 1000.0)) + "s para atualizar este perfil novamente.");
+                return;
+            }
         }
 
         clearSearchFocus();
@@ -251,6 +291,7 @@ public class MainActivity extends Activity {
                     searchInProgress = false;
                     activeSearchNick = "";
                     currentLoadedNick = normalizeNickKey(r.name);
+                    lastSameNickRefreshAt = System.currentTimeMillis();
                     searchBtn.setEnabled(true);
                     searchBtn.setText("Pesquisar");
                 });
@@ -285,7 +326,8 @@ public class MainActivity extends Activity {
     private ProfileResult loadProfile(String nick, boolean includeSections) throws Exception {
         ProfileResult r = new ProfileResult();
         r.searchedNick = nick;
-        JSONObject habboPublic = tryJson("https://www.habbo.com.br/api/public/users?name=" + enc(nick));
+        r.hotelKey = currentHotelKey;
+        JSONObject habboPublic = tryJson(habboApiUrl("/api/public/users?name=" + enc(nick)));
         JSONObject dexByName = unwrap(tryJson(habbodexProfileByNameUrl(nick)));
         JSONObject suggest = unwrap(tryJson(habbodexSuggestUrl(nick)));
         r.habboPublic = habboPublic; r.dex = dexByName; r.suggest = suggest;
@@ -327,7 +369,7 @@ public class MainActivity extends Activity {
                 r.selectedBadges = mergeLists(r.selectedBadges, extractListFromKeys(dexProfile, "selectedBadges", "badges"));
             }
 
-            JSONObject officialProfile = tryJson("https://www.habbo.com.br/api/public/users/" + enc(r.uniqueId) + "/profile");
+            JSONObject officialProfile = tryJson(habboApiUrl("/api/public/users/" + enc(r.uniqueId) + "/profile"));
             r.officialProfile = officialProfile;
             if (officialProfile != null) {
                 JSONObject user = officialProfile.optJSONObject("user");
@@ -377,6 +419,11 @@ public class MainActivity extends Activity {
             showInlineLoading("Carregando visuais e amigos...");
             renderProfile(r);
         });
+
+        PageResult badgesPage = null;
+        try { badgesPage = fetchPage(r.uniqueId, "selected-badges", null, 1, 20); } catch(Exception ignored) {}
+        if (badgesPage != null && badgesPage.items != null && !badgesPage.items.isEmpty()) r.selectedBadges = mergeLists(badgesPage.items, r.selectedBadges);
+        if (!isActiveToken(token)) return;
 
         PageResult stylesPage = null;
         try { stylesPage = fetchPage(r.uniqueId, "previous-styles", null, 1, PAGE_CHUNK); } catch(Exception ignored) {}
@@ -567,7 +614,7 @@ public class MainActivity extends Activity {
         ArrayList<JSONObject> out = new ArrayList<>();
         if (uniqueId == null || uniqueId.trim().isEmpty()) return out;
         try {
-            Object data = getJsonAny("https://www.habbo.com.br/extradata/public/users/" + enc(uniqueId) + "/photos");
+            Object data = getJsonAny(habboApiUrl("/extradata/public/users/" + enc(uniqueId) + "/photos"));
             if (data instanceof JSONArray) {
                 JSONArray a = (JSONArray)data;
                 for (int i=0; i<a.length(); i++) {
@@ -583,6 +630,7 @@ public class MainActivity extends Activity {
 
     private void renderProfile(ProfileResult r) {
         activeRenderedProfile = r;
+        rememberOpenedProfile(r);
         currentProfilePrivate = r != null && r.privateProfile;
         if (!searchInProgress) setLoading(false, "");
         resultWrap.removeAllViews();
@@ -661,7 +709,7 @@ public class MainActivity extends Activity {
         row.setBackground(round(adjustAlpha(color, 0.32f), dp(999), adjustAlpha(color, 0.55f), 1));
         View badgeIcon;
         if ("banned".equals(icon)) {
-            TextView bannedChar = habboText("ª", 16, true);
+            TextView bannedChar = habboText("ª", 12, true);
             bannedChar.setGravity(Gravity.CENTER);
             bannedChar.setIncludeFontPadding(false);
             bannedChar.setTextColor(Color.WHITE);
@@ -765,8 +813,11 @@ public class MainActivity extends Activity {
         for (int i=0; i<Math.min(list.size(), 12); i++) {
             JSONObject b = list.get(i); String code = firstText(b, "code", "badgeCode");
             ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            img.setPadding(dp(2), dp(2), dp(2), dp(2));
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(50), dp(50)); p.rightMargin = dp(10); row.addView(img, p);
-            if (!code.isEmpty()) loadImage(img, "https://images.habbo.com/c_images/album1584/" + enc(code) + ".png");
+            if (!code.isEmpty()) loadImage(img, badgeImageUrl(code));
+            final JSONObject badgeObj = b;
+            img.setOnClickListener(v -> showBadgeDialog(badgeObj));
         }
     }
 
@@ -1065,11 +1116,11 @@ public class MainActivity extends Activity {
         if (roomId == null || roomId.trim().isEmpty()) return null;
         String id = roomId.trim();
         String[] urls = new String[] {
-            HABBODEX + "/roominfo/br/room/" + enc(id),
-            "https://www.habbo.com.br/api/public/rooms/" + enc(id),
+            HABBODEX + "/roominfo/" + enc(habbodexHotelCode(currentHotelKey)) + "/room/" + enc(id),
+            habboApiUrl("/api/public/rooms/" + enc(id)),
             "https://www.habbo.com/api/public/rooms/" + enc(id),
-            HABBODEX + "/rooms/hhbr/" + enc(id),
-            HABBODEX + "/room/hhbr/" + enc(id)
+            HABBODEX + "/rooms/" + enc(habbodexHotelCode(currentHotelKey)) + "/" + enc(id),
+            HABBODEX + "/room/" + enc(habbodexHotelCode(currentHotelKey)) + "/" + enc(id)
         };
         for (String url : urls) {
             try {
@@ -1237,11 +1288,11 @@ public class MainActivity extends Activity {
     }
 
     private TextView loadMoreButton(String label, int shown, int total) {
-        TextView more = habboText("+", 22, true);
+        TextView more = new TextView(this);
         more.setGravity(Gravity.CENTER);
         more.setTextColor(Color.WHITE);
-        more.setPadding(0, 0, 0, dp(2));
-        more.setBackground(grad(dp(12), purple2, purple));
+        more.setPadding(0, 0, 0, 0);
+        more.setBackground(new AddButtonDrawable());
         return more;
     }
 
@@ -1626,7 +1677,7 @@ public class MainActivity extends Activity {
     private LinearLayout groupRow(JSONObject g) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(12),dp(12),dp(12)); row.setBackground(round(Color.argb(18,255,255,255), dp(16), currentProfilePrivate ? Color.argb(75, 255, 64, 64) : Color.argb(24,255,255,255), 1)); row.setLayoutParams(lp(-1, -2, 0, 0, 0, 12));
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(58), dp(58)));
-        String badge = firstText(g,"badgeCode","code"); String badgeUrl = normalizeUrl(firstText(g, "badgeUrl", "imageUrl", "url")); if(!badgeUrl.isEmpty()) loadImage(img, badgeUrl); else if(!badge.isEmpty()) loadImage(img,"https://www.habbo.com.br/habbo-imaging/badge/"+enc(badge)+".gif"); else img.setImageDrawable(new PlaceholderDrawable("groups"));
+        String badge = firstText(g,"badgeCode","code"); String badgeUrl = normalizeUrl(firstText(g, "badgeUrl", "imageUrl", "url")); if(!badgeUrl.isEmpty()) loadImage(img, badgeUrl); else if(!badge.isEmpty()) loadImage(img,habboImagingUrl("/habbo-imaging/badge/"+enc(badge)+".gif")); else img.setImageDrawable(new PlaceholderDrawable("groups"));
         LinearLayout txt = new LinearLayout(this); txt.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-2,1); tp.leftMargin=dp(12); row.addView(txt,tp);
         TextView groupName = habboText(firstText(g,"name","groupName").isEmpty()?"Grupo":firstText(g,"name","groupName"), 17, true); groupName.setMaxLines(1); groupName.setEllipsize(TextUtils.TruncateAt.END); txt.addView(groupName);
         String desc=firstText(g,"description","desc"); if(!desc.isEmpty()) { TextView gd = habboText(desc, 14, false); gd.setTextColor(Color.argb(220,255,255,255)); gd.setMaxLines(2); gd.setEllipsize(TextUtils.TruncateAt.END); txt.addView(gd); }
@@ -1658,13 +1709,18 @@ public class MainActivity extends Activity {
         header.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
 
         if (showButton) {
-            TextView more = habboText(loading ? "…" : "+", loading ? 20 : 22, true);
+            TextView more = new TextView(this);
+            more.setText(loading ? "…" : "");
             more.setTag("load_more_header_button");
             more.setGravity(Gravity.CENTER);
             more.setIncludeFontPadding(false);
             more.setTextColor(Color.WHITE);
-            more.setBackground(grad(dp(10), purple2, purple));
-            more.setPadding(0, 0, 0, dp(loading ? 5 : 2));
+            more.setTextSize(loading ? 20 : 1);
+            more.setTypeface(Typeface.DEFAULT_BOLD);
+            more.setBackground(loading ? grad(dp(8), purple2, purple) : new AddButtonDrawable());
+            more.setPadding(0, 0, 0, 0);
+            more.setMinWidth(0);
+            more.setMinHeight(0);
             LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(dp(38), dp(38));
             mp.leftMargin = dp(10);
             header.addView(more, mp);
@@ -1896,24 +1952,23 @@ private int loadingProgressFor(String message) {
         avatar.addView(walker, new FrameLayout.LayoutParams(-1, -1));
         String nick = searchInput == null ? "" : searchInput.getText().toString().trim();
         String cachedFigure = "";
-        ProfileResult cachedProfile = profileCache.get(normalizeNickKey(nick));
+        ProfileResult cachedProfile = getCachedProfile(nick);
         if (cachedProfile != null) cachedFigure = cachedProfile.figure;
         if (cachedFigure == null || cachedFigure.trim().isEmpty()) {
             cachedFigure = "hr-831-45.hd-180-1.ch-255-92.lg-280-82.sh-290-80";
         }
         String walkerUrl;
         if (nick != null && !nick.trim().isEmpty()) {
-            walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?&user=" + enc(nick.trim()) + "&action=wlk&direction=2&head_direction=2&img_format=png&headonly=0&size=b";
+            walkerUrl = habboImagingUrl("/habbo-imaging/avatarimage?user=" + enc(nick.trim()) + "&direction=2&head_direction=2&img_format=png&headonly=0&size=b");
         } else {
-            walkerUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&action=wlk&direction=2&head_direction=2&headonly=0&size=b&img_format=png";
+            walkerUrl = habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&direction=2&head_direction=2&headonly=0&size=b&img_format=png");
         }
-        String fallbackUrl = "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&action=wlk&direction=2&head_direction=2&headonly=0&size=b&img_format=png";
+        String fallbackUrl = habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&direction=2&head_direction=2&headonly=0&size=b&img_format=png");
         try {
             Glide.with(this).load(walkerUrl).error(Glide.with(this).load(fallbackUrl)).into(walker);
         } catch (Exception ex) {
             loadImage(walker, fallbackUrl);
         }
-        startFloating(walker);
 
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
@@ -1979,15 +2034,15 @@ private int loadingProgressFor(String message) {
     }
 
     private String habbodexProfileByNameUrl(String name) {
-        return HABBODEX + "/habboinfo/br/habbo?name=" + enc(name);
+        return HABBODEX + "/habboinfo/" + enc(habbodexHotelCode(currentHotelKey)) + "/habbo?name=" + enc(name);
     }
 
     private String habbodexProfileByUniqueUrl(String uniqueId) {
-        return HABBODEX + "/habboinfo/" + enc(uniqueId);
+        return HABBODEX + "/habboinfo/" + enc(uniqueId) + "?hotel=" + enc(habbodexHotelCode(currentHotelKey));
     }
 
     private String habbodexEndpointUrl(String uniqueId, String endpoint, int page, int limit) {
-        return HABBODEX + "/habboinfo/" + enc(uniqueId) + "/" + enc(endpoint) + "?page=" + page + "&limit=" + limit;
+        return HABBODEX + "/habboinfo/" + enc(uniqueId) + "/" + enc(endpoint) + "?page=" + page + "&limit=" + limit + "&hotel=" + enc(habbodexHotelCode(currentHotelKey));
     }
 
     private String habbodexFigureUrl(String figure) {
@@ -1995,7 +2050,7 @@ private int loadingProgressFor(String message) {
     }
 
     private String habbodexSuggestUrl(String name) {
-        return HABBODEX + "/habboinfo/habbos?name=" + enc(name) + "&includePreviousNames=true&hotel=br";
+        return HABBODEX + "/habboinfo/habbos?name=" + enc(name) + "&includePreviousNames=true&hotel=" + enc(habbodexHotelCode(currentHotelKey));
     }
 
     private Object getJsonAny(String u) throws Exception { HttpURLConnection c = (HttpURLConnection)new URL(u).openConnection(); c.setConnectTimeout(12000); c.setReadTimeout(24000); c.setRequestProperty("Accept", "application/json, text/plain, */*"); c.setRequestProperty("User-Agent", "ToxicHabboApp/2.0 Android"); int code = c.getResponseCode(); InputStream is = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream(); String body = readAll(is); if (code < 200 || code >= 300 || body == null || body.trim().isEmpty()) throw new IOException("HTTP " + code); String clean = body.trim(); return clean.startsWith("[") ? new JSONArray(clean) : new JSONObject(clean); }
@@ -2028,10 +2083,11 @@ private int loadingProgressFor(String message) {
     private boolean optBoolAny(JSONObject o, boolean fallback, String... keys) { if (o == null) return fallback; for (String k : keys) if (o.has(k)) return o.optBoolean(k, fallback); return fallback; }
 
     private String avatarFull(String figure) { return avatarFull(figure, 2); }
-    private String avatarFull(String figure, int direction) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=l&direction=" + direction + "&head_direction=" + direction + "&gesture=std&action=std&headonly=0"; }
-    private String avatarSmall(String figure) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&gesture=sml&action=std&headonly=0"; }
-    private String avatarHead(String figure) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&headonly=1"; }
-    private String avatarHeadByName(String name) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?user=" + enc(name) + "&size=m&direction=2&head_direction=2&headonly=1"; }
+    private String avatarFull(String figure, int direction) { return habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=l&direction=" + direction + "&head_direction=" + direction + "&gesture=std&action=std&headonly=0"); }
+    private String avatarSmall(String figure) { return habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&gesture=sml&action=std&headonly=0"); }
+    private String avatarHead(String figure) { return habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&headonly=1"); }
+    private String avatarHeadByName(String name) { return avatarHeadByNameForHotel(name, currentHotelKey); }
+    private String avatarHeadByNameForHotel(String name, String hotelKey) { return "https://" + hotelDomain(hotelKey) + "/habbo-imaging/avatarimage?user=" + enc(name) + "&size=m&direction=2&head_direction=2&headonly=1"; }
 
     private Drawable makeBg() {
         if (lightTheme) return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(245, 245, 245), Color.rgb(238, 238, 238), Color.rgb(250, 250, 250)});
@@ -2195,8 +2251,16 @@ private int loadingProgressFor(String message) {
     }
 
 
+    private String profileCacheKey(String raw, String hotelKey) {
+        String key = normalizeNickKey(raw);
+        if (key.isEmpty()) return "";
+        String hotel = normalizeHotelKey(hotelKey);
+        if (hotel.isEmpty()) hotel = currentHotelKey;
+        return hotel + ":" + key;
+    }
+
     private ProfileResult getCachedProfile(String nickKey) {
-        String key = normalizeNickKey(nickKey);
+        String key = profileCacheKey(nickKey, currentHotelKey);
         if (key.isEmpty()) return null;
         ProfileResult cached = profileCache.get(key);
         Long cachedAt = profileCacheTimes.get(key);
@@ -2212,14 +2276,16 @@ private int loadingProgressFor(String message) {
     private void putProfileCache(ProfileResult r, String aliasKey) {
         if (r == null) return;
         cleanupSessionProfileCache();
-        String alias = normalizeNickKey(aliasKey);
+        String hotel = normalizeHotelKey(r.hotelKey);
+        if (hotel.isEmpty()) hotel = currentHotelKey;
+        String alias = profileCacheKey(aliasKey, hotel);
         long now = System.currentTimeMillis();
         if (!alias.isEmpty()) { profileCache.put(alias, r); profileCacheTimes.put(alias, now); }
-        String nameKey = normalizeNickKey(r.name);
+        String nameKey = profileCacheKey(r.name, hotel);
         if (!nameKey.isEmpty()) { profileCache.put(nameKey, r); profileCacheTimes.put(nameKey, now); }
-        String searchedKey = normalizeNickKey(r.searchedNick);
+        String searchedKey = profileCacheKey(r.searchedNick, hotel);
         if (!searchedKey.isEmpty()) { profileCache.put(searchedKey, r); profileCacheTimes.put(searchedKey, now); }
-        String idKey = normalizeNickKey(r.uniqueId);
+        String idKey = profileCacheKey(r.uniqueId, hotel);
         if (!idKey.isEmpty()) { profileCache.put(idKey, r); profileCacheTimes.put(idKey, now); }
     }
 
@@ -2346,7 +2412,6 @@ private int loadingProgressFor(String message) {
     private void clearProfileCache() {
         profileCache.clear();
         profileCacheTimes.clear();
-        profileHistory.clear();
         try { Glide.get(this).clearMemory(); } catch (Exception ignored) {}
         executor.execute(() -> {
             try { Glide.get(MainActivity.this).clearDiskCache(); } catch (Exception ignored) {}
@@ -2381,6 +2446,17 @@ private int loadingProgressFor(String message) {
         TextView title = habboText("Configurações", 24, true);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
+
+        TextView hotelTitle = text("Hotel de busca", 13, muted, true);
+        hotelTitle.setGravity(Gravity.CENTER);
+        wrap.addView(hotelTitle, lp(-1, -2, 0, 0, 0, 8));
+
+        LinearLayout hotelGrid = new LinearLayout(this);
+        hotelGrid.setOrientation(LinearLayout.VERTICAL);
+        addHotelButtonRow(hotelGrid, dialog, "br", "com", "es");
+        addHotelButtonRow(hotelGrid, dialog, "de", "fr", "fi");
+        addHotelButtonRow(hotelGrid, dialog, "it", "nl", "tr");
+        wrap.addView(hotelGrid, lp(-1, -2, 0, 0, 0, 14));
 
         TextView info = text(cacheStatsText(), 13, muted, false);
         info.setGravity(Gravity.CENTER);
@@ -2428,6 +2504,294 @@ private int loadingProgressFor(String message) {
     }
 
 
+
+
+    private void handlePullToRefresh(ScrollView scroll, MotionEvent event) {
+        if (scroll == null || activeRenderedProfile == null || searchInProgress) return;
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                pullStartedAtTop = scroll.getScrollY() <= 0;
+                pullStartY = event.getY();
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                if (pullStartedAtTop && event.getY() - pullStartY > dp(86)) {
+                    refreshCurrentProfileWithCooldown();
+                }
+                pullStartedAtTop = false;
+                break;
+        }
+    }
+
+    private void refreshCurrentProfileWithCooldown() {
+        if (activeRenderedProfile == null) return;
+        String nick = activeRenderedProfile.name == null || activeRenderedProfile.name.trim().isEmpty() ? activeRenderedProfile.searchedNick : activeRenderedProfile.name;
+        if (nick == null || nick.trim().isEmpty()) return;
+        if (searchInput != null) {
+            searchInput.setText(nick.trim());
+            searchInput.setSelection(searchInput.getText().length());
+        }
+        search();
+    }
+
+    private String normalizeHotelKey(String hotel) {
+        String h = hotel == null ? "" : hotel.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
+        if ("us".equals(h)) h = "com";
+        String[] allowed = {"br","com","es","de","fr","fi","it","nl","tr"};
+        for (String a : allowed) if (a.equals(h)) return h;
+        return "";
+    }
+
+    private String defaultHotelForDeviceLocale() {
+        String lang = Locale.getDefault().getLanguage();
+        String country = Locale.getDefault().getCountry();
+        if ("pt".equals(lang) || "BR".equalsIgnoreCase(country)) return "br";
+        if ("es".equals(lang)) return "es";
+        if ("de".equals(lang)) return "de";
+        if ("fr".equals(lang)) return "fr";
+        if ("fi".equals(lang)) return "fi";
+        if ("it".equals(lang)) return "it";
+        if ("nl".equals(lang)) return "nl";
+        if ("tr".equals(lang)) return "tr";
+        return "com";
+    }
+
+    private String hotelDomain(String key) {
+        String h = normalizeHotelKey(key);
+        if ("com".equals(h)) return "www.habbo.com";
+        if ("es".equals(h)) return "www.habbo.es";
+        if ("de".equals(h)) return "www.habbo.de";
+        if ("fr".equals(h)) return "www.habbo.fr";
+        if ("fi".equals(h)) return "www.habbo.fi";
+        if ("it".equals(h)) return "www.habbo.it";
+        if ("nl".equals(h)) return "www.habbo.nl";
+        if ("tr".equals(h)) return "www.habbo.com.tr";
+        return "www.habbo.com.br";
+    }
+
+    private String habbodexHotelCode(String key) {
+        String h = normalizeHotelKey(key);
+        return "com".equals(h) ? "us" : (h.isEmpty() ? "br" : h);
+    }
+
+    private String hotelLabel(String key) {
+        String h = normalizeHotelKey(key);
+        if ("com".equals(h)) return ".COM";
+        if ("tr".equals(h)) return ".COM.TR";
+        if (h.isEmpty()) h = "br";
+        return "." + h.toUpperCase(Locale.ROOT);
+    }
+
+    private String hotelName(String key) {
+        return "Habbo" + hotelLabel(key).toLowerCase(Locale.ROOT).replace(".com.tr", ".com.tr");
+    }
+
+    private String hotelFlag(String key) {
+        String h = normalizeHotelKey(key);
+        if ("com".equals(h)) return "🇺🇸";
+        if ("es".equals(h)) return "🇪🇸";
+        if ("de".equals(h)) return "🇩🇪";
+        if ("fr".equals(h)) return "🇫🇷";
+        if ("fi".equals(h)) return "🇫🇮";
+        if ("it".equals(h)) return "🇮🇹";
+        if ("nl".equals(h)) return "🇳🇱";
+        if ("tr".equals(h)) return "🇹🇷";
+        return "🇧🇷";
+    }
+
+    private String habboApiUrl(String path) {
+        if (path == null) path = "";
+        if (!path.startsWith("/")) path = "/" + path;
+        return "https://" + hotelDomain(currentHotelKey) + path;
+    }
+
+    private String habboImagingUrl(String path) {
+        if (path == null) path = "";
+        if (!path.startsWith("/")) path = "/" + path;
+        return "https://" + hotelDomain(currentHotelKey) + path;
+    }
+
+    private String badgeImageUrl(String code) {
+        return "https://images.habbo.com/c_images/album1584/" + enc(code) + ".png";
+    }
+
+    private void addHotelButtonRow(LinearLayout grid, Dialog dialog, String a, String b, String c) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER);
+        grid.addView(row, lp(-1, dp(46), 0, 0, 0, 8));
+        addHotelButton(row, dialog, a, 0);
+        addHotelButton(row, dialog, b, 1);
+        addHotelButton(row, dialog, c, 2);
+    }
+
+    private void addHotelButton(LinearLayout row, Dialog dialog, String hotelKey, int pos) {
+        TextView btn = text(hotelFlag(hotelKey) + " " + hotelLabel(hotelKey), 13, hotelKey.equals(currentHotelKey) ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.argb(220,255,255,255)), true);
+        btn.setGravity(Gravity.CENTER);
+        btn.setSingleLine(true);
+        btn.setBackground(hotelKey.equals(currentHotelKey) ? grad(dp(12), purple2, purple) : round(lightTheme ? Color.rgb(245,245,245) : Color.argb(18,255,255,255), dp(12), lightTheme ? Color.rgb(224,224,224) : Color.argb(28,255,255,255), 1));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(42), 1);
+        if (pos > 0) bp.leftMargin = dp(6);
+        row.addView(btn, bp);
+        btn.setOnClickListener(v -> {
+            currentHotelKey = normalizeHotelKey(hotelKey);
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
+            dialog.dismiss();
+            activeSearchToken++;
+            searchInProgress = false;
+            currentLoadedNick = "";
+            activeRenderedProfile = null;
+            resultWrap.removeAllViews();
+            rebuildUiPreservingProfile();
+            toast("Hotel alterado para " + hotelLabel(currentHotelKey));
+        });
+    }
+
+    private void rememberOpenedProfile(ProfileResult r) {
+        if (r == null || r.name == null || r.name.trim().isEmpty()) return;
+        String hotel = normalizeHotelKey(r.hotelKey);
+        if (hotel.isEmpty()) hotel = currentHotelKey;
+        String key = hotel + ":" + normalizeNickKey(r.name);
+        for (int i = openedProfilesHistory.size() - 1; i >= 0; i--) {
+            ProfileHistoryItem item = openedProfilesHistory.get(i);
+            if ((item.hotelKey + ":" + normalizeNickKey(item.nick)).equals(key)) openedProfilesHistory.remove(i);
+        }
+        openedProfilesHistory.add(0, new ProfileHistoryItem(r.name, r.figure, hotel));
+        while (openedProfilesHistory.size() > 50) openedProfilesHistory.remove(openedProfilesHistory.size() - 1);
+    }
+
+    private void showOpenedProfilesHistoryDialog() {
+        final Dialog dialog = new Dialog(this);
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
+        wrap.setBackground(round(lightTheme ? Color.WHITE : Color.rgb(28, 18, 42), dp(22), lightTheme ? Color.rgb(224,224,224) : Color.argb(42,255,255,255), 1));
+        dialog.setContentView(wrap);
+
+        TextView title = habboText("Histórico de perfis", 22, true);
+        title.setGravity(Gravity.CENTER);
+        wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
+
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(true);
+        sv.setScrollbarFadingEnabled(false);
+        tintScrollBar(sv);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(list, new ScrollView.LayoutParams(-1, -2));
+        wrap.addView(sv, lp(-1, dp(360), 0, 0, 0, 14));
+
+        if (openedProfilesHistory.isEmpty()) {
+            list.addView(centerNote("Nenhum perfil aberto ainda."));
+        } else {
+            for (ProfileHistoryItem item : new ArrayList<>(openedProfilesHistory)) {
+                list.addView(openedProfileHistoryRow(item, dialog));
+            }
+        }
+
+        TextView clear = dialogButton("Limpar histórico");
+        clear.setBackground(grad(dp(14), Color.rgb(120, 36, 46), Color.rgb(210, 54, 77)));
+        wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 0));
+        clear.setOnClickListener(v -> {
+            openedProfilesHistory.clear();
+            dialog.dismiss();
+            toast("Histórico limpo.");
+        });
+
+        dialog.show();
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(w.getAttributes());
+            params.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(430));
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            w.setAttributes(params);
+        }
+    }
+
+    private LinearLayout openedProfileHistoryRow(ProfileHistoryItem item, Dialog dialog) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(9), dp(12), dp(9));
+        row.setBackground(round(lightTheme ? Color.rgb(245,245,245) : Color.argb(22,255,255,255), dp(16), lightTheme ? Color.rgb(224,224,224) : Color.argb(28,255,255,255), 1));
+        row.setLayoutParams(lp(-1, dp(72), 0, 0, 0, 9));
+
+        ImageView head = new ImageView(this);
+        head.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        row.addView(head, new LinearLayout.LayoutParams(dp(54), dp(58)));
+        loadImage(head, avatarHeadByNameForHotel(item.nick, item.hotelKey));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
+        tp.leftMargin = dp(12);
+        row.addView(texts, tp);
+        TextView name = habboText(item.nick, 16, true);
+        name.setMaxLines(1);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        texts.addView(name);
+        texts.addView(text(hotelFlag(item.hotelKey) + " " + hotelLabel(item.hotelKey), 12, muted, false));
+
+        row.setOnClickListener(v -> {
+            if (dialog != null) dialog.dismiss();
+            currentHotelKey = normalizeHotelKey(item.hotelKey);
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
+            if (searchInput != null) {
+                searchInput.setText(item.nick);
+                searchInput.setSelection(searchInput.getText().length());
+            }
+            currentLoadedNick = "";
+            search();
+        });
+        return row;
+    }
+
+    private void showBadgeDialog(JSONObject badge) {
+        if (badge == null) return;
+        String code = firstText(badge, "code", "badgeCode");
+        if (code.isEmpty()) return;
+        String name = firstText(badge, "name", "title");
+        if (name.isEmpty()) name = code;
+        String desc = firstText(badge, "description", "desc");
+        if (desc.isEmpty()) desc = "Sem descrição.";
+        String created = firstText(badge, "creationTime", "createdAt", "date");
+
+        final Dialog dialog = new Dialog(this);
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(14), dp(14), dp(14), dp(14));
+        wrap.setBackground(round(lightTheme ? Color.WHITE : Color.rgb(28, 18, 42), dp(22), lightTheme ? Color.rgb(224,224,224) : Color.argb(42,255,255,255), 1));
+        dialog.setContentView(wrap);
+
+        ImageView img = new ImageView(this);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        img.setPadding(dp(30), dp(24), dp(30), dp(24));
+        img.setBackground(round(lightTheme ? Color.rgb(245,245,245) : Color.argb(20,255,255,255), dp(16), lightTheme ? Color.rgb(224,224,224) : Color.argb(28,255,255,255), 1));
+        wrap.addView(img, lp(-1, dp(170), 0,0,0,12));
+        loadImage(img, badgeImageUrl(code));
+
+        LinearLayout infoGrid = new LinearLayout(this);
+        infoGrid.setOrientation(LinearLayout.VERTICAL);
+        wrap.addView(infoGrid, lp(-1, -2, 0, 0, 0, 0));
+        infoGrid.addView(photoInfoCard("Nome", name, "", ""));
+        infoGrid.addView(photoInfoCard("Descrição", desc, "", ""));
+        infoGrid.addView(photoInfoCard("Criado", created.isEmpty() ? "—" : niceDateOnly(created), "", ""));
+        infoGrid.addView(photoInfoCard("Código", code, "", ""));
+
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.92f);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            shownWindow.setAttributes(params);
+        }
+    }
+
     private boolean isSameProfileObject(JSONObject a, JSONObject b) {
         if (a == null || b == null) return false;
         if (a == b) return true;
@@ -2440,7 +2804,7 @@ private int loadingProgressFor(String message) {
         if (activeRenderedProfile == null || activeRenderedProfile.name == null || activeRenderedProfile.name.trim().isEmpty()) return;
         String currentId = normalizeNickKey(activeRenderedProfile.uniqueId);
         String currentName = normalizeNickKey(activeRenderedProfile.name);
-        if ((!currentId.isEmpty() && currentId.equals(nextNickKey)) || (!currentName.isEmpty() && currentName.equals(nextNickKey))) return;
+        if (normalizeHotelKey(activeRenderedProfile.hotelKey).equals(currentHotelKey) && ((!currentId.isEmpty() && currentId.equals(nextNickKey)) || (!currentName.isEmpty() && currentName.equals(nextNickKey)))) return;
         if (!profileHistory.isEmpty()) {
             ProfileResult last = profileHistory.peekLast();
             if (sameProfile(last, activeRenderedProfile)) return;
@@ -2460,7 +2824,7 @@ private int loadingProgressFor(String message) {
     private ProfileResult copyProfileResult(ProfileResult src) {
         ProfileResult c = new ProfileResult();
         if (src == null) return c;
-        c.searchedNick = src.searchedNick; c.uniqueId = src.uniqueId; c.name = src.name; c.motto = src.motto; c.figure = src.figure; c.memberSince = src.memberSince; c.lastAccess = src.lastAccess; c.level = src.level; c.starGems = src.starGems;
+        c.searchedNick = src.searchedNick; c.uniqueId = src.uniqueId; c.name = src.name; c.motto = src.motto; c.figure = src.figure; c.memberSince = src.memberSince; c.lastAccess = src.lastAccess; c.level = src.level; c.starGems = src.starGems; c.hotelKey = src.hotelKey;
         c.online = src.online; c.privateProfile = src.privateProfile; c.banned = src.banned;
         c.habboPublic = src.habboPublic; c.dex = src.dex; c.suggest = src.suggest; c.dexProfile = src.dexProfile; c.officialProfile = src.officialProfile;
         c.previousNames = new ArrayList<>(src.previousNames); c.previousMottos = new ArrayList<>(src.previousMottos); c.previousStyles = new ArrayList<>(src.previousStyles); c.photos = new ArrayList<>(src.photos); c.friends = new ArrayList<>(src.friends); c.oldFriends = new ArrayList<>(src.oldFriends); c.rooms = new ArrayList<>(src.rooms); c.oldRooms = new ArrayList<>(src.oldRooms); c.groups = new ArrayList<>(src.groups); c.selectedBadges = new ArrayList<>(src.selectedBadges);
@@ -2481,6 +2845,11 @@ private int loadingProgressFor(String message) {
             inlineProgressPct = 0;
             inlineProgressMessage = "";
             ProfileResult previous = profileHistory.removeLast();
+            String previousHotel = normalizeHotelKey(previous.hotelKey);
+            if (!previousHotel.isEmpty()) {
+                currentHotelKey = previousHotel;
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
+            }
             activeRenderedProfile = previous;
             currentLoadedNick = normalizeNickKey(previous.name);
             if (searchInput != null) {
@@ -2535,6 +2904,7 @@ private int loadingProgressFor(String message) {
         cached.lastAccess = pickText(fresh.lastAccess, cached.lastAccess);
         cached.level = pickText(fresh.level, cached.level);
         cached.starGems = pickText(fresh.starGems, cached.starGems);
+        cached.hotelKey = pickText(fresh.hotelKey, cached.hotelKey);
         cached.online = fresh.online;
         cached.privateProfile = fresh.privateProfile;
         cached.banned = fresh.banned;
@@ -2590,8 +2960,21 @@ private int loadingProgressFor(String message) {
         return v;
     }
 
+
+
+    private static class ProfileHistoryItem {
+        final String nick;
+        final String figure;
+        final String hotelKey;
+        ProfileHistoryItem(String nick, String figure, String hotelKey) {
+            this.nick = nick == null ? "" : nick;
+            this.figure = figure == null ? "" : figure;
+            this.hotelKey = hotelKey == null || hotelKey.trim().isEmpty() ? "br" : hotelKey;
+        }
+    }
+
     private static class ProfileResult {
-        String searchedNick = "", uniqueId = "", name = "", motto = "", figure = "", memberSince = "", lastAccess = "", level = "", starGems = "";
+        String searchedNick = "", uniqueId = "", name = "", motto = "", figure = "", memberSince = "", lastAccess = "", level = "", starGems = "", hotelKey = "br";
         boolean online = false, privateProfile = false, banned = false;
         JSONObject habboPublic, dex, suggest, dexProfile, officialProfile;
         ArrayList<JSONObject> previousNames = new ArrayList<>(), previousMottos = new ArrayList<>(), previousStyles = new ArrayList<>(), photos = new ArrayList<>(), friends = new ArrayList<>(), oldFriends = new ArrayList<>(), rooms = new ArrayList<>(), oldRooms = new ArrayList<>(), groups = new ArrayList<>(), selectedBadges = new ArrayList<>();
@@ -2605,6 +2988,79 @@ private int loadingProgressFor(String message) {
         boolean hasMore = false;
     }
 
+
+
+
+    public class AddButtonDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float x = b.left, y = b.top, w = b.width(), h = b.height();
+            float size = Math.min(w, h);
+            float left = x + (w - size) / 2f;
+            float top = y + (h - size) / 2f;
+            RectF r = new RectF(left, top, left + size, top + size);
+            p.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, purple2, purple, Shader.TileMode.CLAMP));
+            p.setStyle(Paint.Style.FILL);
+            c.drawRoundRect(r, dp(8), dp(8), p);
+            p.setShader(null);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1));
+            p.setColor(Color.argb(85,255,255,255));
+            c.drawRoundRect(new RectF(r.left+1, r.top+1, r.right-1, r.bottom-1), dp(8), dp(8), p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(Color.WHITE);
+            float cx = r.centerX(), cy = r.centerY();
+            float len = size * 0.22f;
+            c.drawLine(cx - len, cy, cx + len, cy, p);
+            c.drawLine(cx, cy - len, cx, cy + len, p);
+        }
+        @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
+        @Override public void setColorFilter(android.graphics.ColorFilter cf) { p.setColorFilter(cf); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
+    public class HistoryClockDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float w = b.width(), h = b.height(), x = b.left, y = b.top;
+            float cx = x + w / 2f, cy = y + h / 2f;
+            float radius = Math.min(w, h) * 0.32f;
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(lightTheme ? Color.argb(0,0,0,0) : Color.argb(0,255,255,255));
+            c.drawRect(x, y, x+w, y+h, p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setColor(lightTheme ? Color.rgb(45,45,45) : Color.argb(235,255,255,255));
+            RectF oval = new RectF(cx - radius, cy - radius, cx + radius, cy + radius);
+            c.drawArc(oval, 35, 285, false, p);
+
+            Path arrow = new Path();
+            double a = Math.toRadians(35);
+            float ax = cx + (float)Math.cos(a) * radius;
+            float ay = cy + (float)Math.sin(a) * radius;
+            arrow.moveTo(ax, ay);
+            arrow.lineTo(ax - dp(8), ay - dp(1));
+            arrow.moveTo(ax, ay);
+            arrow.lineTo(ax - dp(3), ay + dp(7));
+            c.drawPath(arrow, p);
+
+            c.drawLine(cx, cy, cx, cy - radius * 0.52f, p);
+            c.drawLine(cx, cy, cx + radius * 0.48f, cy + radius * 0.18f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy, dp(2), p);
+        }
+        @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
+        @Override public void setColorFilter(android.graphics.ColorFilter cf) { p.setColorFilter(cf); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
 
     public class ArrowButtonDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG); boolean left;
