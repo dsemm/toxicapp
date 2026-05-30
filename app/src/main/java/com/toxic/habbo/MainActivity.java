@@ -56,6 +56,7 @@ public class MainActivity extends Activity {
     private static final String PREF_CACHE_DAYS = "cache_days";
     private static final String PREF_MAX_CACHE_MB = "max_cache_mb";
     private static final String PREF_HOTEL = "hotel";
+    private static final String PREF_OPENED_HISTORY = "opened_profiles_history";
     private static final long PROFILE_REFRESH_COOLDOWN_MS = 60L * 1000L;
     private ScrollView mainScroll;
     private long lastSameNickRefreshAt = 0L;
@@ -95,7 +96,8 @@ public class MainActivity extends Activity {
             habboFont = Typeface.create("sans-serif-condensed", Typeface.BOLD);
         }
         getWindow().setStatusBarColor(lightTheme ? Color.WHITE : Color.rgb(20, 10, 30));
-        getWindow().setNavigationBarColor(lightTheme ? Color.WHITE : Color.rgb(10, 10, 15));
+        getWindow().setNavigationBarColor(lightTheme ? Color.rgb(245, 245, 245) : Color.rgb(10, 10, 15));
+        loadOpenedProfilesHistory();
         buildUi();
     }
 
@@ -180,7 +182,7 @@ public class MainActivity extends Activity {
         searchInput.setTypeface(habboFont);
         searchInput.setGravity(Gravity.CENTER_VERTICAL);
         searchInput.setPadding(dp(16), 0, dp(16), 0);
-        searchInput.setBackground(round(Color.argb(28,255,255,255), dp(14), Color.argb(35,255,255,255), 1));
+        searchInput.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(28,255,255,255), dp(14), lightTheme ? Color.rgb(210,210,210) : Color.argb(35,255,255,255), 1));
         searchInput.setCursorVisible(false);
         searchInput.setOnFocusChangeListener((v, hasFocus) -> searchInput.setCursorVisible(hasFocus));
         searchCard.addView(searchInput, lp(-1, dp(42), 0, 0, 0, 8));
@@ -396,7 +398,7 @@ public class MainActivity extends Activity {
         if (r == null || r.uniqueId == null || r.uniqueId.isEmpty() || !isActiveToken(token)) return;
 
         PageResult photosPage = null;
-        try { photosPage = fetchPage(r.uniqueId, "photos", "photos", 1, PAGE_CHUNK); } catch(Exception ignored) {}
+        try { photosPage = fetchPageChunk(r.uniqueId, "photos", "photos", 1, PAGE_CHUNK, PAGE_CHUNK); } catch(Exception ignored) {}
         if (photosPage != null) applyPhotosPage(r, photosPage, true);
         try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
         if (!isActiveToken(token)) return;
@@ -426,7 +428,7 @@ public class MainActivity extends Activity {
         if (!isActiveToken(token)) return;
 
         PageResult stylesPage = null;
-        try { stylesPage = fetchPage(r.uniqueId, "previous-styles", null, 1, PAGE_CHUNK); } catch(Exception ignored) {}
+        try { stylesPage = fetchPageChunk(r.uniqueId, "previous-styles", null, 1, PAGE_CHUNK, PAGE_CHUNK); } catch(Exception ignored) {}
         if (stylesPage != null) applyStylesPage(r, stylesPage, true);
         if (!isActiveToken(token)) return;
 
@@ -528,6 +530,49 @@ public class MainActivity extends Activity {
         return out;
     }
 
+    private PageResult fetchPageChunk(String uniqueId, String endpoint, String primaryKey, int startPage, int pageLimit, int desiredCount) {
+        PageResult combined = new PageResult();
+        combined.page = Math.max(1, startPage);
+        combined.nextPage = 0;
+        combined.hasMore = false;
+        combined.total = 0;
+
+        int page = combined.page;
+        int safety = 0;
+        int target = Math.max(1, desiredCount);
+        int limit = Math.max(1, pageLimit);
+
+        while (page > 0 && safety < 8 && combined.items.size() < target) {
+            PageResult part = fetchPage(uniqueId, endpoint, primaryKey, page, limit);
+            if (part == null) break;
+            if (combined.total <= 0 && part.total > 0) combined.total = part.total;
+            if (part.items == null || part.items.isEmpty()) {
+                combined.nextPage = 0;
+                combined.hasMore = false;
+                break;
+            }
+            for (JSONObject item : part.items) {
+                if (combined.items.size() >= target) break;
+                combined.items.add(item);
+            }
+            if (part.nextPage <= page || !part.hasMore) {
+                combined.nextPage = 0;
+                combined.hasMore = false;
+                break;
+            }
+            page = part.nextPage;
+            combined.nextPage = page;
+            combined.hasMore = true;
+            safety++;
+        }
+
+        if (combined.total > 0 && combined.items.size() >= combined.total) {
+            combined.nextPage = 0;
+            combined.hasMore = false;
+        }
+        return combined;
+    }
+
     private int extractTotalCount(JSONObject data) {
         if (data == null) return 0;
         int total = firstPositiveInt(data, "total", "totalItems", "totalCount", "count", "recordsTotal");
@@ -575,7 +620,7 @@ public class MainActivity extends Activity {
         photosScrollX = photosHsv == null ? 0 : photosHsv.getScrollX();
         renderProfile(r);
         executor.execute(() -> {
-            PageResult next = fetchPage(r.uniqueId, "photos", "photos", page, PAGE_CHUNK);
+            PageResult next = fetchPageChunk(r.uniqueId, "photos", "photos", page, PAGE_CHUNK, PAGE_CHUNK);
             if (!isActiveToken(token)) return;
             applyPhotosPage(r, next, false);
             try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
@@ -597,7 +642,7 @@ public class MainActivity extends Activity {
         stylesScrollX = stylesHsv == null ? 0 : stylesHsv.getScrollX();
         renderProfile(r);
         executor.execute(() -> {
-            PageResult next = fetchPage(r.uniqueId, "previous-styles", null, page, PAGE_CHUNK);
+            PageResult next = fetchPageChunk(r.uniqueId, "previous-styles", null, page, PAGE_CHUNK, PAGE_CHUNK);
             if (!isActiveToken(token)) return;
             applyStylesPage(r, next, false);
             r.stylesLoading = false;
@@ -709,7 +754,7 @@ public class MainActivity extends Activity {
         row.setBackground(round(adjustAlpha(color, 0.32f), dp(999), adjustAlpha(color, 0.55f), 1));
         View badgeIcon;
         if ("banned".equals(icon)) {
-            TextView bannedChar = habboText("ª", 12, true);
+            TextView bannedChar = habboText("ª", 10, true);
             bannedChar.setGravity(Gravity.CENTER);
             bannedChar.setIncludeFontPadding(false);
             bannedChar.setTextColor(Color.WHITE);
@@ -879,7 +924,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         box.setPadding(dp(12), dp(10), dp(12), dp(10));
-        box.setBackground(round(Color.argb(22,255,255,255), dp(16), Color.argb(24,255,255,255), 1));
+        box.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(22,255,255,255), dp(16), lightTheme ? Color.rgb(220,220,220) : Color.argb(24,255,255,255), 1));
         box.setLayoutParams(lp(-1, -2, 0, 0, 0, 10));
         TextView title = habboText(main == null ? "" : main, 16, true);
         title.setGravity(Gravity.CENTER);
@@ -921,7 +966,7 @@ public class MainActivity extends Activity {
             JSONObject o = list.get(i);
             String fig = firstText(o, "figureString", "figure", "look");
             if (fig.isEmpty()) continue;
-            LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setGravity(Gravity.CENTER); box.setPadding(dp(8),dp(8),dp(8),dp(8)); box.setBackground(round(Color.argb(18,255,255,255), dp(18), Color.argb(24,255,255,255),1));
+            LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setGravity(Gravity.CENTER); box.setPadding(dp(8),dp(8),dp(8),dp(8)); box.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(18), lightTheme ? Color.rgb(220,220,220) : Color.argb(24,255,255,255),1));
             LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(106), dp(162)); bp.rightMargin = dp(12); row.addView(box, bp);
             ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); box.addView(img, new LinearLayout.LayoutParams(-1, dp(112)));
             loadImage(img, avatarSmall(fig));
@@ -941,7 +986,7 @@ public class MainActivity extends Activity {
         LinearLayout rootDialog = new LinearLayout(this);
         rootDialog.setOrientation(LinearLayout.VERTICAL);
         rootDialog.setPadding(dp(18), dp(18), dp(18), dp(18));
-        rootDialog.setBackground(round(Color.rgb(28, 18, 42), dp(22), Color.argb(42,255,255,255), 1));
+        rootDialog.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(rootDialog);
 
         TextView title = text("Visuais — " + (date == null ? "" : date), 18, Color.WHITE, true);
@@ -949,7 +994,7 @@ public class MainActivity extends Activity {
         rootDialog.addView(title, lp(-1,-2,0,0,0,12));
 
         View line = new View(this);
-        line.setBackgroundColor(Color.argb(35,255,255,255));
+        line.setBackgroundColor(lightTheme ? Color.rgb(220,220,220) : Color.argb(35,255,255,255));
         rootDialog.addView(line, lp(-1,1,6,0,6,12));
 
         final ScrollView clothesScroll = new ScrollView(this);
@@ -1018,7 +1063,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout clothingRow(JSONObject o) {
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(Color.argb(26,255,255,255), dp(14), Color.argb(28,255,255,255),1));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(26,255,255,255), dp(14), lightTheme ? Color.rgb(220,220,220) : Color.argb(28,255,255,255),1));
         row.setLayoutParams(lp(-1, -2, 0, 0, 0, 10));
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(40), dp(40)));
         String code = firstText(o, "code", "classname", "className", "id");
@@ -1275,7 +1320,7 @@ public class MainActivity extends Activity {
             JSONObject o = list.get(i);
             String url = getPhotoUrl(o);
             String date = getPhotoTimestamp(o);
-            LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setBackground(round(Color.argb(18,255,255,255), dp(16), Color.argb(24,255,255,255), 1));
+            LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(16), lightTheme ? Color.rgb(220,220,220) : Color.argb(24,255,255,255), 1));
             LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(160), dp(160)); bp.rightMargin = dp(12); row.addView(box, bp);
             ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); applyRoundedClip(img, dp(14)); box.addView(img, new LinearLayout.LayoutParams(-1, dp(112)));
             TextView dt = text(date, 12, Color.argb(190,255,255,255), false); dt.setGravity(Gravity.CENTER); box.addView(dt, lp(-1,-2,0,8,0,0));
@@ -1320,7 +1365,7 @@ public class MainActivity extends Activity {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(14), dp(14), dp(14), dp(14));
-        wrap.setBackground(round(Color.rgb(28, 18, 42), dp(22), Color.argb(42,255,255,255), 1));
+        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(wrap);
 
         Window w = dialog.getWindow();
@@ -1398,7 +1443,7 @@ public class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(12), dp(10), dp(12), dp(10));
-        row.setBackground(round(Color.argb(24,255,255,255), dp(15), Color.argb(30,255,255,255), 1));
+        row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(24,255,255,255), dp(15), lightTheme ? Color.rgb(220,220,220) : Color.argb(30,255,255,255), 1));
         row.setLayoutParams(lp(-1, -2, 0, 0, 0, 8));
 
         boolean hasHead = (figure != null && !figure.isEmpty()) || (nickToOpen != null && !nickToOpen.trim().isEmpty());
@@ -1439,7 +1484,7 @@ public class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(10), dp(7), dp(10), dp(7));
-        row.setBackground(round(Color.argb(20,255,255,255), dp(14), Color.argb(25,255,255,255), 1));
+        row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(14), lightTheme ? Color.rgb(220,220,220) : Color.argb(25,255,255,255), 1));
         row.setLayoutParams(lp(-1, -2, 0, 0, 0, 7));
 
         ImageView head = new ImageView(this);
@@ -1558,7 +1603,7 @@ public class MainActivity extends Activity {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER);
         card.setPadding(dp(8), dp(4), dp(8), dp(8));
-        card.setBackground(round(Color.argb(20,255,255,255), dp(18), (removed || currentProfilePrivate) ? Color.argb(75, 255, 64, 64) : Color.argb(25,255,255,255), 1));
+        card.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(18), (removed || currentProfilePrivate) ? Color.argb(75, 255, 64, 64) : (lightTheme ? Color.rgb(220,220,220) : Color.argb(25,255,255,255)), 1));
 
         String n = firstText(f, "name", "username", "habboName"); if (n.isEmpty()) n = "Habbo";
         String fig = firstText(f, "figureString", "figure", "look", "avatarFigureString");
@@ -1637,8 +1682,8 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout roomRow(JSONObject room, boolean oldRoom) {
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(Color.argb(18,255,255,255), dp(16), (oldRoom || currentProfilePrivate) ? Color.argb(75, 255, 64, 64) : Color.argb(24,255,255,255), 1)); row.setLayoutParams(lp(-1, dp(116), 0, 0, 0, 12));
-        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setBackground(round(Color.argb(25,255,255,255), dp(12), Color.argb(20,255,255,255),1)); applyRoundedClip(img, dp(12)); row.addView(img, new LinearLayout.LayoutParams(dp(112), dp(78)));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(10),dp(12),dp(10)); row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(16), (oldRoom || currentProfilePrivate) ? Color.argb(75, 255, 64, 64) : (lightTheme ? Color.rgb(220,220,220) : Color.argb(24,255,255,255)), 1)); row.setLayoutParams(lp(-1, dp(116), 0, 0, 0, 12));
+        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setBackground(round(lightTheme ? Color.rgb(245,245,245) : Color.argb(25,255,255,255), dp(12), lightTheme ? Color.rgb(220,220,220) : Color.argb(20,255,255,255),1)); applyRoundedClip(img, dp(12)); row.addView(img, new LinearLayout.LayoutParams(dp(112), dp(78)));
         String image = getRoomImageUrl(room);
         if (!image.isEmpty()) Glide.with(this).load(image).error(R.drawable.quarto).into(img); else img.setImageResource(R.drawable.quarto);
         LinearLayout txt = new LinearLayout(this); txt.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0,-2,1); tp.leftMargin=dp(12); row.addView(txt,tp);
@@ -1675,7 +1720,7 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout groupRow(JSONObject g) {
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(12),dp(12),dp(12)); row.setBackground(round(Color.argb(18,255,255,255), dp(16), currentProfilePrivate ? Color.argb(75, 255, 64, 64) : Color.argb(24,255,255,255), 1)); row.setLayoutParams(lp(-1, -2, 0, 0, 0, 12));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(12),dp(12),dp(12),dp(12)); row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(16), currentProfilePrivate ? Color.argb(75, 255, 64, 64) : (lightTheme ? Color.rgb(220,220,220) : Color.argb(24,255,255,255)), 1)); row.setLayoutParams(lp(-1, -2, 0, 0, 0, 12));
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(img, new LinearLayout.LayoutParams(dp(58), dp(58)));
         String badge = firstText(g,"badgeCode","code"); String badgeUrl = normalizeUrl(firstText(g, "badgeUrl", "imageUrl", "url")); if(!badgeUrl.isEmpty()) loadImage(img, badgeUrl); else if(!badge.isEmpty()) loadImage(img,habboImagingUrl("/habbo-imaging/badge/"+enc(badge)+".gif")); else img.setImageDrawable(new PlaceholderDrawable("groups"));
         LinearLayout txt = new LinearLayout(this); txt.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-2,1); tp.leftMargin=dp(12); row.addView(txt,tp);
@@ -1709,25 +1754,26 @@ public class MainActivity extends Activity {
         header.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
 
         if (showButton) {
-            TextView more = new TextView(this);
-            more.setText(loading ? "…" : "");
+            FrameLayout more = new FrameLayout(this);
             more.setTag("load_more_header_button");
-            more.setGravity(Gravity.CENTER);
-            more.setIncludeFontPadding(false);
-            more.setTextColor(Color.WHITE);
-            more.setTextSize(loading ? 20 : 1);
-            more.setTypeface(Typeface.DEFAULT_BOLD);
-            more.setBackground(loading ? grad(dp(8), purple2, purple) : new AddButtonDrawable());
+            more.setBackground(new AddButtonDrawable());
             more.setPadding(0, 0, 0, 0);
-            more.setMinWidth(0);
-            more.setMinHeight(0);
-            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(dp(38), dp(38));
-            mp.leftMargin = dp(10);
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(dp(32), dp(32));
+            mp.leftMargin = dp(8);
             header.addView(more, mp);
-            if (!loading && action != null) more.setOnClickListener(v -> action.run());
+
+            if (loading) {
+                more.setBackground(grad(dp(7), purple2, purple));
+                ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
+                if (Build.VERSION.SDK_INT >= 21) pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
+                FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER);
+                more.addView(pb, pp);
+            } else if (action != null) {
+                more.setOnClickListener(v -> action.run());
+            }
         }
 
-        c.addView(header, lp(-1, dp(42), 0, 0, 0, 12));
+        c.addView(header, lp(-1, dp(38), 0, 0, 0, 12));
         return c;
     }
 
@@ -1811,7 +1857,7 @@ public class MainActivity extends Activity {
 
     private LinearLayout suggestionRow(String query, JSONObject user, boolean compact) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(10), dp(8), dp(10), dp(8));
-        row.setBackground(round(Color.argb(24,255,255,255), dp(14), Color.argb(30,255,255,255), 1));
+        row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(24,255,255,255), dp(14), lightTheme ? Color.rgb(220,220,220) : Color.argb(30,255,255,255), 1));
         row.setLayoutParams(lp(-1, compact ? dp(68) : dp(82), 0, 0, 0, 8));
         ImageView head = new ImageView(this); head.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(head, new LinearLayout.LayoutParams(dp(compact?50:58), dp(compact?54:62)));
         String name = firstText(user, "name", "username", "habboName");
@@ -1878,7 +1924,7 @@ public class MainActivity extends Activity {
 
     private View inlineProgressBar(int pct) {
         FrameLayout bar = new FrameLayout(this);
-        bar.setBackground(round(Color.argb(34,255,255,255), dp(999), Color.argb(28,255,255,255), 1));
+        bar.setBackground(round(lightTheme ? Color.rgb(232,232,232) : Color.argb(34,255,255,255), dp(999), lightTheme ? Color.rgb(216,216,216) : Color.argb(28,255,255,255), 1));
 
         View fill = new View(this);
         fill.setBackground(grad(dp(999), purple2, purple));
@@ -1943,12 +1989,12 @@ private int loadingProgressFor(String message) {
         c.addView(spinnerLine, lp(-1, dp(34), 0,0,0,12));
 
         FrameLayout avatar = new FrameLayout(this);
-        avatar.setBackground(round(Color.rgb(15, 8, 25), dp(18), Color.argb(24,255,255,255), 1));
-        c.addView(avatar, lp(-1, dp(190), 0,0,0,16));
+        avatar.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.rgb(15, 8, 25), dp(20), lightTheme ? Color.rgb(220,220,220) : Color.argb(24,255,255,255), 1));
+        c.addView(avatar, lp(-1, dp(280), 0,0,0,16));
 
         ImageView walker = new ImageView(this);
         walker.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        walker.setPadding(dp(18), dp(4), dp(18), dp(4));
+        walker.setPadding(dp(20), dp(10), dp(20), dp(84));
         avatar.addView(walker, new FrameLayout.LayoutParams(-1, -1));
         String nick = searchInput == null ? "" : searchInput.getText().toString().trim();
         String cachedFigure = "";
@@ -1959,11 +2005,11 @@ private int loadingProgressFor(String message) {
         }
         String walkerUrl;
         if (nick != null && !nick.trim().isEmpty()) {
-            walkerUrl = habboImagingUrl("/habbo-imaging/avatarimage?user=" + enc(nick.trim()) + "&direction=2&head_direction=2&img_format=png&headonly=0&size=b");
+            walkerUrl = habboImagingUrl("/habbo-imaging/avatarimage?user=" + enc(nick.trim()) + "&direction=2&head_direction=2&img_format=png&headonly=0&size=l");
         } else {
-            walkerUrl = habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&direction=2&head_direction=2&headonly=0&size=b&img_format=png");
+            walkerUrl = habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&direction=2&head_direction=2&headonly=0&size=l&img_format=png");
         }
-        String fallbackUrl = habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&direction=2&head_direction=2&headonly=0&size=b&img_format=png");
+        String fallbackUrl = habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(cachedFigure) + "&direction=2&head_direction=2&headonly=0&size=l&img_format=png");
         try {
             Glide.with(this).load(walkerUrl).error(Glide.with(this).load(fallbackUrl)).into(walker);
         } catch (Exception ex) {
@@ -1986,7 +2032,7 @@ private int loadingProgressFor(String message) {
                 mini.setOrientation(LinearLayout.HORIZONTAL);
                 mini.setGravity(Gravity.CENTER_VERTICAL);
                 mini.setPadding(dp(10), dp(7), dp(10), dp(7));
-                mini.setBackground(round(Color.argb(22,255,255,255), dp(16), Color.argb(24,255,255,255), 1));
+                mini.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(22,255,255,255), dp(16), lightTheme ? Color.rgb(220,220,220) : Color.argb(24,255,255,255), 1));
                 LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -1, 1);
                 if (col == 1) mp.leftMargin = dp(8);
                 row.addView(mini, mp);
@@ -2011,7 +2057,7 @@ private int loadingProgressFor(String message) {
 
     private View skeletonBlock(int width, int height, int radius) {
         View v = new View(this);
-        v.setBackground(round(Color.argb(28,255,255,255), radius, Color.argb(18,255,255,255), 1));
+        v.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(28,255,255,255), radius, lightTheme ? Color.rgb(220,220,220) : Color.argb(18,255,255,255), 1));
         v.setAlpha(0.72f);
         v.animate().alpha(1f).setDuration(650).withEndAction(() -> v.animate().alpha(0.55f).setDuration(650).withEndAction(() -> pulseSkeleton(v)).start()).start();
         v.setLayoutParams(new LinearLayout.LayoutParams(width, height));
@@ -2090,14 +2136,14 @@ private int loadingProgressFor(String message) {
     private String avatarHeadByNameForHotel(String name, String hotelKey) { return "https://" + hotelDomain(hotelKey) + "/habbo-imaging/avatarimage?user=" + enc(name) + "&size=m&direction=2&head_direction=2&headonly=1"; }
 
     private Drawable makeBg() {
-        if (lightTheme) return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(245, 245, 245), Color.rgb(238, 238, 238), Color.rgb(250, 250, 250)});
+        if (lightTheme) return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(250, 250, 250), Color.rgb(242, 242, 242), Color.rgb(247, 247, 247)});
         return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(30, 11, 45), Color.rgb(24,14,35), Color.rgb(12,12,18)});
     }
     private LinearLayout card(int radius) {
         LinearLayout l = new LinearLayout(this);
         l.setOrientation(LinearLayout.VERTICAL);
-        int stroke = currentProfilePrivate ? Color.argb(112, 211, 47, 47) : (lightTheme ? Color.rgb(224, 224, 224) : cardStroke);
-        int fill = lightTheme ? Color.WHITE : cardFill;
+        int stroke = currentProfilePrivate ? Color.argb(112, 211, 47, 47) : (lightTheme ? Color.rgb(216, 216, 216) : cardStroke);
+        int fill = lightTheme ? Color.rgb(255,255,255) : cardFill;
         l.setBackground(round(fill, radius, stroke, 1));
         return l;
     }
@@ -2108,7 +2154,10 @@ private int loadingProgressFor(String message) {
     }
     private int themeTextColor(int color) {
         if (!lightTheme) return color;
-        if (color == Color.WHITE || Color.alpha(color) < 255 || (Color.red(color) > 180 && Color.green(color) > 180 && Color.blue(color) > 180)) {
+        if (Color.alpha(color) < 255) {
+            return Color.rgb(95, 95, 95);
+        }
+        if (color == Color.WHITE || (Color.red(color) > 180 && Color.green(color) > 180 && Color.blue(color) > 180)) {
             return Color.rgb(33, 33, 33);
         }
         return color;
@@ -2435,19 +2484,55 @@ private int loadingProgressFor(String message) {
         if (deleteRoot) { try { dir.delete(); } catch(Exception ignored) {} }
     }
 
+    private int dialogFillColor() { return lightTheme ? Color.rgb(255,255,255) : Color.rgb(28, 18, 42); }
+    private int dialogStrokeColor() { return lightTheme ? Color.rgb(216,216,216) : Color.argb(42,255,255,255); }
+
+    private void loadOpenedProfilesHistory() {
+        openedProfilesHistory.clear();
+        String raw = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_OPENED_HISTORY, "");
+        if (raw == null || raw.trim().isEmpty()) return;
+        try {
+            JSONArray arr = new JSONArray(raw);
+            for (int i = 0; i < arr.length() && openedProfilesHistory.size() < 50; i++) {
+                JSONObject o = arr.optJSONObject(i);
+                if (o == null) continue;
+                String nick = o.optString("nick", "").trim();
+                if (nick.isEmpty()) continue;
+                String hotel = normalizeHotelKey(o.optString("hotel", "br"));
+                if (hotel.isEmpty()) hotel = "br";
+                openedProfilesHistory.add(new ProfileHistoryItem(nick, o.optString("figure", ""), hotel));
+            }
+        } catch(Exception ignored) {}
+    }
+
+    private void saveOpenedProfilesHistory() {
+        JSONArray arr = new JSONArray();
+        try {
+            for (ProfileHistoryItem item : openedProfilesHistory) {
+                JSONObject o = new JSONObject();
+                o.put("nick", item.nick);
+                o.put("figure", item.figure);
+                String hotel = normalizeHotelKey(item.hotelKey);
+                o.put("hotel", hotel.isEmpty() ? "br" : hotel);
+                arr.put(o);
+            }
+        } catch(Exception ignored) {}
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_OPENED_HISTORY, arr.toString()).apply();
+    }
+
     private void showSettingsDialog() {
         final Dialog dialog = new Dialog(this);
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
-        wrap.setBackground(round(lightTheme ? Color.WHITE : Color.rgb(28, 18, 42), dp(22), lightTheme ? Color.rgb(224,224,224) : Color.argb(42,255,255,255), 1));
+        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(wrap);
 
         TextView title = habboText("Configurações", 24, true);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
-        TextView hotelTitle = text("Hotel de busca", 13, muted, true);
+        TextView hotelTitle = text("Hotel de busca", 13, themeMutedColor(), true);
         hotelTitle.setGravity(Gravity.CENTER);
         wrap.addView(hotelTitle, lp(-1, -2, 0, 0, 0, 8));
 
@@ -2461,7 +2546,7 @@ private int loadingProgressFor(String message) {
         TextView info = text(cacheStatsText(), 13, muted, false);
         info.setGravity(Gravity.CENTER);
         info.setPadding(dp(10), dp(10), dp(10), dp(10));
-        info.setBackground(round(lightTheme ? Color.rgb(245,245,245) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(224,224,224) : Color.argb(28,255,255,255), 1));
+        info.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
         wrap.addView(info, lp(-1, -2, 0, 0, 0, 14));
 
         LinearLayout themeRow = new LinearLayout(this);
@@ -2470,7 +2555,7 @@ private int loadingProgressFor(String message) {
         TextView lightBtn = dialogButton("Tema claro");
         TextView darkBtn = dialogButton("Tema escuro");
         lightBtn.setBackground(lightTheme ? grad(dp(14), purple2, purple) : round(Color.argb(20,255,255,255), dp(14), Color.argb(32,255,255,255), 1));
-        darkBtn.setBackground(!lightTheme ? grad(dp(14), purple2, purple) : round(Color.rgb(245,245,245), dp(14), Color.rgb(224,224,224), 1));
+        darkBtn.setBackground(!lightTheme ? grad(dp(14), purple2, purple) : round(Color.rgb(250,250,250), dp(14), Color.rgb(218,218,218), 1));
         lightBtn.setTextColor(Color.WHITE);
         darkBtn.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         LinearLayout.LayoutParams th1 = new LinearLayout.LayoutParams(0, dp(48), 1); th1.rightMargin = dp(6);
@@ -2587,16 +2672,7 @@ private int loadingProgressFor(String message) {
     }
 
     private String hotelFlag(String key) {
-        String h = normalizeHotelKey(key);
-        if ("com".equals(h)) return "🇺🇸";
-        if ("es".equals(h)) return "🇪🇸";
-        if ("de".equals(h)) return "🇩🇪";
-        if ("fr".equals(h)) return "🇫🇷";
-        if ("fi".equals(h)) return "🇫🇮";
-        if ("it".equals(h)) return "🇮🇹";
-        if ("nl".equals(h)) return "🇳🇱";
-        if ("tr".equals(h)) return "🇹🇷";
-        return "🇧🇷";
+        return hotelLabel(key);
     }
 
     private String habboApiUrl(String path) {
@@ -2626,10 +2702,24 @@ private int loadingProgressFor(String message) {
     }
 
     private void addHotelButton(LinearLayout row, Dialog dialog, String hotelKey, int pos) {
-        TextView btn = text(hotelFlag(hotelKey) + " " + hotelLabel(hotelKey), 13, hotelKey.equals(currentHotelKey) ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.argb(220,255,255,255)), true);
+        boolean active = hotelKey.equals(currentHotelKey);
+        LinearLayout btn = new LinearLayout(this);
+        btn.setOrientation(LinearLayout.HORIZONTAL);
         btn.setGravity(Gravity.CENTER);
-        btn.setSingleLine(true);
-        btn.setBackground(hotelKey.equals(currentHotelKey) ? grad(dp(12), purple2, purple) : round(lightTheme ? Color.rgb(245,245,245) : Color.argb(18,255,255,255), dp(12), lightTheme ? Color.rgb(224,224,224) : Color.argb(28,255,255,255), 1));
+        btn.setPadding(dp(6), 0, dp(6), 0);
+        btn.setBackground(active ? grad(dp(12), purple2, purple) : round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(12), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
+
+        ImageView flag = new ImageView(this);
+        flag.setImageDrawable(new HotelFlagDrawable(hotelKey));
+        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(dp(24), dp(16));
+        fp.rightMargin = dp(6);
+        btn.addView(flag, fp);
+
+        TextView label = text(hotelLabel(hotelKey), 13, active ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.argb(220,255,255,255)), true);
+        label.setGravity(Gravity.CENTER);
+        label.setSingleLine(true);
+        btn.addView(label, new LinearLayout.LayoutParams(-2, -2));
+
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(42), 1);
         if (pos > 0) bp.leftMargin = dp(6);
         row.addView(btn, bp);
@@ -2658,6 +2748,7 @@ private int loadingProgressFor(String message) {
         }
         openedProfilesHistory.add(0, new ProfileHistoryItem(r.name, r.figure, hotel));
         while (openedProfilesHistory.size() > 50) openedProfilesHistory.remove(openedProfilesHistory.size() - 1);
+        saveOpenedProfilesHistory();
     }
 
     private void showOpenedProfilesHistoryDialog() {
@@ -2665,7 +2756,7 @@ private int loadingProgressFor(String message) {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
-        wrap.setBackground(round(lightTheme ? Color.WHITE : Color.rgb(28, 18, 42), dp(22), lightTheme ? Color.rgb(224,224,224) : Color.argb(42,255,255,255), 1));
+        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(wrap);
 
         TextView title = habboText("Histórico de perfis", 22, true);
@@ -2694,6 +2785,7 @@ private int loadingProgressFor(String message) {
         wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 0));
         clear.setOnClickListener(v -> {
             openedProfilesHistory.clear();
+            saveOpenedProfilesHistory();
             dialog.dismiss();
             toast("Histórico limpo.");
         });
@@ -2732,7 +2824,16 @@ private int loadingProgressFor(String message) {
         name.setMaxLines(1);
         name.setEllipsize(TextUtils.TruncateAt.END);
         texts.addView(name);
-        texts.addView(text(hotelFlag(item.hotelKey) + " " + hotelLabel(item.hotelKey), 12, muted, false));
+        LinearLayout hotelLine = new LinearLayout(this);
+        hotelLine.setOrientation(LinearLayout.HORIZONTAL);
+        hotelLine.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView smallFlag = new ImageView(this);
+        smallFlag.setImageDrawable(new HotelFlagDrawable(item.hotelKey));
+        LinearLayout.LayoutParams sfp = new LinearLayout.LayoutParams(dp(18), dp(12));
+        sfp.rightMargin = dp(5);
+        hotelLine.addView(smallFlag, sfp);
+        hotelLine.addView(text(hotelLabel(item.hotelKey), 12, themeMutedColor(), false));
+        texts.addView(hotelLine);
 
         row.setOnClickListener(v -> {
             if (dialog != null) dialog.dismiss();
@@ -2762,7 +2863,7 @@ private int loadingProgressFor(String message) {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(14), dp(14), dp(14), dp(14));
-        wrap.setBackground(round(lightTheme ? Color.WHITE : Color.rgb(28, 18, 42), dp(22), lightTheme ? Color.rgb(224,224,224) : Color.argb(42,255,255,255), 1));
+        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(wrap);
 
         ImageView img = new ImageView(this);
@@ -2991,6 +3092,53 @@ private int loadingProgressFor(String message) {
 
 
 
+    public class HotelFlagDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        String hotel;
+        HotelFlagDrawable(String hotelKey) { hotel = normalizeHotelKey(hotelKey); if (hotel.isEmpty()) hotel = "br"; }
+        @Override public int getIntrinsicWidth() { return dp(24); }
+        @Override public int getIntrinsicHeight() { return dp(16); }
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            RectF r = new RectF(b.left, b.top, b.right, b.bottom);
+            p.setStyle(Paint.Style.FILL);
+            p.setShader(null);
+            c.save();
+            Path clip = new Path();
+            clip.addRoundRect(r, dp(3), dp(3), Path.Direction.CW);
+            c.clipPath(clip);
+            float w = r.width(), h = r.height(), x = r.left, y = r.top;
+            if ("br".equals(hotel)) {
+                p.setColor(Color.rgb(34, 166, 74)); c.drawRect(r, p);
+                p.setColor(Color.rgb(255, 223, 64));
+                Path d = new Path(); d.moveTo(x+w*.50f,y+h*.10f); d.lineTo(x+w*.90f,y+h*.50f); d.lineTo(x+w*.50f,y+h*.90f); d.lineTo(x+w*.10f,y+h*.50f); d.close(); c.drawPath(d,p);
+                p.setColor(Color.rgb(39, 74, 160)); c.drawCircle(x+w*.50f, y+h*.50f, Math.min(w,h)*.20f, p);
+            } else if ("com".equals(hotel)) {
+                for (int i=0;i<7;i++){ p.setColor(i%2==0?Color.rgb(188,10,48):Color.WHITE); c.drawRect(x, y+h*i/7f, x+w, y+h*(i+1)/7f, p); }
+                p.setColor(Color.rgb(40,60,130)); c.drawRect(x,y,x+w*.42f,y+h*.54f,p);
+            } else if ("es".equals(hotel)) {
+                p.setColor(Color.rgb(198, 0, 43)); c.drawRect(r,p); p.setColor(Color.rgb(255, 206, 0)); c.drawRect(x,y+h*.25f,x+w,y+h*.75f,p);
+            } else if ("de".equals(hotel)) {
+                p.setColor(Color.BLACK); c.drawRect(x,y,x+w,y+h/3f,p); p.setColor(Color.rgb(221,0,0)); c.drawRect(x,y+h/3f,x+w,y+2*h/3f,p); p.setColor(Color.rgb(255,206,0)); c.drawRect(x,y+2*h/3f,x+w,y+h,p);
+            } else if ("fr".equals(hotel)) {
+                p.setColor(Color.rgb(0,35,149)); c.drawRect(x,y,x+w/3f,y+h,p); p.setColor(Color.WHITE); c.drawRect(x+w/3f,y,x+2*w/3f,y+h,p); p.setColor(Color.rgb(237,41,57)); c.drawRect(x+2*w/3f,y,x+w,y+h,p);
+            } else if ("fi".equals(hotel)) {
+                p.setColor(Color.WHITE); c.drawRect(r,p); p.setColor(Color.rgb(0,53,128)); c.drawRect(x+w*.30f,y,x+w*.46f,y+h,p); c.drawRect(x,y+h*.38f,x+w,y+h*.58f,p);
+            } else if ("it".equals(hotel)) {
+                p.setColor(Color.rgb(0,146,70)); c.drawRect(x,y,x+w/3f,y+h,p); p.setColor(Color.WHITE); c.drawRect(x+w/3f,y,x+2*w/3f,y+h,p); p.setColor(Color.rgb(206,43,55)); c.drawRect(x+2*w/3f,y,x+w,y+h,p);
+            } else if ("nl".equals(hotel)) {
+                p.setColor(Color.rgb(174,28,40)); c.drawRect(x,y,x+w,y+h/3f,p); p.setColor(Color.WHITE); c.drawRect(x,y+h/3f,x+w,y+2*h/3f,p); p.setColor(Color.rgb(33,70,139)); c.drawRect(x,y+2*h/3f,x+w,y+h,p);
+            } else if ("tr".equals(hotel)) {
+                p.setColor(Color.rgb(227,10,23)); c.drawRect(r,p); p.setColor(Color.WHITE); c.drawCircle(x+w*.43f,y+h*.50f,h*.25f,p); p.setColor(Color.rgb(227,10,23)); c.drawCircle(x+w*.50f,y+h*.50f,h*.20f,p); p.setColor(Color.WHITE); Path star=new Path(); float cx=x+w*.64f, cy=y+h*.50f, rr=h*.15f; for(int i=0;i<10;i++){ double a=-Math.PI/2+i*Math.PI/5; float rad=(i%2==0)?rr:rr*.42f; float px=cx+(float)Math.cos(a)*rad, py=cy+(float)Math.sin(a)*rad; if(i==0) star.moveTo(px,py); else star.lineTo(px,py);} star.close(); c.drawPath(star,p);
+            }
+            c.restore();
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(1)); p.setColor(Color.argb(90,0,0,0)); c.drawRoundRect(r, dp(3), dp(3), p);
+        }
+        @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
+        @Override public void setColorFilter(android.graphics.ColorFilter cf) { p.setColorFilter(cf); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
     public class AddButtonDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         @Override public void draw(Canvas c) {
@@ -3002,12 +3150,12 @@ private int loadingProgressFor(String message) {
             RectF r = new RectF(left, top, left + size, top + size);
             p.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, purple2, purple, Shader.TileMode.CLAMP));
             p.setStyle(Paint.Style.FILL);
-            c.drawRoundRect(r, dp(8), dp(8), p);
+            c.drawRoundRect(r, dp(7), dp(7), p);
             p.setShader(null);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(dp(1));
             p.setColor(Color.argb(85,255,255,255));
-            c.drawRoundRect(new RectF(r.left+1, r.top+1, r.right-1, r.bottom-1), dp(8), dp(8), p);
+            c.drawRoundRect(new RectF(r.left+1, r.top+1, r.right-1, r.bottom-1), dp(7), dp(7), p);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(dp(2));
             p.setStrokeCap(Paint.Cap.ROUND);
@@ -3028,7 +3176,7 @@ private int loadingProgressFor(String message) {
             Rect b = getBounds();
             float w = b.width(), h = b.height(), x = b.left, y = b.top;
             float cx = x + w / 2f, cy = y + h / 2f;
-            float radius = Math.min(w, h) * 0.32f;
+            float radius = Math.min(w, h) * 0.28f;
             p.setShader(null);
             p.setStyle(Paint.Style.FILL);
             p.setColor(lightTheme ? Color.argb(0,0,0,0) : Color.argb(0,255,255,255));
