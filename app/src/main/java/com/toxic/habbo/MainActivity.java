@@ -143,8 +143,8 @@ public class MainActivity extends Activity {
         searchInput = new EditText(this);
         searchInput.setSingleLine(true);
         searchInput.setHint("Digite um nick");
-        searchInput.setHintTextColor(Color.argb(135,255,255,255));
-        searchInput.setTextColor(Color.WHITE);
+        searchInput.setHintTextColor(lightTheme ? Color.rgb(117, 117, 117) : Color.argb(135,255,255,255));
+        searchInput.setTextColor(lightTheme ? Color.rgb(33, 33, 33) : Color.WHITE);
         searchInput.setTextSize(16);
         searchInput.setTypeface(habboFont);
         searchInput.setGravity(Gravity.CENTER_VERTICAL);
@@ -640,7 +640,7 @@ public class MainActivity extends Activity {
         badges.setOrientation(LinearLayout.HORIZONTAL);
         profile.addView(badges, lp(-1, -2, 0, 0, 0, 6));
         if (r.privateProfile) badges.addView(profileBadge("Privado", "lock", red));
-        if (r.banned) { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2); p.leftMargin=dp(8); badges.addView(profileBadge("Banido", "status", red), p); }
+        if (r.banned) { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2); p.leftMargin=dp(8); badges.addView(profileBadge("Banido", "banned", red), p); }
 
         addSelectedBadges(r.selectedBadges);
         addPreviousNames(r.previousNames);
@@ -659,9 +659,19 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER);
         row.setPadding(dp(8), dp(5), dp(10), dp(5));
         row.setBackground(round(adjustAlpha(color, 0.32f), dp(999), adjustAlpha(color, 0.55f), 1));
-        IconView iv = new IconView(this, icon);
-        row.addView(iv, new LinearLayout.LayoutParams(dp(14), dp(14)));
+        View badgeIcon;
+        if ("banned".equals(icon)) {
+            TextView bannedChar = habboText("ª", 16, true);
+            bannedChar.setGravity(Gravity.CENTER);
+            bannedChar.setIncludeFontPadding(false);
+            bannedChar.setTextColor(Color.WHITE);
+            badgeIcon = bannedChar;
+        } else {
+            badgeIcon = new IconView(this, icon);
+        }
+        row.addView(badgeIcon, new LinearLayout.LayoutParams(dp(14), dp(14)));
         TextView tv = text(label, 13, Color.WHITE, true);
+        tv.setTextColor(Color.WHITE);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2); tp.leftMargin = dp(6);
         row.addView(tv, tp);
         return row;
@@ -822,7 +832,7 @@ public class MainActivity extends Activity {
         box.setLayoutParams(lp(-1, -2, 0, 0, 0, 10));
         TextView title = habboText(main == null ? "" : main, 16, true);
         title.setGravity(Gravity.CENTER);
-        title.setTextColor(Color.WHITE);
+        title.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         title.setLineSpacing(dp(2), 1f);
         box.addView(title, lp(-1, -2, 0, 0, 0, 4));
         if (date != null && !date.isEmpty() && !date.equals("—")) {
@@ -838,8 +848,8 @@ public class MainActivity extends Activity {
         v.setGravity(Gravity.CENTER);
         v.setPadding(dp(12), dp(12), dp(12), dp(12));
         v.setLineSpacing(dp(4), 1f);
-        v.setTextColor(Color.WHITE);
-        v.setBackground(round(Color.argb(22,255,255,255), dp(16), Color.argb(24,255,255,255), 1));
+        v.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
+        v.setBackground(round(lightTheme ? Color.rgb(245,245,245) : Color.argb(22,255,255,255), dp(16), Color.argb(24,255,255,255), 1));
         v.setLayoutParams(lp(-1, -2, 0, 0, 0, 10));
         return v;
     }
@@ -850,7 +860,7 @@ public class MainActivity extends Activity {
         if (list.isEmpty() && !profileResult.stylesHasMore && !profileResult.stylesLoading) return;
         final int loaded = list.size();
         final int totalLabel = Math.max(profileResult.stylesTotal, loaded);
-        LinearLayout c = sectionCard("Visuais anteriores", totalLabel > 0 ? totalLabel : loaded, true);
+        LinearLayout c = sectionCardWithLoadMore("Visuais anteriores", loaded, totalLabel > 0 ? totalLabel : loaded, profileResult.stylesHasMore || profileResult.stylesLoading, profileResult.stylesLoading, () -> loadMoreStyles(profileResult, null));
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(172), 0, 0, 0, 8));
@@ -868,12 +878,9 @@ public class MainActivity extends Activity {
             final String finalFig = fig;
             box.setOnClickListener(v -> showClothesDialog(finalFig, niceDate(firstText(o, "changedAt", "date", "createdAt", "creationTime"))));
         }
-        if (profileResult.stylesLoading) {
-            c.addView(loadMoreButton("Carregando...", loaded, totalLabel > 0 ? totalLabel : loaded), lp(-1, dp(46), 0, 4, 0, 0));
-        } else if (profileResult.stylesHasMore) {
-            TextView more = loadMoreButton("Carregar mais", loaded, totalLabel > loaded ? totalLabel : loaded + PAGE_CHUNK);
-            more.setOnClickListener(v -> loadMoreStyles(profileResult, stylesHsv));
-            c.addView(more, lp(-1, dp(46), 0, 4, 0, 0));
+        if (profileResult.stylesHasMore && !profileResult.stylesLoading) {
+            View more = c.findViewWithTag("load_more_header_button");
+            if (more != null) more.setOnClickListener(v -> loadMoreStyles(profileResult, stylesHsv));
         }
     }
 
@@ -1207,7 +1214,7 @@ public class MainActivity extends Activity {
         if (list.isEmpty() && !profileResult.photosHasMore && !profileResult.photosLoading) return;
         final int loaded = list.size();
         final int totalLabel = Math.max(profileResult.photosTotal, loaded);
-        LinearLayout c = sectionCard("Fotos do usuário", totalLabel > 0 ? totalLabel : loaded, true);
+        LinearLayout c = sectionCardWithLoadMore("Fotos do usuário", loaded, totalLabel > 0 ? totalLabel : loaded, profileResult.photosHasMore || profileResult.photosLoading, profileResult.photosLoading, () -> loadMorePhotos(profileResult, null));
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(165), 0, 0, 0, 0));
@@ -1223,21 +1230,18 @@ public class MainActivity extends Activity {
             TextView dt = text(date, 12, Color.argb(190,255,255,255), false); dt.setGravity(Gravity.CENTER); box.addView(dt, lp(-1,-2,0,8,0,0));
             if (!url.isEmpty()) { loadImage(img, url); final JSONObject photoObj = o; box.setOnClickListener(v -> showPhotoDialog(photoObj)); }
         }
-        if (profileResult.photosLoading) {
-            c.addView(loadMoreButton("Carregando...", loaded, totalLabel > 0 ? totalLabel : loaded), lp(-1, dp(46), 0, 12, 0, 0));
-        } else if (profileResult.photosHasMore) {
-            TextView more = loadMoreButton("Carregar mais", loaded, totalLabel > loaded ? totalLabel : loaded + PAGE_CHUNK);
-            more.setOnClickListener(v -> loadMorePhotos(profileResult, photosHsv));
-            c.addView(more, lp(-1, dp(46), 0, 12, 0, 0));
+        if (profileResult.photosHasMore && !profileResult.photosLoading) {
+            View more = c.findViewWithTag("load_more_header_button");
+            if (more != null) more.setOnClickListener(v -> loadMorePhotos(profileResult, photosHsv));
         }
     }
 
     private TextView loadMoreButton(String label, int shown, int total) {
-        TextView more = habboText(label + "  -  " + shown + "/" + total, 15, true);
+        TextView more = habboText("+", 22, true);
         more.setGravity(Gravity.CENTER);
         more.setTextColor(Color.WHITE);
-        more.setPadding(dp(12), 0, dp(12), 0);
-        more.setBackground(grad(dp(14), purple2, purple));
+        more.setPadding(0, 0, 0, dp(2));
+        more.setBackground(grad(dp(12), purple2, purple));
         return more;
     }
 
@@ -1296,7 +1300,7 @@ public class MainActivity extends Activity {
 
         if (!likers.isEmpty()) {
             TextView likesTitle = habboText("Quem curtiu", 17, true);
-            likesTitle.setTextColor(Color.WHITE);
+            likesTitle.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
             wrap.addView(likesTitle, lp(-1, -2, 0, 0, 0, 8));
 
             ScrollView likesScroll = new ScrollView(this);
@@ -1364,7 +1368,7 @@ public class MainActivity extends Activity {
         TextView lb = text(label, 12, Color.argb(185,255,255,255), false);
         texts.addView(lb);
         TextView val = habboText(value == null || value.isEmpty() ? "—" : value, 15, true);
-        val.setTextColor(Color.WHITE);
+        val.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         val.setMaxLines(2);
         val.setEllipsize(TextUtils.TruncateAt.END);
         texts.addView(val);
@@ -1393,7 +1397,7 @@ public class MainActivity extends Activity {
         loadImage(head, avatarHeadByName(nick));
 
         TextView name = habboText(nick, 15, true);
-        name.setTextColor(Color.WHITE);
+        name.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         name.setMaxLines(1);
         name.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(0, -2, 1);
@@ -1588,8 +1592,10 @@ public class MainActivity extends Activity {
         if (!image.isEmpty()) Glide.with(this).load(image).error(R.drawable.quarto).into(img); else img.setImageResource(R.drawable.quarto);
         LinearLayout txt = new LinearLayout(this); txt.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0,-2,1); tp.leftMargin=dp(12); row.addView(txt,tp);
         TextView roomName = habboText(firstText(room,"name","roomName","caption","title").isEmpty()?"Quarto":firstText(room,"name","roomName","caption","title"), 16, true); roomName.setMaxLines(1); roomName.setEllipsize(TextUtils.TruncateAt.END); txt.addView(roomName);
-        String visitors = firstText(room,"usersNow","users","visitors","userCount"); String score = firstText(room,"score","rating"); String date = niceDate(firstText(room,"createdAt","creationTime","date"));
-        txt.addView(text("👥  " + emptyDash(visitors) + "   ☆  " + emptyDash(score) + "   " + date, 13, Color.argb(215,255,255,255), false));
+        String score = firstText(room,"score","rating"); String date = niceDate(firstText(room,"createdAt","creationTime","date"));
+        TextView meta = habboText("•  " + emptyDash(score) + "   " + date, 13, false);
+        meta.setTextColor(lightTheme ? Color.rgb(97,97,97) : Color.argb(215,255,255,255));
+        txt.addView(meta);
         String desc = firstText(room,"description","desc"); if(!desc.isEmpty()) { TextView rd = habboText(desc, 13, false); rd.setTextColor(Color.argb(210,255,255,255)); rd.setMaxLines(1); rd.setEllipsize(TextUtils.TruncateAt.END); txt.addView(rd); }
         return row;
     }
@@ -1636,6 +1642,36 @@ public class MainActivity extends Activity {
         if (showTitle && title != null) {
             TextView t = habboText(title + " (" + count + ")", 20, true); c.addView(t, lp(-1, -2, 0, 0, 0, 14));
         }
+        return c;
+    }
+
+    private LinearLayout sectionCardWithLoadMore(String title, int shown, int total, boolean showButton, boolean loading, final Runnable action) {
+        LinearLayout c = card(dp(20));
+        applyProfilePrivateBorder(c, dp(20));
+        c.setPadding(dp(16), dp(16), dp(16), dp(16));
+        resultWrap.addView(c, lp(-1, -2, 0, 0, 0, 18));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView t = habboText(title + " (" + shown + "/" + Math.max(shown, total) + ")", 20, true);
+        header.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+
+        if (showButton) {
+            TextView more = habboText(loading ? "…" : "+", loading ? 20 : 22, true);
+            more.setTag("load_more_header_button");
+            more.setGravity(Gravity.CENTER);
+            more.setIncludeFontPadding(false);
+            more.setTextColor(Color.WHITE);
+            more.setBackground(grad(dp(10), purple2, purple));
+            more.setPadding(0, 0, 0, dp(loading ? 5 : 2));
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(dp(38), dp(38));
+            mp.leftMargin = dp(10);
+            header.addView(more, mp);
+            if (!loading && action != null) more.setOnClickListener(v -> action.run());
+        }
+
+        c.addView(header, lp(-1, dp(42), 0, 0, 0, 12));
         return c;
     }
 
@@ -1998,24 +2034,32 @@ private int loadingProgressFor(String message) {
     private String avatarHeadByName(String name) { return "https://www.habbo.com.br/habbo-imaging/avatarimage?user=" + enc(name) + "&size=m&direction=2&head_direction=2&headonly=1"; }
 
     private Drawable makeBg() {
-        if (lightTheme) return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(246, 240, 252), Color.rgb(232, 218, 244), Color.rgb(250, 248, 255)});
+        if (lightTheme) return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(245, 245, 245), Color.rgb(238, 238, 238), Color.rgb(250, 250, 250)});
         return new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Color.rgb(30, 11, 45), Color.rgb(24,14,35), Color.rgb(12,12,18)});
     }
     private LinearLayout card(int radius) {
         LinearLayout l = new LinearLayout(this);
         l.setOrientation(LinearLayout.VERTICAL);
-        int stroke = currentProfilePrivate ? Color.argb(92, 255, 64, 64) : (lightTheme ? Color.argb(42, 90, 45, 120) : cardStroke);
-        int fill = lightTheme ? Color.argb(196, 255, 255, 255) : cardFill;
+        int stroke = currentProfilePrivate ? Color.argb(112, 211, 47, 47) : (lightTheme ? Color.rgb(224, 224, 224) : cardStroke);
+        int fill = lightTheme ? Color.WHITE : cardFill;
         l.setBackground(round(fill, radius, stroke, 1));
         return l;
     }
     private void applyProfilePrivateBorder(LinearLayout view, int radius) {
         if (currentProfilePrivate && view != null) {
-            view.setBackground(round(lightTheme ? Color.argb(196,255,255,255) : cardFill, radius, Color.argb(92, 255, 64, 64), 1));
+            view.setBackground(round(lightTheme ? Color.WHITE : cardFill, radius, Color.argb(112, 211, 47, 47), 1));
         }
     }
-    private TextView text(String s, int sp, int color, boolean bold) { TextView v = new TextView(this); v.setText(s == null ? "" : s); v.setTextSize(sp); v.setTextColor(color); if (bold) v.setTypeface(Typeface.DEFAULT_BOLD); return v; }
-    private TextView habboText(String s, int sp, boolean bold) { TextView v = text(s, sp, Color.WHITE, bold); v.setTypeface(habboFont); return v; }
+    private int themeTextColor(int color) {
+        if (!lightTheme) return color;
+        if (color == Color.WHITE || Color.alpha(color) < 255 || (Color.red(color) > 180 && Color.green(color) > 180 && Color.blue(color) > 180)) {
+            return Color.rgb(33, 33, 33);
+        }
+        return color;
+    }
+    private int themeMutedColor() { return lightTheme ? Color.rgb(97, 97, 97) : muted; }
+    private TextView text(String s, int sp, int color, boolean bold) { TextView v = new TextView(this); v.setText(s == null ? "" : s); v.setTextSize(sp); v.setTextColor(themeTextColor(color)); if (bold) v.setTypeface(Typeface.DEFAULT_BOLD); return v; }
+    private TextView habboText(String s, int sp, boolean bold) { TextView v = text(s, sp, lightTheme ? Color.rgb(33, 33, 33) : Color.WHITE, bold); v.setTypeface(habboFont); return v; }
     private TextView pill(String s, int color) { TextView v = text(s, 13, Color.WHITE, true); v.setGravity(Gravity.CENTER); v.setPadding(dp(14), dp(9), dp(14), dp(9)); v.setBackground(round(adjustAlpha(color, 0.32f), dp(999), adjustAlpha(color,0.55f), 1)); return v; }
     private GradientDrawable round(int fill, int radius, int stroke, int sw) { GradientDrawable d = new GradientDrawable(); d.setColor(fill); d.setCornerRadius(radius); if (sw > 0) d.setStroke(dp(sw), stroke); return d; }
     private GradientDrawable grad(int radius, int c1, int c2) { GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{c1,c2}); d.setCornerRadius(radius); return d; }
@@ -2290,7 +2334,7 @@ private int loadingProgressFor(String message) {
 
     private String cacheStatsText() {
         cleanupSessionProfileCache();
-        return "Perfis na sessão: " + profileCache.size() + "\nCache do app: " + formatBytes(cacheDirSize(getCacheDir()) + cacheDirSize(profileCacheDir())) + "\nValidade do cache de sessão: 5 minutos";
+        return "Perfis na sessão: " + profileCache.size() + "\nCache do app: " + formatBytes(cacheDirSize(getCacheDir()) + cacheDirSize(profileCacheDir()));
     }
 
     private void rebuildUiPreservingProfile() {
@@ -2331,17 +2375,17 @@ private int loadingProgressFor(String message) {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
-        wrap.setBackground(round(Color.rgb(28, 18, 42), dp(22), Color.argb(42,255,255,255), 1));
+        wrap.setBackground(round(lightTheme ? Color.WHITE : Color.rgb(28, 18, 42), dp(22), lightTheme ? Color.rgb(224,224,224) : Color.argb(42,255,255,255), 1));
         dialog.setContentView(wrap);
 
         TextView title = habboText("Configurações", 24, true);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
-        TextView info = text(cacheStatsText() + "\n\nO app consulta o perfil atual novamente ao pesquisar e usa o cache só para acelerar dados do mesmo usuário.", 13, muted, false);
+        TextView info = text(cacheStatsText(), 13, muted, false);
         info.setGravity(Gravity.CENTER);
         info.setPadding(dp(10), dp(10), dp(10), dp(10));
-        info.setBackground(round(Color.argb(18,255,255,255), dp(14), Color.argb(28,255,255,255), 1));
+        info.setBackground(round(lightTheme ? Color.rgb(245,245,245) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(224,224,224) : Color.argb(28,255,255,255), 1));
         wrap.addView(info, lp(-1, -2, 0, 0, 0, 14));
 
         LinearLayout themeRow = new LinearLayout(this);
@@ -2350,7 +2394,9 @@ private int loadingProgressFor(String message) {
         TextView lightBtn = dialogButton("Tema claro");
         TextView darkBtn = dialogButton("Tema escuro");
         lightBtn.setBackground(lightTheme ? grad(dp(14), purple2, purple) : round(Color.argb(20,255,255,255), dp(14), Color.argb(32,255,255,255), 1));
-        darkBtn.setBackground(!lightTheme ? grad(dp(14), purple2, purple) : round(Color.argb(20,255,255,255), dp(14), Color.argb(32,255,255,255), 1));
+        darkBtn.setBackground(!lightTheme ? grad(dp(14), purple2, purple) : round(Color.rgb(245,245,245), dp(14), Color.rgb(224,224,224), 1));
+        lightBtn.setTextColor(Color.WHITE);
+        darkBtn.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         LinearLayout.LayoutParams th1 = new LinearLayout.LayoutParams(0, dp(48), 1); th1.rightMargin = dp(6);
         LinearLayout.LayoutParams th2 = new LinearLayout.LayoutParams(0, dp(48), 1); th2.leftMargin = dp(6);
         themeRow.addView(lightBtn, th1);
@@ -2364,14 +2410,10 @@ private int loadingProgressFor(String message) {
         wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 10));
         clear.setOnClickListener(v -> {
             clearProfileCache();
-            info.setText(cacheStatsText() + "\n\nO app consulta o perfil atual novamente ao pesquisar e usa o cache só para acelerar dados do mesmo usuário.");
+            info.setText(cacheStatsText());
             toast("Cache do app limpo.");
         });
 
-        TextView close = dialogButton("Fechar");
-        close.setBackground(round(Color.argb(20,255,255,255), dp(14), Color.argb(32,255,255,255), 1));
-        wrap.addView(close, lp(-1, dp(48), 0, 0, 0, 0));
-        close.setOnClickListener(v -> dialog.dismiss());
 
         dialog.show();
         Window w = dialog.getWindow();
@@ -2646,7 +2688,7 @@ private int loadingProgressFor(String message) {
         @Override protected void onDraw(Canvas c) {
             super.onDraw(c);
             float w=getWidth(), h=getHeight(), cx=w/2f, cy=h/2f, m=Math.min(w,h);
-            p.setShader(null); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(Math.max(2f, m*.11f)); p.setStrokeCap(Paint.Cap.ROUND); p.setStrokeJoin(Paint.Join.ROUND); p.setColor(Color.WHITE);
+            p.setShader(null); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(Math.max(2f, m*.11f)); p.setStrokeCap(Paint.Cap.ROUND); p.setStrokeJoin(Paint.Join.ROUND); p.setColor(lightTheme ? Color.rgb(33, 33, 33) : Color.WHITE);
             if ("dot".equals(type)) { p.setStyle(Paint.Style.FILL); p.setColor(green); c.drawCircle(cx,cy,m*.28f,p); return; }
             if ("lock".equals(type)) { RectF body = new RectF(cx-m*.26f, cy-m*.02f, cx+m*.26f, cy+m*.30f); c.drawRoundRect(body, m*.08f, m*.08f, p); c.drawArc(new RectF(cx-m*.22f, cy-m*.36f, cx+m*.22f, cy+m*.12f), 200, 140, false, p); return; }
             if ("status".equals(type)) { p.setColor(Color.rgb(255,120,135)); c.drawCircle(cx,cy,m*.34f,p); p.setStyle(Paint.Style.FILL); p.setColor(Color.rgb(240,40,54)); c.drawCircle(cx,cy,m*.18f,p); return; }
