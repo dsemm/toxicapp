@@ -98,8 +98,13 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             habboFont = Typeface.create("sans-serif-condensed", Typeface.BOLD);
         }
-        getWindow().setStatusBarColor(lightTheme ? Color.WHITE : Color.rgb(20, 10, 30));
-        getWindow().setNavigationBarColor(lightTheme ? Color.rgb(245, 245, 245) : Color.rgb(10, 10, 15));
+        getWindow().setStatusBarColor(lightTheme ? Color.WHITE : bg);
+        getWindow().setNavigationBarColor(lightTheme ? Color.rgb(245, 245, 245) : bg);
+        if (Build.VERSION.SDK_INT >= 23) {
+            int flags = lightTheme ? View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : 0;
+            if (Build.VERSION.SDK_INT >= 26 && lightTheme) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+        }
         loadOpenedProfilesHistory();
         buildUi();
     }
@@ -141,12 +146,12 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 21) pullRefreshSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(purple));
         pullRefreshChip.addView(pullRefreshSpinner, new LinearLayout.LayoutParams(dp(18), dp(18)));
         pullRefreshText = text("Atualizando perfil...", 13, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
-        LinearLayout.LayoutParams prt = new LinearLayout.LayoutParams(-2, -2);
-        prt.leftMargin = dp(8);
-        pullRefreshChip.addView(pullRefreshText, prt);
-        FrameLayout.LayoutParams prlp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        prlp.topMargin = dp(12);
-        screen.addView(pullRefreshChip, prlp);
+        LinearLayout.LayoutParams pullTxtLp = new LinearLayout.LayoutParams(-2, -2);
+        pullTxtLp.leftMargin = dp(8);
+        pullRefreshChip.addView(pullRefreshText, pullTxtLp);
+        FrameLayout.LayoutParams pullLp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        pullLp.topMargin = dp(12);
+        screen.addView(pullRefreshChip, pullLp);
         screen.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN && searchInput != null && searchInput.hasFocus() && !isTouchInsideView(searchInput, event)) {
                 clearSearchFocus();
@@ -1033,7 +1038,7 @@ public class MainActivity extends Activity {
         rootDialog.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(rootDialog);
 
-        TextView title = text("Visuais — " + (date == null ? "" : date), 18, Color.WHITE, true);
+        TextView title = text("Visuais — " + (date == null ? "" : date), 18, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
         title.setGravity(Gravity.CENTER);
         rootDialog.addView(title, lp(-1,-2,0,0,0,12));
 
@@ -2039,7 +2044,6 @@ private int loadingProgressFor(String message) {
         ImageView walker = new ImageView(this);
         walker.setScaleType(ImageView.ScaleType.FIT_CENTER);
         walker.setPadding(dp(20), dp(10), dp(20), dp(84));
-        walker.setAdjustViewBounds(true);
         avatar.addView(walker, new FrameLayout.LayoutParams(-1, -1));
         String nick = searchInput == null ? "" : searchInput.getText().toString().trim();
         String cachedFigure = "";
@@ -2585,7 +2589,6 @@ private int loadingProgressFor(String message) {
         dialog.setContentView(wrap);
 
         TextView title = habboText("Configurações", 24, true);
-        title.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
@@ -2838,7 +2841,6 @@ private int loadingProgressFor(String message) {
         dialog.setContentView(wrap);
 
         TextView title = habboText("Histórico de perfis", 22, true);
-        title.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
 
