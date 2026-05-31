@@ -79,7 +79,7 @@ public class MainActivity extends Activity {
     private boolean interstitialLoading = false;
     private long lastInterstitialShownAt = 0L;
     private int profileOpenActionsSinceAd = 0;
-    private static final String INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-7462363074049303/8244002855";
+    private static final String INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
     private static final long INTERSTITIAL_COOLDOWN_MS = 60L * 1000L;
     private static final int ACTIONS_BETWEEN_INTERSTITIALS = 1;
 
@@ -131,6 +131,10 @@ public class MainActivity extends Activity {
     }
 
 
+    private void adDebugToast(String message) {
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, "AdMob: " + message, Toast.LENGTH_SHORT).show());
+    }
+
     private void loadInterstitialAd() {
         if (interstitialLoading || interstitialAd != null) return;
 
@@ -144,17 +148,20 @@ public class MainActivity extends Activity {
                 new InterstitialAdLoadCallback() {
                     @Override
                     public void onAdLoaded(InterstitialAd ad) {
+                        adDebugToast("anúncio de teste carregado");
                         interstitialLoading = false;
                         interstitialAd = ad;
                         interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                             @Override
                             public void onAdDismissedFullScreenContent() {
+                                adDebugToast("fechado");
                                 interstitialAd = null;
                                 loadInterstitialAd();
                             }
 
                             @Override
                             public void onAdFailedToShowFullScreenContent(AdError adError) {
+                                adDebugToast("falha ao exibir: " + adError.getCode());
                                 interstitialAd = null;
                                 loadInterstitialAd();
                             }
@@ -168,6 +175,7 @@ public class MainActivity extends Activity {
 
                     @Override
                     public void onAdFailedToLoad(LoadAdError loadAdError) {
+                        adDebugToast("falha ao carregar: " + loadAdError.getCode() + " - " + loadAdError.getMessage());
                         interstitialLoading = false;
                         interstitialAd = null;
                     }
@@ -185,6 +193,7 @@ public class MainActivity extends Activity {
         if (interstitialAd != null && cooldownOk && actionCountOk && !searchInProgress && !isFinishing()) {
             profileOpenActionsSinceAd = 0;
             lastInterstitialShownAt = now;
+            adDebugToast("exibindo");
             interstitialAd.show(this);
         } else if (interstitialAd == null) {
             loadInterstitialAd();
