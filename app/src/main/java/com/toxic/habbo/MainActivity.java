@@ -86,7 +86,11 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onCreate(Bundle b) {
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(b);
+        try {
+            if (getActionBar() != null) getActionBar().hide();
+        } catch (Exception ignored) {}
         lightTheme = getSharedPreferences(PREFS, MODE_PRIVATE).getString("theme", "dark").equals("light");
         currentHotelKey = normalizeHotelKey(getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_HOTEL, ""));
         if (currentHotelKey.isEmpty()) {
@@ -175,7 +179,7 @@ public class MainActivity extends Activity {
         historyLp.leftMargin = dp(8);
         screen.addView(historyBtn, historyLp);
 
-        TextView settingsBtn = text("⚙", 24, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
+        TextView settingsBtn = text("⚙", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
         settingsBtn.setGravity(Gravity.CENTER);
         settingsBtn.setPadding(0, 0, 0, 0);
         settingsBtn.setBackgroundColor(Color.TRANSPARENT);
@@ -254,9 +258,10 @@ public class MainActivity extends Activity {
     private void search() {
         final String nick = searchInput.getText().toString().trim();
         final String nickKey = normalizeNickKey(nick);
-        if (nickKey.isEmpty()) { toast("Digite um nick do Habbo."); return; }
+        if (nickKey.isEmpty()) { hidePullRefreshIndicator(); toast("Digite um nick do Habbo."); return; }
 
         if (searchInProgress && nickKey.equals(activeSearchNick)) {
+            hidePullRefreshIndicator();
             toast("Esse perfil já está sendo carregado.");
             return;
         }
@@ -265,6 +270,7 @@ public class MainActivity extends Activity {
             long now = System.currentTimeMillis();
             long wait = PROFILE_REFRESH_COOLDOWN_MS - (now - lastSameNickRefreshAt);
             if (wait > 0) {
+                hidePullRefreshIndicator();
                 toast("Aguarde " + Math.max(1, (int)Math.ceil(wait / 1000.0)) + "s para atualizar este perfil novamente.");
                 return;
             }
@@ -332,6 +338,7 @@ public class MainActivity extends Activity {
                     activeSearchNick = "";
                     setLoading(false, "");
                     hidePullRefreshIndicator();
+                    hidePullRefreshIndicator();
                     showNotFoundState(e.nick, e.suggestions);
                 });
             } catch (Exception e) {
@@ -340,6 +347,7 @@ public class MainActivity extends Activity {
                     searchInProgress = false;
                     activeSearchNick = "";
                     setLoading(false, "");
+                    hidePullRefreshIndicator();
                     hidePullRefreshIndicator();
                     showError(e.getMessage() == null ? "Falha ao buscar perfil." : e.getMessage());
                 });
@@ -2672,6 +2680,18 @@ private int loadingProgressFor(String message) {
         if (activeRenderedProfile == null) return;
         String nick = activeRenderedProfile.name == null || activeRenderedProfile.name.trim().isEmpty() ? activeRenderedProfile.searchedNick : activeRenderedProfile.name;
         if (nick == null || nick.trim().isEmpty()) return;
+
+        String nickKey = normalizeNickKey(nick);
+        if (!searchInProgress && activeRenderedProfile != null && nickKey.equals(currentLoadedNick) && normalizeHotelKey(activeRenderedProfile.hotelKey).equals(currentHotelKey)) {
+            long now = System.currentTimeMillis();
+            long wait = PROFILE_REFRESH_COOLDOWN_MS - (now - lastSameNickRefreshAt);
+            if (wait > 0) {
+                hidePullRefreshIndicator();
+                toast("Aguarde " + Math.max(1, (int)Math.ceil(wait / 1000.0)) + "s para atualizar este perfil novamente.");
+                return;
+            }
+        }
+
         if (searchInput != null) {
             searchInput.setText(nick.trim());
             searchInput.setSelection(searchInput.getText().length());
