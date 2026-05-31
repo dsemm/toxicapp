@@ -12,6 +12,13 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import org.json.*;
 import com.bumptech.glide.Glide;
+import com.google.android.gms.ads.AdError;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.FullScreenContentCallback;
+import com.google.android.gms.ads.LoadAdError;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.interstitial.InterstitialAd;
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import java.io.*;
 import java.net.*;
 import java.text.*;
@@ -68,6 +75,14 @@ public class MainActivity extends Activity {
     private final ArrayList<ProfileHistoryItem> openedProfilesHistory = new ArrayList<>();
     private String currentHotelKey = "br";
 
+    private InterstitialAd interstitialAd;
+    private boolean interstitialLoading = false;
+    private long lastInterstitialShownAt = 0L;
+    private int profileOpenActionsSinceAd = 0;
+    private static final String INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-7462363074049303/8244002855";
+    private static final long INTERSTITIAL_COOLDOWN_MS = 60L * 1000L;
+    private static final int ACTIONS_BETWEEN_INTERSTITIALS = 1;
+
     private final int bg = Color.rgb(13, 13, 18);
     private final int purple = Color.rgb(139, 52, 217);
     private final int purple2 = Color.rgb(106, 51, 143);
@@ -111,6 +126,69 @@ public class MainActivity extends Activity {
         }
         loadOpenedProfilesHistory();
         buildUi();
+        MobileAds.initialize(this, initializationStatus -> {});
+        loadInterstitialAd();
+    }
+
+
+    private void loadInterstitialAd() {
+        if (interstitialLoading || interstitialAd != null) return;
+
+        interstitialLoading = true;
+        AdRequest adRequest = new AdRequest.Builder().build();
+
+        InterstitialAd.load(
+                this,
+                INTERSTITIAL_AD_UNIT_ID,
+                adRequest,
+                new InterstitialAdLoadCallback() {
+                    @Override
+                    public void onAdLoaded(InterstitialAd ad) {
+                        interstitialLoading = false;
+                        interstitialAd = ad;
+                        interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+                            @Override
+                            public void onAdDismissedFullScreenContent() {
+                                interstitialAd = null;
+                                loadInterstitialAd();
+                            }
+
+                            @Override
+                            public void onAdFailedToShowFullScreenContent(AdError adError) {
+                                interstitialAd = null;
+                                loadInterstitialAd();
+                            }
+
+                            @Override
+                            public void onAdShowedFullScreenContent() {
+                                interstitialAd = null;
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onAdFailedToLoad(LoadAdError loadAdError) {
+                        interstitialLoading = false;
+                        interstitialAd = null;
+                    }
+                }
+        );
+    }
+
+    private void maybeShowProfileInterstitial() {
+        profileOpenActionsSinceAd++;
+
+        long now = System.currentTimeMillis();
+        boolean cooldownOk = now - lastInterstitialShownAt >= INTERSTITIAL_COOLDOWN_MS;
+        boolean actionCountOk = profileOpenActionsSinceAd >= ACTIONS_BETWEEN_INTERSTITIALS;
+
+        if (interstitialAd != null && cooldownOk && actionCountOk && !searchInProgress && !isFinishing()) {
+            profileOpenActionsSinceAd = 0;
+            lastInterstitialShownAt = now;
+            interstitialAd.show(this);
+        } else if (interstitialAd == null) {
+            loadInterstitialAd();
+        }
     }
 
     @Override protected void onDestroy() {
@@ -330,6 +408,7 @@ public class MainActivity extends Activity {
                     searchBtn.setEnabled(true);
                     searchBtn.setText("Pesquisar");
                     hidePullRefreshIndicator();
+                    maybeShowProfileInterstitial();
                 });
             } catch (ProfileNotFoundException e) {
                 runOnUiThread(() -> {
