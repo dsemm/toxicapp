@@ -59,6 +59,9 @@ public class MainActivity extends Activity {
     private static final String PREF_OPENED_HISTORY = "opened_profiles_history";
     private static final long PROFILE_REFRESH_COOLDOWN_MS = 60L * 1000L;
     private ScrollView mainScroll;
+    private LinearLayout pullRefreshChip;
+    private ProgressBar pullRefreshSpinner;
+    private TextView pullRefreshText;
     private long lastSameNickRefreshAt = 0L;
     private float pullStartY = 0f;
     private boolean pullStartedAtTop = false;
@@ -125,6 +128,25 @@ public class MainActivity extends Activity {
         root.setPadding(dp(18), dp(26), dp(18), dp(42));
         scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
         screen.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+
+        pullRefreshChip = new LinearLayout(this);
+        pullRefreshChip.setOrientation(LinearLayout.HORIZONTAL);
+        pullRefreshChip.setGravity(Gravity.CENTER_VERTICAL);
+        pullRefreshChip.setPadding(dp(14), dp(10), dp(14), dp(10));
+        pullRefreshChip.setBackground(round(lightTheme ? Color.WHITE : Color.rgb(36, 24, 54), dp(999), lightTheme ? Color.rgb(216,216,216) : Color.argb(36,255,255,255), 1));
+        pullRefreshChip.setAlpha(0f);
+        pullRefreshChip.setTranslationY(-dp(40));
+        pullRefreshChip.setVisibility(View.GONE);
+        pullRefreshSpinner = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
+        if (Build.VERSION.SDK_INT >= 21) pullRefreshSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(purple));
+        pullRefreshChip.addView(pullRefreshSpinner, new LinearLayout.LayoutParams(dp(18), dp(18)));
+        pullRefreshText = text("Atualizando perfil...", 13, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
+        LinearLayout.LayoutParams prt = new LinearLayout.LayoutParams(-2, -2);
+        prt.leftMargin = dp(8);
+        pullRefreshChip.addView(pullRefreshText, prt);
+        FrameLayout.LayoutParams prlp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        prlp.topMargin = dp(12);
+        screen.addView(pullRefreshChip, prlp);
         screen.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN && searchInput != null && searchInput.hasFocus() && !isTouchInsideView(searchInput, event)) {
                 clearSearchFocus();
@@ -143,7 +165,7 @@ public class MainActivity extends Activity {
         historyBtn.setPadding(0, 0, 0, 0);
         historyBtn.setBackground(new HistoryClockDrawable());
         historyBtn.setOnClickListener(v -> showOpenedProfilesHistoryDialog());
-        FrameLayout.LayoutParams historyLp = new FrameLayout.LayoutParams(dp(46), dp(46), Gravity.TOP | Gravity.LEFT);
+        FrameLayout.LayoutParams historyLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.LEFT);
         historyLp.topMargin = dp(14);
         historyLp.leftMargin = dp(8);
         screen.addView(historyBtn, historyLp);
@@ -153,12 +175,12 @@ public class MainActivity extends Activity {
         settingsBtn.setPadding(0, 0, 0, 0);
         settingsBtn.setBackgroundColor(Color.TRANSPARENT);
         settingsBtn.setOnClickListener(v -> showSettingsDialog());
-        FrameLayout.LayoutParams settingsLp = new FrameLayout.LayoutParams(dp(46), dp(46), Gravity.TOP | Gravity.RIGHT);
+        FrameLayout.LayoutParams settingsLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
         settingsLp.topMargin = dp(14);
         settingsLp.rightMargin = dp(8);
         screen.addView(settingsBtn, settingsLp);
 
-        TextView logo = text("Widgets Tool", 31, lightTheme ? Color.rgb(35, 22, 45) : Color.WHITE, true);
+        TextView logo = text("Toxic Search Tool", 31, lightTheme ? Color.rgb(35, 22, 45) : Color.WHITE, true);
         logo.setGravity(Gravity.CENTER);
         logo.setLetterSpacing(0.02f);
         root.addView(logo, lp(-1, -2, 0, 0, 0, 4));
@@ -296,6 +318,7 @@ public class MainActivity extends Activity {
                     lastSameNickRefreshAt = System.currentTimeMillis();
                     searchBtn.setEnabled(true);
                     searchBtn.setText("Pesquisar");
+                    hidePullRefreshIndicator();
                 });
             } catch (ProfileNotFoundException e) {
                 runOnUiThread(() -> {
@@ -303,6 +326,7 @@ public class MainActivity extends Activity {
                     searchInProgress = false;
                     activeSearchNick = "";
                     setLoading(false, "");
+                    hidePullRefreshIndicator();
                     showNotFoundState(e.nick, e.suggestions);
                 });
             } catch (Exception e) {
@@ -311,6 +335,7 @@ public class MainActivity extends Activity {
                     searchInProgress = false;
                     activeSearchNick = "";
                     setLoading(false, "");
+                    hidePullRefreshIndicator();
                     showError(e.getMessage() == null ? "Falha ao buscar perfil." : e.getMessage());
                 });
             }
@@ -542,7 +567,7 @@ public class MainActivity extends Activity {
         int target = Math.max(1, desiredCount);
         int limit = Math.max(1, pageLimit);
 
-        while (page > 0 && safety < 8 && combined.items.size() < target) {
+        while (page > 0 && safety < 12 && combined.items.size() < target) {
             PageResult part = fetchPage(uniqueId, endpoint, primaryKey, page, limit);
             if (part == null) break;
             if (combined.total <= 0 && part.total > 0) combined.total = part.total;
@@ -555,6 +580,7 @@ public class MainActivity extends Activity {
                 if (combined.items.size() >= target) break;
                 combined.items.add(item);
             }
+            combined.page = part.page;
             if (part.nextPage <= page || !part.hasMore) {
                 combined.nextPage = 0;
                 combined.hasMore = false;
@@ -566,6 +592,10 @@ public class MainActivity extends Activity {
             safety++;
         }
 
+        if (combined.total > 0 && combined.items.size() < Math.min(target, combined.total) && combined.nextPage <= 0) {
+            combined.nextPage = Math.max(startPage + 1, page + 1);
+            combined.hasMore = true;
+        }
         if (combined.total > 0 && combined.items.size() >= combined.total) {
             combined.nextPage = 0;
             combined.hasMore = false;
@@ -598,18 +628,24 @@ public class MainActivity extends Activity {
         if (r == null || page == null) return;
         if (reset) r.photos.clear();
         r.photos = mergeLists(r.photos, page.items);
-        r.photosNextPage = page.nextPage;
-        r.photosHasMore = page.hasMore;
         if (page.total > 0) r.photosTotal = page.total;
+        int total = r.photosTotal > 0 ? r.photosTotal : page.total;
+        r.photosHasMore = page.hasMore || (total > 0 && r.photos.size() < total);
+        r.photosNextPage = page.nextPage;
+        if (r.photosHasMore && r.photosNextPage <= 0) r.photosNextPage = Math.max(2, page.page + 1);
+        if (!r.photosHasMore) r.photosNextPage = 0;
     }
 
     private void applyStylesPage(ProfileResult r, PageResult page, boolean reset) {
         if (r == null || page == null) return;
         if (reset) r.previousStyles.clear();
         r.previousStyles = mergeLists(r.previousStyles, page.items);
-        r.stylesNextPage = page.nextPage;
-        r.stylesHasMore = page.hasMore;
         if (page.total > 0) r.stylesTotal = page.total;
+        int total = r.stylesTotal > 0 ? r.stylesTotal : page.total;
+        r.stylesHasMore = page.hasMore || (total > 0 && r.previousStyles.size() < total);
+        r.stylesNextPage = page.nextPage;
+        if (r.stylesHasMore && r.stylesNextPage <= 0) r.stylesNextPage = Math.max(2, page.page + 1);
+        if (!r.stylesHasMore) r.stylesNextPage = 0;
     }
 
     private void loadMorePhotos(ProfileResult r, HorizontalScrollView photosHsv) {
@@ -620,17 +656,21 @@ public class MainActivity extends Activity {
         photosScrollX = photosHsv == null ? 0 : photosHsv.getScrollX();
         renderProfile(r);
         executor.execute(() -> {
-            PageResult next = fetchPageChunk(r.uniqueId, "photos", "photos", page, PAGE_CHUNK, PAGE_CHUNK);
-            if (!isActiveToken(token)) return;
-            applyPhotosPage(r, next, false);
-            try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
-            r.photosLoading = false;
-            putProfileCache(r, activeSearchNick);
-            saveProfileCache(r, activeSearchNick);
-            runOnUiThread(() -> {
+            try {
+                PageResult next = fetchPageChunk(r.uniqueId, "photos", "photos", page, PAGE_CHUNK, PAGE_CHUNK);
                 if (!isActiveToken(token)) return;
-                renderProfile(r);
-            });
+                applyPhotosPage(r, next, false);
+                try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
+                putProfileCache(r, activeSearchNick);
+                saveProfileCache(r, activeSearchNick);
+            } catch (Exception ignored) {
+            } finally {
+                r.photosLoading = false;
+                runOnUiThread(() -> {
+                    if (!isActiveToken(token)) return;
+                    renderProfile(r);
+                });
+            }
         });
     }
 
@@ -642,16 +682,20 @@ public class MainActivity extends Activity {
         stylesScrollX = stylesHsv == null ? 0 : stylesHsv.getScrollX();
         renderProfile(r);
         executor.execute(() -> {
-            PageResult next = fetchPageChunk(r.uniqueId, "previous-styles", null, page, PAGE_CHUNK, PAGE_CHUNK);
-            if (!isActiveToken(token)) return;
-            applyStylesPage(r, next, false);
-            r.stylesLoading = false;
-            putProfileCache(r, activeSearchNick);
-            saveProfileCache(r, activeSearchNick);
-            runOnUiThread(() -> {
+            try {
+                PageResult next = fetchPageChunk(r.uniqueId, "previous-styles", null, page, PAGE_CHUNK, PAGE_CHUNK);
                 if (!isActiveToken(token)) return;
-                renderProfile(r);
-            });
+                applyStylesPage(r, next, false);
+                putProfileCache(r, activeSearchNick);
+                saveProfileCache(r, activeSearchNick);
+            } catch (Exception ignored) {
+            } finally {
+                r.stylesLoading = false;
+                runOnUiThread(() -> {
+                    if (!isActiveToken(token)) return;
+                    renderProfile(r);
+                });
+            }
         });
     }
 
@@ -1017,7 +1061,7 @@ public class MainActivity extends Activity {
         ProgressBar clothesSpinner = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
         if (Build.VERSION.SDK_INT >= 21) clothesSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(purple));
         loadingBox.addView(clothesSpinner, new LinearLayout.LayoutParams(dp(28), dp(28)));
-        TextView loading = text("Carregando roupas...", 14, Color.WHITE, false);
+        TextView loading = text("Carregando roupas...", 14, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, false);
         LinearLayout.LayoutParams ltp = new LinearLayout.LayoutParams(-2, -2);
         ltp.leftMargin = dp(10);
         loadingBox.addView(loading, ltp);
@@ -1758,7 +1802,7 @@ public class MainActivity extends Activity {
             more.setTag("load_more_header_button");
             more.setBackground(new AddButtonDrawable());
             more.setPadding(0, 0, 0, 0);
-            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(dp(32), dp(32));
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(dp(28), dp(28));
             mp.leftMargin = dp(8);
             header.addView(more, mp);
 
@@ -1766,7 +1810,7 @@ public class MainActivity extends Activity {
                 more.setBackground(grad(dp(7), purple2, purple));
                 ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
                 if (Build.VERSION.SDK_INT >= 21) pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
-                FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER);
+                FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(dp(14), dp(14), Gravity.CENTER);
                 more.addView(pb, pp);
             } else if (action != null) {
                 more.setOnClickListener(v -> action.run());
@@ -1995,6 +2039,7 @@ private int loadingProgressFor(String message) {
         ImageView walker = new ImageView(this);
         walker.setScaleType(ImageView.ScaleType.FIT_CENTER);
         walker.setPadding(dp(20), dp(10), dp(20), dp(84));
+        walker.setAdjustViewBounds(true);
         avatar.addView(walker, new FrameLayout.LayoutParams(-1, -1));
         String nick = searchInput == null ? "" : searchInput.getText().toString().trim();
         String cachedFigure = "";
@@ -2122,7 +2167,18 @@ private int loadingProgressFor(String message) {
     private ArrayList<JSONObject> extractListFromKeys(JSONObject obj, String... keys) { ArrayList<JSONObject> out = new ArrayList<>(); if (obj == null) return out; for (String k : keys) out = mergeLists(out, extractList(obj, k)); return out; }
     private ArrayList<JSONObject> extractList(JSONObject data, String primaryKey) { ArrayList<JSONObject> out = new ArrayList<>(); if (data == null) return out; JSONArray arr = null; if (primaryKey != null && !primaryKey.isEmpty()) arr = data.optJSONArray(primaryKey); if (arr == null) arr = data.optJSONArray("result"); if (arr == null) arr = data.optJSONArray("results"); if (arr == null) arr = data.optJSONArray("data"); if (arr == null) arr = data.optJSONArray("items"); JSONObject d = data.optJSONObject("data"); if (arr == null && d != null) { if (primaryKey != null && !primaryKey.isEmpty()) arr = d.optJSONArray(primaryKey); if (arr == null) arr = d.optJSONArray("result"); if (arr == null) arr = d.optJSONArray("results"); if (arr == null) arr = d.optJSONArray("items"); } if (arr != null) for (int i=0; i<arr.length(); i++) { JSONObject o = arr.optJSONObject(i); if (o != null) out.add(o); } return out; }
     private ArrayList<JSONObject> mergeLists(ArrayList<JSONObject> a, ArrayList<JSONObject> b) { ArrayList<JSONObject> out = new ArrayList<>(); HashSet<String> seen = new HashSet<>(); if (a != null) addUnique(out, seen, a); if (b != null) addUnique(out, seen, b); return out; }
-    private void addUnique(ArrayList<JSONObject> out, HashSet<String> seen, ArrayList<JSONObject> src) { for (JSONObject o : src) { String key = firstText(o, "uniqueId", "id", "name", "username", "habboName", "figureString", "motto", "code", "badgeCode"); if (key.isEmpty()) key = String.valueOf(o.toString().hashCode()); if (seen.add(key)) out.add(o); } }
+    private void addUnique(ArrayList<JSONObject> out, HashSet<String> seen, ArrayList<JSONObject> src) { for (JSONObject o : src) { String key = stableItemKey(o); if (seen.add(key)) out.add(o); } }
+    private String stableItemKey(JSONObject o) {
+        if (o == null) return String.valueOf(System.identityHashCode(o));
+        String key = firstText(o, "uniqueId", "id", "badgeCode", "code");
+        if (!key.isEmpty()) return key;
+        String figure = firstText(o, "figureString", "figure");
+        String when = firstText(o, "changedAt", "date", "createdAt", "creationTime", "time");
+        if (!figure.isEmpty() || !when.isEmpty()) return "fig:" + figure + "|" + when;
+        String name = firstText(o, "name", "username", "habboName", "motto");
+        if (!name.isEmpty() || !when.isEmpty()) return "txt:" + name + "|" + when;
+        return String.valueOf(o.toString().hashCode());
+    }
     private String firstText(JSONObject o, String... keys) { if (o == null) return ""; for (String k : keys) { Object v = o.opt(k); if (v == null || v == JSONObject.NULL) continue; String s = String.valueOf(v).trim(); if (!s.isEmpty() && !"null".equalsIgnoreCase(s)) return s; } return ""; }
     private boolean optBoolTrue(JSONObject o, String... keys) { if (o == null) return false; for (String k : keys) { if (!o.has(k)) continue; Object v = o.opt(k); if (v instanceof Boolean) return ((Boolean)v); String s = String.valueOf(v).trim().toLowerCase(Locale.ROOT); if (s.equals("true") || s.equals("1") || s.equals("yes")) return true; } return false; }
 
@@ -2529,6 +2585,7 @@ private int loadingProgressFor(String message) {
         dialog.setContentView(wrap);
 
         TextView title = habboText("Configurações", 24, true);
+        title.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
@@ -2601,14 +2658,14 @@ private int loadingProgressFor(String message) {
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 if (pullStartedAtTop && event.getY() - pullStartY > dp(86)) {
-                    refreshCurrentProfileWithCooldown();
+                    refreshCurrentProfileWithCooldown(true);
                 }
                 pullStartedAtTop = false;
                 break;
         }
     }
 
-    private void refreshCurrentProfileWithCooldown() {
+    private void refreshCurrentProfileWithCooldown(boolean fromPull) {
         if (activeRenderedProfile == null) return;
         String nick = activeRenderedProfile.name == null || activeRenderedProfile.name.trim().isEmpty() ? activeRenderedProfile.searchedNick : activeRenderedProfile.name;
         if (nick == null || nick.trim().isEmpty()) return;
@@ -2616,7 +2673,28 @@ private int loadingProgressFor(String message) {
             searchInput.setText(nick.trim());
             searchInput.setSelection(searchInput.getText().length());
         }
+        if (fromPull) showPullRefreshIndicator();
         search();
+    }
+
+    private void showPullRefreshIndicator() {
+        if (pullRefreshChip == null) return;
+        if (pullRefreshText != null) pullRefreshText.setText("Atualizando perfil...");
+        pullRefreshChip.setVisibility(View.VISIBLE);
+        pullRefreshChip.animate().cancel();
+        pullRefreshChip.setAlpha(0f);
+        pullRefreshChip.setTranslationY(-dp(40));
+        pullRefreshChip.animate().alpha(1f).translationY(0).setDuration(180).start();
+        if (mainScroll != null) {
+            mainScroll.animate().cancel();
+            mainScroll.animate().translationY(dp(34)).setDuration(150).withEndAction(() -> mainScroll.animate().translationY(0).setDuration(220).start()).start();
+        }
+    }
+
+    private void hidePullRefreshIndicator() {
+        if (pullRefreshChip == null) return;
+        pullRefreshChip.animate().cancel();
+        pullRefreshChip.animate().alpha(0f).translationY(-dp(40)).setDuration(180).withEndAction(() -> pullRefreshChip.setVisibility(View.GONE)).start();
     }
 
     private String normalizeHotelKey(String hotel) {
@@ -2760,6 +2838,7 @@ private int loadingProgressFor(String message) {
         dialog.setContentView(wrap);
 
         TextView title = habboText("Histórico de perfis", 22, true);
+        title.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
 

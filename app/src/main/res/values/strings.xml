@@ -1,1 +1,3 @@
-<resources><string name="app_name">Widgets Tool</string></resources>
+<resources>
+    <string name="app_name">Toxic Search Tool</string>
+</resources>
