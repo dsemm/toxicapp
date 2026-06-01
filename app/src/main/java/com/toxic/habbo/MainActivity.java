@@ -207,7 +207,7 @@ public class MainActivity extends Activity {
 
         if (hasAdFreeAccess()) { loadInterstitialAd(); return; }
 
-        if (interstitialAd != null && cooldownOk && actionCountOk && !searchInProgress && !isFinishing()) {
+        if (interstitialAd != null && cooldownOk && actionCountOk && !isFinishing()) {
             profileOpenActionsSinceAd = 0;
             lastInterstitialShownAt = now;
             interstitialAd.show(this);
@@ -578,6 +578,7 @@ public class MainActivity extends Activity {
 
         resultWrap.removeAllViews();
         setLoading(true, "Buscando " + nick + "...");
+        maybeShowProfileInterstitial();
 
         executor.execute(() -> {
             try {
@@ -614,7 +615,6 @@ public class MainActivity extends Activity {
                     searchBtn.setEnabled(true);
                     searchBtn.setText("Pesquisar");
                     hidePullRefreshIndicator();
-                    maybeShowProfileInterstitial();
                 });
             } catch (ProfileNotFoundException e) {
                 runOnUiThread(() -> {
