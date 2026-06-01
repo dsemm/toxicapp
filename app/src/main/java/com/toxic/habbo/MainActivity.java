@@ -270,12 +270,73 @@ public class MainActivity extends Activity {
                 ? "Você ainda tem " + remaining + " sem anúncios. Deseja assistir um vídeo para adicionar mais 30 minutos? O limite máximo é 24 horas."
                 : "Deseja assistir um vídeo para liberar 30 minutos sem anúncios ao pesquisar perfis?";
 
-        new AlertDialog.Builder(this)
-                .setTitle("Acesso sem anúncios")
-                .setMessage(message)
-                .setNegativeButton("Cancelar", null)
-                .setPositiveButton("Assistir vídeo", (dialog, which) -> showRewardedAdForAdFreeTime())
-                .show();
+        final Dialog dialog = new Dialog(this);
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
+        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
+        dialog.setContentView(wrap);
+
+        LinearLayout iconLine = new LinearLayout(this);
+        iconLine.setGravity(Gravity.CENTER);
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(new RewardVideoDrawable());
+        iconLine.addView(icon, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        wrap.addView(iconLine, lp(-1, dp(58), 0, 0, 0, 10));
+
+        TextView title = toxicLogoText("Acesso sem anúncios", 21);
+        title.setGravity(Gravity.CENTER);
+        wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
+
+        TextView msg = text(message, 14, lightTheme ? Color.rgb(55,55,55) : Color.argb(226,255,255,255), false);
+        msg.setGravity(Gravity.CENTER);
+        msg.setLineSpacing(dp(3), 1f);
+        msg.setPadding(dp(8), dp(8), dp(8), dp(8));
+        msg.setBackground(round(lightTheme ? Color.rgb(246,246,248) : Color.argb(18,255,255,255), dp(16), lightTheme ? Color.rgb(222,222,226) : Color.argb(28,255,255,255), 1));
+        wrap.addView(msg, lp(-1, -2, 0, 0, 0, 14));
+
+        if (hasAdFreeAccess()) {
+            TextView timer = text("Tempo restante: " + formatAdFreeRemainingShort(), 13, lightTheme ? Color.rgb(50,50,50) : Color.WHITE, true);
+            timer.setGravity(Gravity.CENTER);
+            timer.setPadding(dp(10), dp(8), dp(10), dp(8));
+            timer.setBackground(round(lightTheme ? Color.rgb(238,238,242) : Color.argb(24,255,255,255), dp(999), lightTheme ? Color.rgb(216,216,222) : Color.argb(30,255,255,255), 1));
+            wrap.addView(timer, lp(-1, -2, 0, 0, 0, 14));
+        }
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setGravity(Gravity.CENTER);
+        wrap.addView(buttons, lp(-1, dp(48), 0, 0, 0, 0));
+
+        TextView cancel = dialogButton("Cancelar");
+        cancel.setTextColor(lightTheme ? Color.rgb(45,45,45) : Color.WHITE);
+        cancel.setBackground(round(lightTheme ? Color.rgb(242,242,244) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(216,216,220) : Color.argb(30,255,255,255), 1));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(48), 1);
+        cp.rightMargin = dp(6);
+        buttons.addView(cancel, cp);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+
+        TextView watch = dialogButton("Assistir vídeo");
+        watch.setTextColor(Color.WHITE);
+        watch.setBackground(grad(dp(14), purple2, purple));
+        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(0, dp(48), 1);
+        wp.leftMargin = dp(6);
+        buttons.addView(watch, wp);
+        watch.setOnClickListener(v -> {
+            dialog.dismiss();
+            showRewardedAdForAdFreeTime();
+        });
+
+        dialog.show();
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(w.getAttributes());
+            params.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(430));
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            w.setAttributes(params);
+        }
     }
 
     private void showRewardedAdForAdFreeTime() {
@@ -489,10 +550,19 @@ public class MainActivity extends Activity {
         updateRewardButtonText();
 
 
-        TextView logo = text("Toxic Search Tool", 31, lightTheme ? Color.rgb(35, 22, 45) : Color.WHITE, true);
-        logo.setGravity(Gravity.CENTER);
-        logo.setLetterSpacing(0.02f);
-        root.addView(logo, lp(-1, -2, 0, 0, 0, 4));
+        LinearLayout logoWrap = new LinearLayout(this);
+        logoWrap.setOrientation(LinearLayout.VERTICAL);
+        logoWrap.setGravity(Gravity.CENTER);
+        root.addView(logoWrap, lp(-1, -2, 52, 0, 52, 6));
+
+        TextView logoToxic = toxicLogoText("Toxic", 34);
+        logoToxic.setGravity(Gravity.CENTER);
+        logoWrap.addView(logoToxic, lp(-1, -2, 0, 0, 0, -4));
+
+        TextView logoSub = toxicLogoText("Search Tool", 20);
+        logoSub.setGravity(Gravity.CENTER);
+        logoWrap.addView(logoSub, lp(-1, -2, 0, 0, 0, 0));
+
         TextView subtitle = text("Buscar Habbos • " + hotelLabel(currentHotelKey), 14, muted, false);
         subtitle.setGravity(Gravity.CENTER);
         root.addView(subtitle, lp(-1, -2, 0, 0, 0, 10));
@@ -1048,7 +1118,7 @@ public class MainActivity extends Activity {
         resultWrap.addView(profile, lp(-1, -2, 0, 0, 0, 18));
 
         FrameLayout avatarFrame = new FrameLayout(this);
-        avatarFrame.setBackground(round(Color.rgb(15, 8, 25), dp(20), Color.argb(22,255,255,255), 1));
+        avatarFrame.setBackground(round(lightTheme ? Color.rgb(246,246,248) : Color.rgb(15, 8, 25), dp(20), lightTheme ? Color.rgb(218,218,222) : Color.argb(22,255,255,255), 1));
         profile.addView(avatarFrame, lp(-1, dp(280), 0, 0, 0, 16));
         ImageView avatar = new ImageView(this);
         avatar.setAdjustViewBounds(true);
@@ -2542,6 +2612,14 @@ private int loadingProgressFor(String message) {
     private int themeMutedColor() { return lightTheme ? Color.rgb(97, 97, 97) : muted; }
     private TextView text(String s, int sp, int color, boolean bold) { TextView v = new TextView(this); v.setText(s == null ? "" : s); v.setTextSize(sp); v.setTextColor(themeTextColor(color)); if (bold) v.setTypeface(Typeface.DEFAULT_BOLD); return v; }
     private TextView habboText(String s, int sp, boolean bold) { TextView v = text(s, sp, lightTheme ? Color.rgb(33, 33, 33) : Color.WHITE, bold); v.setTypeface(habboFont); return v; }
+    private TextView toxicLogoText(String s, int sp) {
+        TextView v = habboText(s, sp, true);
+        v.setTextColor(lightTheme ? Color.rgb(151, 38, 220) : Color.rgb(238, 104, 255));
+        v.setShadowLayer(lightTheme ? dp(1) : dp(4), 0, lightTheme ? dp(1) : dp(2), lightTheme ? Color.argb(80,120,40,170) : Color.rgb(103, 26, 180));
+        v.setIncludeFontPadding(false);
+        v.setLetterSpacing(0.02f);
+        return v;
+    }
     private TextView pill(String s, int color) { TextView v = text(s, 13, Color.WHITE, true); v.setGravity(Gravity.CENTER); v.setPadding(dp(14), dp(9), dp(14), dp(9)); v.setBackground(round(adjustAlpha(color, 0.32f), dp(999), adjustAlpha(color,0.55f), 1)); return v; }
     private GradientDrawable round(int fill, int radius, int stroke, int sw) { GradientDrawable d = new GradientDrawable(); d.setColor(fill); d.setCornerRadius(radius); if (sw > 0) d.setStroke(dp(sw), stroke); return d; }
     private GradientDrawable grad(int radius, int c1, int c2) { GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{c1,c2}); d.setCornerRadius(radius); return d; }
