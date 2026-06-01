@@ -19,6 +19,9 @@ import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
+import com.google.android.gms.ads.rewarded.RewardItem;
+import com.google.android.gms.ads.rewarded.RewardedAd;
+import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 import java.io.*;
 import java.net.*;
 import java.text.*;
@@ -79,9 +82,30 @@ public class MainActivity extends Activity {
     private boolean interstitialLoading = false;
     private long lastInterstitialShownAt = 0L;
     private int profileOpenActionsSinceAd = 0;
-    private static final String INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
-    private static final long INTERSTITIAL_COOLDOWN_MS = 60L * 1000L;
+    private static final String REAL_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-8079226281001828/5039255014";
+    private static final String TEST_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
+    private static final String REAL_REWARDED_AD_UNIT_ID = "ca-app-pub-8079226281001828/1283312609";
+    private static final String TEST_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
+    private static final boolean USE_TEST_ADS = true;
+    private static final String INTERSTITIAL_AD_UNIT_ID = USE_TEST_ADS ? TEST_INTERSTITIAL_AD_UNIT_ID : REAL_INTERSTITIAL_AD_UNIT_ID;
+    private static final String REWARDED_AD_UNIT_ID = USE_TEST_ADS ? TEST_REWARDED_AD_UNIT_ID : REAL_REWARDED_AD_UNIT_ID;
+    private static final long INTERSTITIAL_COOLDOWN_MS = 120L * 1000L;
     private static final int ACTIONS_BETWEEN_INTERSTITIALS = 1;
+    private RewardedAd rewardedAd;
+    private boolean rewardedLoading = false;
+    private TextView rewardAdBtn;
+    private long adFreeRemainingMs = 0L;
+    private long adFreeActiveStartedAt = 0L;
+    private final Runnable adFreeTicker = new Runnable() {
+        @Override public void run() {
+            consumeAdFreeElapsed();
+            updateRewardButtonText();
+            uiHandler.postDelayed(this, 1000L);
+        }
+    };
+    private static final String PREF_AD_FREE_REMAINING_MS = "ad_free_remaining_ms";
+    private static final long REWARDED_AD_FREE_MS = 30L * 60L * 1000L;
+    private static final long MAX_AD_FREE_MS = 24L * 60L * 60L * 1000L;
 
     private final int bg = Color.rgb(13, 13, 18);
     private final int purple = Color.rgb(139, 52, 217);
@@ -125,16 +149,12 @@ public class MainActivity extends Activity {
             getWindow().getDecorView().setSystemUiVisibility(flags);
         }
         loadOpenedProfilesHistory();
+        adFreeRemainingMs = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(PREF_AD_FREE_REMAINING_MS, 0L);
         buildUi();
         MobileAds.initialize(this, initializationStatus -> {});
         loadInterstitialAd();
+        loadRewardedAd();
     }
-
-
-    private void adDebugToast(String message) {
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, "AdMob: " + message, Toast.LENGTH_SHORT).show());
-    }
-
     private void loadInterstitialAd() {
         if (interstitialLoading || interstitialAd != null) return;
 
@@ -148,20 +168,17 @@ public class MainActivity extends Activity {
                 new InterstitialAdLoadCallback() {
                     @Override
                     public void onAdLoaded(InterstitialAd ad) {
-                        adDebugToast("anúncio de teste carregado");
                         interstitialLoading = false;
                         interstitialAd = ad;
                         interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                             @Override
                             public void onAdDismissedFullScreenContent() {
-                                adDebugToast("fechado");
                                 interstitialAd = null;
                                 loadInterstitialAd();
                             }
 
                             @Override
                             public void onAdFailedToShowFullScreenContent(AdError adError) {
-                                adDebugToast("falha ao exibir: " + adError.getCode());
                                 interstitialAd = null;
                                 loadInterstitialAd();
                             }
@@ -174,9 +191,7 @@ public class MainActivity extends Activity {
                     }
 
                     @Override
-                    public void onAdFailedToLoad(LoadAdError loadAdError) {
-                        adDebugToast("falha ao carregar: " + loadAdError.getCode() + " - " + loadAdError.getMessage());
-                        interstitialLoading = false;
+                    public void onAdFailedToLoad(LoadAdError loadAdError) {                        interstitialLoading = false;
                         interstitialAd = null;
                     }
                 }
@@ -190,17 +205,187 @@ public class MainActivity extends Activity {
         boolean cooldownOk = now - lastInterstitialShownAt >= INTERSTITIAL_COOLDOWN_MS;
         boolean actionCountOk = profileOpenActionsSinceAd >= ACTIONS_BETWEEN_INTERSTITIALS;
 
+        if (hasAdFreeAccess()) { loadInterstitialAd(); return; }
+
         if (interstitialAd != null && cooldownOk && actionCountOk && !searchInProgress && !isFinishing()) {
             profileOpenActionsSinceAd = 0;
             lastInterstitialShownAt = now;
-            adDebugToast("exibindo");
             interstitialAd.show(this);
         } else if (interstitialAd == null) {
             loadInterstitialAd();
         }
     }
 
+
+    private void loadRewardedAd() {
+        if (rewardedLoading || rewardedAd != null) return;
+
+        rewardedLoading = true;
+        AdRequest adRequest = new AdRequest.Builder().build();
+
+        RewardedAd.load(
+                this,
+                REWARDED_AD_UNIT_ID,
+                adRequest,
+                new RewardedAdLoadCallback() {
+                    @Override
+                    public void onAdLoaded(RewardedAd ad) {
+                        rewardedLoading = false;
+                        rewardedAd = ad;
+                        rewardedAd.setFullScreenContentCallback(new FullScreenContentCallback() {
+                            @Override
+                            public void onAdDismissedFullScreenContent() {
+                                rewardedAd = null;
+                                loadRewardedAd();
+                            }
+
+                            @Override
+                            public void onAdFailedToShowFullScreenContent(AdError adError) {
+                                rewardedAd = null;
+                                loadRewardedAd();
+                                toast("Não foi possível exibir o vídeo agora.");
+                            }
+
+                            @Override
+                            public void onAdShowedFullScreenContent() {
+                                rewardedAd = null;
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onAdFailedToLoad(LoadAdError loadAdError) {
+                        rewardedLoading = false;
+                        rewardedAd = null;
+                    }
+                }
+        );
+    }
+
+    private void showRewardedAdDialog() {
+        consumeAdFreeElapsed();
+        String remaining = formatAdFreeRemaining();
+        String message = hasAdFreeAccess()
+                ? "Você ainda tem " + remaining + " sem anúncios. Deseja assistir um vídeo para adicionar mais 30 minutos? O limite máximo é 24 horas."
+                : "Deseja assistir um vídeo para liberar 30 minutos sem anúncios ao pesquisar perfis?";
+
+        new AlertDialog.Builder(this)
+                .setTitle("Acesso sem anúncios")
+                .setMessage(message)
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Assistir vídeo", (dialog, which) -> showRewardedAdForAdFreeTime())
+                .show();
+    }
+
+    private void showRewardedAdForAdFreeTime() {
+        consumeAdFreeElapsed();
+
+        if (adFreeRemainingMs >= MAX_AD_FREE_MS) {
+            toast("Você já atingiu o limite de 24 horas sem anúncios.");
+            updateRewardButtonText();
+            return;
+        }
+
+        if (rewardedAd == null) {
+            toast("O vídeo ainda está carregando. Tente novamente em alguns segundos.");
+            loadRewardedAd();
+            return;
+        }
+
+        rewardedAd.show(this, (RewardItem rewardItem) -> grantAdFreeTime(REWARDED_AD_FREE_MS));
+    }
+
+    private void grantAdFreeTime(long millis) {
+        consumeAdFreeElapsed();
+        adFreeRemainingMs = Math.min(MAX_AD_FREE_MS, Math.max(0L, adFreeRemainingMs) + millis);
+        saveAdFreeRemaining();
+        updateRewardButtonText();
+        toast("30 minutos sem anúncios liberados.");
+    }
+
+    private boolean hasAdFreeAccess() {
+        consumeAdFreeElapsed();
+        return adFreeRemainingMs > 0L;
+    }
+
+    private void consumeAdFreeElapsed() {
+        if (adFreeRemainingMs <= 0L) {
+            adFreeRemainingMs = 0L;
+            adFreeActiveStartedAt = System.currentTimeMillis();
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (adFreeActiveStartedAt <= 0L) {
+            adFreeActiveStartedAt = now;
+            return;
+        }
+
+        long elapsed = Math.max(0L, now - adFreeActiveStartedAt);
+        if (elapsed > 0L) {
+            adFreeRemainingMs = Math.max(0L, adFreeRemainingMs - elapsed);
+            adFreeActiveStartedAt = now;
+        }
+    }
+
+    private void saveAdFreeRemaining() {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putLong(PREF_AD_FREE_REMAINING_MS, Math.max(0L, adFreeRemainingMs)).apply();
+    }
+
+    private void updateRewardButtonText() {
+        if (rewardAdBtn == null) return;
+        consumeAdFreeElapsed();
+        if (adFreeRemainingMs > 0L) {
+            rewardAdBtn.setText(formatAdFreeRemainingShort());
+            rewardAdBtn.setTextSize(9);
+            rewardAdBtn.setTypeface(Typeface.DEFAULT_BOLD);
+            rewardAdBtn.setTextColor(Color.WHITE);
+        } else {
+            rewardAdBtn.setText("▶");
+            rewardAdBtn.setTextSize(15);
+            rewardAdBtn.setTypeface(Typeface.DEFAULT_BOLD);
+            rewardAdBtn.setTextColor(Color.WHITE);
+        }
+    }
+
+    private String formatAdFreeRemainingShort() {
+        long totalSeconds = Math.max(0L, adFreeRemainingMs) / 1000L;
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        if (hours > 0L) return hours + "h" + String.format(Locale.ROOT, "%02d", minutes);
+        if (minutes > 0L) return minutes + "m";
+        return Math.max(1L, totalSeconds) + "s";
+    }
+
+    private String formatAdFreeRemaining() {
+        long totalSeconds = Math.max(0L, adFreeRemainingMs) / 1000L;
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        if (hours > 0L) return hours + "h " + minutes + "min";
+        if (minutes > 0L) return minutes + "min " + seconds + "s";
+        return seconds + "s";
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        adFreeActiveStartedAt = System.currentTimeMillis();
+        uiHandler.removeCallbacks(adFreeTicker);
+        uiHandler.post(adFreeTicker);
+    }
+
+    @Override protected void onPause() {
+        consumeAdFreeElapsed();
+        saveAdFreeRemaining();
+        uiHandler.removeCallbacks(adFreeTicker);
+        adFreeActiveStartedAt = 0L;
+        super.onPause();
+    }
+
     @Override protected void onDestroy() {
+        consumeAdFreeElapsed();
+        saveAdFreeRemaining();
+        uiHandler.removeCallbacks(adFreeTicker);
         executor.shutdownNow();
         super.onDestroy();
     }
@@ -275,6 +460,18 @@ public class MainActivity extends Activity {
         settingsLp.topMargin = dp(14);
         settingsLp.rightMargin = dp(8);
         screen.addView(settingsBtn, settingsLp);
+
+        rewardAdBtn = text("", 22, Color.WHITE, true);
+        rewardAdBtn.setGravity(Gravity.CENTER);
+        rewardAdBtn.setPadding(0, 0, 0, 0);
+        rewardAdBtn.setBackground(new RewardVideoDrawable());
+        rewardAdBtn.setOnClickListener(v -> showRewardedAdDialog());
+        FrameLayout.LayoutParams rewardLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
+        rewardLp.topMargin = dp(60);
+        rewardLp.rightMargin = dp(8);
+        screen.addView(rewardAdBtn, rewardLp);
+        updateRewardButtonText();
+
 
         TextView logo = text("Toxic Search Tool", 31, lightTheme ? Color.rgb(35, 22, 45) : Color.WHITE, true);
         logo.setGravity(Gravity.CENTER);
@@ -3495,4 +3692,46 @@ private int loadingProgressFor(String message) {
             if ("level".equals(type)) { p.setStyle(Paint.Style.FILL); Path path=new Path(); path.moveTo(cx,h*.16f); path.lineTo(w*.80f,h*.48f); path.lineTo(w*.62f,h*.48f); path.lineTo(w*.62f,h*.84f); path.lineTo(w*.38f,h*.84f); path.lineTo(w*.38f,h*.48f); path.lineTo(w*.20f,h*.48f); path.close(); c.drawPath(path,p); }
         }
     }
+
+    public class RewardVideoDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float w = b.width(), h = b.height(), cx = b.centerX(), cy = b.centerY(), m = Math.min(w, h);
+            RectF bgRect = new RectF(b.left + m*.10f, b.top + m*.10f, b.right - m*.10f, b.bottom - m*.10f);
+            p.setShader(new LinearGradient(bgRect.left, bgRect.top, bgRect.right, bgRect.bottom, purple2, purple, Shader.TileMode.CLAMP));
+            p.setStyle(Paint.Style.FILL);
+            c.drawRoundRect(bgRect, m*.24f, m*.24f, p);
+            p.setShader(null);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1f, m*.035f));
+            p.setColor(Color.argb(80,255,255,255));
+            c.drawRoundRect(bgRect, m*.24f, m*.24f, p);
+
+            RectF screenRect = new RectF(cx-m*.24f, cy-m*.18f, cx+m*.24f, cy+m*.16f);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(2f, m*.06f));
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setColor(Color.WHITE);
+            c.drawRoundRect(screenRect, m*.06f, m*.06f, p);
+
+            Path play = new Path();
+            play.moveTo(cx-m*.055f, cy-m*.085f);
+            play.lineTo(cx-m*.055f, cy+m*.075f);
+            play.lineTo(cx+m*.095f, cy);
+            play.close();
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.WHITE);
+            c.drawPath(play, p);
+
+            p.setStrokeWidth(Math.max(1.5f, m*.035f));
+            c.drawLine(cx-m*.09f, cy+m*.26f, cx+m*.09f, cy+m*.26f, p);
+            c.drawLine(cx, cy+m*.16f, cx, cy+m*.26f, p);
+        }
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
+
+
 }
