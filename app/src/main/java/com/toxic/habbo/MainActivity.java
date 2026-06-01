@@ -94,6 +94,7 @@ public class MainActivity extends Activity {
     private RewardedAd rewardedAd;
     private boolean rewardedLoading = false;
     private TextView rewardAdBtn;
+    private TextView rewardAdTimeLabel;
     private long adFreeRemainingMs = 0L;
     private long adFreeActiveStartedAt = 0L;
     private final Runnable adFreeTicker = new Runnable() {
@@ -335,16 +336,19 @@ public class MainActivity extends Activity {
     private void updateRewardButtonText() {
         if (rewardAdBtn == null) return;
         consumeAdFreeElapsed();
-        if (adFreeRemainingMs > 0L) {
-            rewardAdBtn.setText(formatAdFreeRemainingShort());
-            rewardAdBtn.setTextSize(9);
-            rewardAdBtn.setTypeface(Typeface.DEFAULT_BOLD);
-            rewardAdBtn.setTextColor(Color.WHITE);
-        } else {
-            rewardAdBtn.setText("▶");
-            rewardAdBtn.setTextSize(15);
-            rewardAdBtn.setTypeface(Typeface.DEFAULT_BOLD);
-            rewardAdBtn.setTextColor(Color.WHITE);
+
+        rewardAdBtn.setText("");
+        rewardAdBtn.setTextColor(Color.WHITE);
+
+        if (rewardAdTimeLabel != null) {
+            if (adFreeRemainingMs > 0L) {
+                rewardAdTimeLabel.setText(formatAdFreeRemainingShort());
+                rewardAdTimeLabel.setTextColor(lightTheme ? Color.rgb(45,45,45) : Color.WHITE);
+                rewardAdTimeLabel.setVisibility(View.VISIBLE);
+            } else {
+                rewardAdTimeLabel.setText("");
+                rewardAdTimeLabel.setVisibility(View.GONE);
+            }
         }
     }
 
@@ -352,9 +356,9 @@ public class MainActivity extends Activity {
         long totalSeconds = Math.max(0L, adFreeRemainingMs) / 1000L;
         long hours = totalSeconds / 3600L;
         long minutes = (totalSeconds % 3600L) / 60L;
-        if (hours > 0L) return hours + "h" + String.format(Locale.ROOT, "%02d", minutes);
-        if (minutes > 0L) return minutes + "m";
-        return Math.max(1L, totalSeconds) + "s";
+        long seconds = totalSeconds % 60L;
+        if (hours > 0L) return String.format(Locale.ROOT, "%02d:%02dh", hours, minutes);
+        return String.format(Locale.ROOT, "%02d:%02dm", minutes, seconds);
     }
 
     private String formatAdFreeRemaining() {
@@ -464,12 +468,24 @@ public class MainActivity extends Activity {
         rewardAdBtn = text("", 22, Color.WHITE, true);
         rewardAdBtn.setGravity(Gravity.CENTER);
         rewardAdBtn.setPadding(0, 0, 0, 0);
+        rewardAdBtn.setIncludeFontPadding(false);
         rewardAdBtn.setBackground(new RewardVideoDrawable());
         rewardAdBtn.setOnClickListener(v -> showRewardedAdDialog());
         FrameLayout.LayoutParams rewardLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
         rewardLp.topMargin = dp(60);
         rewardLp.rightMargin = dp(8);
         screen.addView(rewardAdBtn, rewardLp);
+
+        rewardAdTimeLabel = text("", 9, lightTheme ? Color.rgb(45,45,45) : Color.WHITE, true);
+        rewardAdTimeLabel.setGravity(Gravity.CENTER);
+        rewardAdTimeLabel.setIncludeFontPadding(false);
+        rewardAdTimeLabel.setSingleLine(true);
+        rewardAdTimeLabel.setVisibility(View.GONE);
+        FrameLayout.LayoutParams rewardTimeLp = new FrameLayout.LayoutParams(dp(58), dp(16), Gravity.TOP | Gravity.RIGHT);
+        rewardTimeLp.topMargin = dp(102);
+        rewardTimeLp.rightMargin = dp(0);
+        screen.addView(rewardAdTimeLabel, rewardTimeLp);
+
         updateRewardButtonText();
 
 
@@ -1066,7 +1082,7 @@ public class MainActivity extends Activity {
         if (!r.motto.isEmpty()) {
             TextView motto = habboText(r.motto, 16, false);
             motto.setGravity(Gravity.CENTER);
-            motto.setTextColor(Color.argb(220,255,255,255));
+            motto.setTextColor(lightTheme ? Color.rgb(70,70,70) : Color.argb(220,255,255,255));
             motto.setLineSpacing(dp(2), 1f);
             profile.addView(motto, lp(-1, -2, 0, 0, 0, 14));
         }
@@ -1733,7 +1749,15 @@ public class MainActivity extends Activity {
 
         infoGrid.addView(photoInfoCard("Data", getPhotoTimestamp(photo), "", ""));
         if (!room.isEmpty()) infoGrid.addView(photoInfoCard("Quarto", room, "", ""));
-        if (!ownerName.isEmpty()) infoGrid.addView(photoInfoCard("Dono", ownerName, ownerFigure, ownerName));
+        if (!ownerName.isEmpty()) {
+            LinearLayout ownerCard = photoInfoCard("Dono", ownerName, ownerFigure, ownerName);
+            ownerCard.setOnClickListener(v -> {
+                dialog.dismiss();
+                searchInput.setText(ownerName);
+                search();
+            });
+            infoGrid.addView(ownerCard);
+        }
         infoGrid.addView(photoInfoCard("Curtidas", String.valueOf(likers.size()), "", ""));
 
         if (!likers.isEmpty()) {
@@ -3708,7 +3732,7 @@ private int loadingProgressFor(String message) {
             p.setColor(Color.argb(80,255,255,255));
             c.drawRoundRect(bgRect, m*.24f, m*.24f, p);
 
-            RectF screenRect = new RectF(cx-m*.24f, cy-m*.18f, cx+m*.24f, cy+m*.16f);
+            RectF screenRect = new RectF(cx-m*.25f, cy-m*.17f, cx+m*.25f, cy+m*.17f);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(Math.max(2f, m*.06f));
             p.setStrokeJoin(Paint.Join.ROUND);
@@ -3716,9 +3740,9 @@ private int loadingProgressFor(String message) {
             c.drawRoundRect(screenRect, m*.06f, m*.06f, p);
 
             Path play = new Path();
-            play.moveTo(cx-m*.055f, cy-m*.085f);
-            play.lineTo(cx-m*.055f, cy+m*.075f);
-            play.lineTo(cx+m*.095f, cy);
+            play.moveTo(cx-m*.055f, cy-m*.080f);
+            play.lineTo(cx-m*.055f, cy+m*.080f);
+            play.lineTo(cx+m*.100f, cy);
             play.close();
             p.setStyle(Paint.Style.FILL);
             p.setColor(Color.WHITE);
