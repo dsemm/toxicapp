@@ -550,22 +550,27 @@ public class MainActivity extends Activity {
         updateRewardButtonText();
 
 
-        LinearLayout logoWrap = new LinearLayout(this);
-        logoWrap.setOrientation(LinearLayout.VERTICAL);
-        logoWrap.setGravity(Gravity.CENTER);
-        root.addView(logoWrap, lp(-1, -2, 52, 0, 52, 6));
+        ImageView topLogo = new ImageView(this);
+        topLogo.setAdjustViewBounds(true);
+        topLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        topLogo.setImageResource(R.drawable.toxic_logo_opening);
+        root.addView(topLogo, lp(-1, dp(92), 40, 0, 40, 4));
 
-        TextView logoToxic = toxicLogoText("Toxic", 34);
-        logoToxic.setGravity(Gravity.CENTER);
-        logoWrap.addView(logoToxic, lp(-1, -2, 0, 0, 0, -4));
+        LinearLayout subtitleRow = new LinearLayout(this);
+        subtitleRow.setOrientation(LinearLayout.HORIZONTAL);
+        subtitleRow.setGravity(Gravity.CENTER);
+        root.addView(subtitleRow, lp(-1, dp(24), 0, 0, 0, 10));
 
-        TextView logoSub = toxicLogoText("Search Tool", 20);
-        logoSub.setGravity(Gravity.CENTER);
-        logoWrap.addView(logoSub, lp(-1, -2, 0, 0, 0, 0));
-
-        TextView subtitle = text("Buscar Habbos • " + hotelLabel(currentHotelKey), 14, muted, false);
+        TextView subtitle = text("Buscando Habbos —", 14, muted, false);
         subtitle.setGravity(Gravity.CENTER);
-        root.addView(subtitle, lp(-1, -2, 0, 0, 0, 10));
+        subtitle.setTypeface(Typeface.DEFAULT);
+        subtitleRow.addView(subtitle, new LinearLayout.LayoutParams(-2, -2));
+
+        ImageView selectedHotelFlag = new ImageView(this);
+        selectedHotelFlag.setImageDrawable(new HotelFlagDrawable(currentHotelKey));
+        LinearLayout.LayoutParams selectedFlagLp = new LinearLayout.LayoutParams(dp(24), dp(16));
+        selectedFlagLp.leftMargin = dp(7);
+        subtitleRow.addView(selectedHotelFlag, selectedFlagLp);
 
         LinearLayout searchOuter = card(dp(24));
         searchOuter.setPadding(dp(16), dp(16), dp(16), dp(16));
@@ -617,6 +622,38 @@ public class MainActivity extends Activity {
         searchInput.setOnEditorActionListener((v, actionId, event) -> { search(); return true; });
         bindNickSuggestions();
         showStartState();
+        showOpeningSplashOverlay();
+    }
+
+    private void showOpeningSplashOverlay() {
+        if (screen == null) return;
+
+        final FrameLayout splash = new FrameLayout(this);
+        splash.setBackgroundColor(Color.BLACK);
+        splash.setClickable(true);
+        splash.setFocusable(true);
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.toxic_logo_opening);
+        logo.setAdjustViewBounds(true);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setPadding(dp(28), dp(28), dp(28), dp(28));
+
+        FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(-1, dp(210), Gravity.CENTER);
+        splash.addView(logo, logoLp);
+
+        screen.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+        splash.bringToFront();
+
+        uiHandler.postDelayed(() -> {
+            splash.animate()
+                    .alpha(0f)
+                    .setDuration(260)
+                    .withEndAction(() -> {
+                        try { screen.removeView(splash); } catch (Exception ignored) {}
+                    })
+                    .start();
+        }, 2000L);
     }
 
     private void showStartState() {
@@ -3199,14 +3236,9 @@ private int loadingProgressFor(String message) {
 
         ImageView flag = new ImageView(this);
         flag.setImageDrawable(new HotelFlagDrawable(hotelKey));
-        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(dp(24), dp(16));
-        fp.rightMargin = dp(6);
+        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(dp(30), dp(20));
+        fp.rightMargin = 0;
         btn.addView(flag, fp);
-
-        TextView label = text(hotelLabel(hotelKey), 13, active ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.argb(220,255,255,255)), true);
-        label.setGravity(Gravity.CENTER);
-        label.setSingleLine(true);
-        btn.addView(label, new LinearLayout.LayoutParams(-2, -2));
 
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(42), 1);
         if (pos > 0) bp.leftMargin = dp(6);
