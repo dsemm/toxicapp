@@ -1,14 +1,14 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.toxic.habbo'
+    namespace 'com.toxic.search'
     compileSdk 35
     defaultConfig {
-        applicationId 'com.toxic.habbo'
+        applicationId 'com.toxic.search'
         minSdk 23
         targetSdk 35
-        versionCode 8
-        versionName '1.8'
+        versionCode 1
+        versionName '1.0'
     }
 }
 
