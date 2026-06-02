@@ -1740,11 +1740,6 @@ public class MainActivity extends Activity {
                         if (!roFig.isEmpty()) photo.put("roomOwnerFigureString", roFig);
                     } catch(Exception ignored) {}
                 }
-                case "error_search_profile": return "Failed to search profile.";
-                case "no_profile_found": return "No profile found";
-                case "generic_loading": return "Loading...";
-                case "no_friend_found": return "No friends found.";
-                case "no_removed_friend_found": return "No removed friends found.";
             }
         }
     }
@@ -3427,11 +3422,11 @@ private int loadingProgressFor(String message) {
                 case "tutorial_history_body": return "Use the history button to quickly return to profiles you already opened.";
                 case "tutorial_next": return "Next";
                 case "tutorial_finish": return "Got it";
-                case "error_search_profile": return "Error al buscar el perfil.";
-                case "no_profile_found": return "No se encontró ningún perfil";
-                case "generic_loading": return "Cargando...";
-                case "no_friend_found": return "No se encontraron amigos.";
-                case "no_removed_friend_found": return "No se encontraron amigos eliminados.";
+                case "error_search_profile": return "Failed to search profile.";
+                case "no_profile_found": return "No profile found";
+                case "generic_loading": return "Loading...";
+                case "no_friend_found": return "No friends found.";
+                case "no_removed_friend_found": return "No removed friends found.";
             }
         }
         else if ("es".equals(lang)) {
@@ -3517,6 +3512,11 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "Se liberaron 15 minutos sin anuncios.";
                 case "disclaimer1": return "Esta aplicación no está afiliada, respaldada, patrocinada ni específicamente aprobada por Sulake Corporation Oy o sus afiliadas.";
                 case "disclaimer2": return "Solo es una herramienta de consulta de datos públicos.";
+                case "error_search_profile": return "Error al buscar el perfil.";
+                case "no_profile_found": return "No se encontró ningún perfil";
+                case "generic_loading": return "Cargando...";
+                case "no_friend_found": return "No se encontraron amigos.";
+                case "no_removed_friend_found": return "No se encontraron amigos eliminados.";
             }
         }
         else if ("de".equals(lang)) {
@@ -3602,6 +3602,11 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "15 Minuten ohne Werbung freigeschaltet.";
                 case "disclaimer1": return "Diese Anwendung ist weder mit Sulake Corporation Oy oder ihren verbundenen Unternehmen verbunden noch von ihnen unterstützt, gesponsert oder ausdrücklich genehmigt.";
                 case "disclaimer2": return "Sie ist nur ein Tool zur Abfrage öffentlicher Daten.";
+                case "error_search_profile": return "Fehler bei der Profilsuche.";
+                case "no_profile_found": return "Kein Profil gefunden";
+                case "generic_loading": return "Wird geladen...";
+                case "no_friend_found": return "Keine Freunde gefunden.";
+                case "no_removed_friend_found": return "Keine entfernten Freunde gefunden.";
             }
         }
         else if ("fr".equals(lang)) {
@@ -3687,6 +3692,11 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "15 minutes sans publicité débloquées.";
                 case "disclaimer1": return "Cette application n'est ni affiliée, ni approuvée, ni sponsorisée, ni spécifiquement autorisée par Sulake Corporation Oy ou ses sociétés affiliées.";
                 case "disclaimer2": return "Il s'agit uniquement d'un outil de consultation de données publiques.";
+                case "error_search_profile": return "Échec de la recherche du profil.";
+                case "no_profile_found": return "Aucun profil trouvé";
+                case "generic_loading": return "Chargement...";
+                case "no_friend_found": return "Aucun ami trouvé.";
+                case "no_removed_friend_found": return "Aucun ami supprimé trouvé.";
             }
         }
         else if ("fi".equals(lang)) {
@@ -3772,6 +3782,11 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "15 minuuttia ilman mainoksia avattu.";
                 case "disclaimer1": return "Tämä sovellus ei ole Sulake Corporation Oy:n tai sen tytäryhtiöiden kanssa sidoksissa eikä niiden hyväksymä, sponsoroima tai erityisesti hyväksymä.";
                 case "disclaimer2": return "Se on vain julkisten tietojen hakutyökalu.";
+                case "error_search_profile": return "Profiilin haku epäonnistui.";
+                case "no_profile_found": return "Profiilia ei löytynyt";
+                case "generic_loading": return "Ladataan...";
+                case "no_friend_found": return "Kavereita ei löytynyt.";
+                case "no_removed_friend_found": return "Poistettuja kavereita ei löytynyt.";
             }
         }
         else if ("it".equals(lang)) {
@@ -3857,6 +3872,11 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "15 minuti senza annunci sbloccati.";
                 case "disclaimer1": return "Questa applicazione non è affiliata, approvata, sponsorizzata o specificamente approvata da Sulake Corporation Oy o dalle sue affiliate.";
                 case "disclaimer2": return "È solo uno strumento di consultazione di dati pubblici.";
+                case "error_search_profile": return "Errore durante la ricerca del profilo.";
+                case "no_profile_found": return "Nessun profilo trovato";
+                case "generic_loading": return "Caricamento...";
+                case "no_friend_found": return "Nessun amico trovato.";
+                case "no_removed_friend_found": return "Nessun amico rimosso trovato.";
             }
         }
         else if ("nl".equals(lang)) {
@@ -3942,6 +3962,11 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "15 minuten zonder advertenties ontgrendeld.";
                 case "disclaimer1": return "Deze applicatie is niet verbonden met, onderschreven door, gesponsord door of specifiek goedgekeurd door Sulake Corporation Oy of haar gelieerde ondernemingen.";
                 case "disclaimer2": return "Het is slechts een hulpmiddel voor het raadplegen van openbare gegevens.";
+                case "error_search_profile": return "Profiel zoeken mislukt.";
+                case "no_profile_found": return "Geen profiel gevonden";
+                case "generic_loading": return "Laden...";
+                case "no_friend_found": return "Geen vrienden gevonden.";
+                case "no_removed_friend_found": return "Geen verwijderde vrienden gevonden.";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4027,6 +4052,11 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "15 dakika reklamsız kullanım açıldı.";
                 case "disclaimer1": return "Bu uygulama Sulake Corporation Oy veya bağlı kuruluşlarıyla ilişkili değildir; onlar tarafından onaylanmaz, desteklenmez veya özellikle onaylanmış değildir.";
                 case "disclaimer2": return "Yalnızca herkese açık verileri sorgulamak için kullanılan bir araçtır.";
+                case "error_search_profile": return "Profil aranamadı.";
+                case "no_profile_found": return "Profil bulunamadı";
+                case "generic_loading": return "Yükleniyor...";
+                case "no_friend_found": return "Arkadaş bulunamadı.";
+                case "no_removed_friend_found": return "Kaldırılan arkadaş bulunamadı.";
             }
         }
         switch (key) {
