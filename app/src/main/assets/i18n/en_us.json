@@ -84,5 +84,13 @@
   "no_profile_found": "No profile found",
   "generic_loading": "Loading...",
   "no_friend_found": "No friends found.",
-  "no_removed_friend_found": "No removed friends found."
+  "no_removed_friend_found": "No removed friends found.",
+  "light_theme": "Light theme",
+  "dark_theme": "Dark theme",
+  "clear_app_cache": "Clear app cache",
+  "app_cache_cleared": "App cache cleared.",
+  "session_profiles": "Profiles in session",
+  "app_cache": "App cache",
+  "tap_to_continue": "Tap anywhere to continue",
+  "profile": "Profile"
 }

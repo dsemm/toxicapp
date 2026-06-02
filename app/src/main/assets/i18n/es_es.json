@@ -84,5 +84,13 @@
   "no_profile_found": "No se encontró ningún perfil",
   "generic_loading": "Cargando...",
   "no_friend_found": "No se encontraron amigos.",
-  "no_removed_friend_found": "No se encontraron amigos eliminados."
+  "no_removed_friend_found": "No se encontraron amigos eliminados.",
+  "light_theme": "Tema claro",
+  "dark_theme": "Tema oscuro",
+  "clear_app_cache": "Limpiar caché de la app",
+  "app_cache_cleared": "Caché de la app limpiada.",
+  "session_profiles": "Perfiles en sesión",
+  "app_cache": "Caché de la app",
+  "tap_to_continue": "Toca cualquier lugar para continuar",
+  "profile": "Perfil"
 }

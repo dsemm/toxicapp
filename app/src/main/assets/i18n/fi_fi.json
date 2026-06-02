@@ -84,5 +84,13 @@
   "no_profile_found": "Profiilia ei löytynyt",
   "generic_loading": "Ladataan...",
   "no_friend_found": "Kavereita ei löytynyt.",
-  "no_removed_friend_found": "Poistettuja kavereita ei löytynyt."
+  "no_removed_friend_found": "Poistettuja kavereita ei löytynyt.",
+  "light_theme": "Vaalea teema",
+  "dark_theme": "Tumma teema",
+  "clear_app_cache": "Tyhjennä sovelluksen välimuisti",
+  "app_cache_cleared": "Sovelluksen välimuisti tyhjennetty.",
+  "session_profiles": "Profiileja istunnossa",
+  "app_cache": "Sovelluksen välimuisti",
+  "tap_to_continue": "Jatka napauttamalla mitä tahansa kohtaa",
+  "profile": "Profiili"
 }

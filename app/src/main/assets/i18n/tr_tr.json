@@ -84,5 +84,13 @@
   "no_profile_found": "Profil bulunamadı",
   "generic_loading": "Yükleniyor...",
   "no_friend_found": "Arkadaş bulunamadı.",
-  "no_removed_friend_found": "Kaldırılan arkadaş bulunamadı."
+  "no_removed_friend_found": "Kaldırılan arkadaş bulunamadı.",
+  "light_theme": "Açık tema",
+  "dark_theme": "Koyu tema",
+  "clear_app_cache": "Uygulama önbelleğini temizle",
+  "app_cache_cleared": "Uygulama önbelleği temizlendi.",
+  "session_profiles": "Oturumdaki profiller",
+  "app_cache": "Uygulama önbelleği",
+  "tap_to_continue": "Devam etmek için herhangi bir yere dokunun",
+  "profile": "Profil"
 }

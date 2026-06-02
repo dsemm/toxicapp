@@ -84,5 +84,13 @@
   "no_profile_found": "Nessun profilo trovato",
   "generic_loading": "Caricamento...",
   "no_friend_found": "Nessun amico trovato.",
-  "no_removed_friend_found": "Nessun amico rimosso trovato."
+  "no_removed_friend_found": "Nessun amico rimosso trovato.",
+  "light_theme": "Tema chiaro",
+  "dark_theme": "Tema scuro",
+  "clear_app_cache": "Cancella cache dell’app",
+  "app_cache_cleared": "Cache dell’app cancellata.",
+  "session_profiles": "Profili nella sessione",
+  "app_cache": "Cache dell’app",
+  "tap_to_continue": "Tocca un punto qualsiasi per continuare",
+  "profile": "Profilo"
 }

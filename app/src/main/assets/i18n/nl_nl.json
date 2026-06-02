@@ -84,5 +84,13 @@
   "no_profile_found": "Geen profiel gevonden",
   "generic_loading": "Laden...",
   "no_friend_found": "Geen vrienden gevonden.",
-  "no_removed_friend_found": "Geen verwijderde vrienden gevonden."
+  "no_removed_friend_found": "Geen verwijderde vrienden gevonden.",
+  "light_theme": "Licht thema",
+  "dark_theme": "Donker thema",
+  "clear_app_cache": "App-cache wissen",
+  "app_cache_cleared": "App-cache gewist.",
+  "session_profiles": "Profielen in sessie",
+  "app_cache": "App-cache",
+  "tap_to_continue": "Tik ergens om door te gaan",
+  "profile": "Profiel"
 }
