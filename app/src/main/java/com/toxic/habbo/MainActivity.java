@@ -67,6 +67,7 @@ public class MainActivity extends Activity {
     private static final String PREF_MAX_CACHE_MB = "max_cache_mb";
     private static final String PREF_HOTEL = "hotel";
     private static final String PREF_OPENED_HISTORY = "opened_profiles_history";
+    private static final String PREF_TUTORIAL_SHOWN = "tutorial_shown";
     private static final long PROFILE_REFRESH_COOLDOWN_MS = 60L * 1000L;
     private ScrollView mainScroll;
     private LinearLayout pullRefreshChip;
@@ -105,8 +106,8 @@ public class MainActivity extends Activity {
         }
     };
     private static final String PREF_AD_FREE_REMAINING_MS = "ad_free_remaining_ms";
-    private static final long REWARDED_AD_FREE_MS = 30L * 60L * 1000L;
-    private static final long MAX_AD_FREE_MS = 24L * 60L * 60L * 1000L;
+    private static final long REWARDED_AD_FREE_MS = 15L * 60L * 1000L;
+    private static final long MAX_AD_FREE_MS = 4L * 60L * 60L * 1000L;
 
     private final int bg = Color.rgb(13, 13, 18);
     private final int purple = Color.rgb(139, 52, 217);
@@ -486,7 +487,7 @@ public class MainActivity extends Activity {
         pullRefreshSpinner = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
         if (Build.VERSION.SDK_INT >= 21) pullRefreshSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(purple));
         pullRefreshChip.addView(pullRefreshSpinner, new LinearLayout.LayoutParams(dp(18), dp(18)));
-        pullRefreshText = text("Atualizando perfil...", 13, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
+        pullRefreshText = text(t("updating_profile"), 13, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
         LinearLayout.LayoutParams pullTxtLp = new LinearLayout.LayoutParams(-2, -2);
         pullTxtLp.leftMargin = dp(8);
         pullRefreshChip.addView(pullRefreshText, pullTxtLp);
@@ -554,7 +555,7 @@ public class MainActivity extends Activity {
         topLogo.setAdjustViewBounds(true);
         topLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         topLogo.setImageResource(R.drawable.toxic_top_logo);
-        root.addView(topLogo, lp(-1, dp(92), 44, -8, 44, 0));
+        root.addView(topLogo, lp(-1, dp(83), 52, -6, 52, 0));
 
         LinearLayout subtitleRow = new LinearLayout(this);
         subtitleRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -623,6 +624,7 @@ public class MainActivity extends Activity {
         bindNickSuggestions();
         showStartState();
         showOpeningSplashOverlay();
+        maybeShowFirstRunTutorial();
     }
 
     private void showOpeningSplashOverlay() {
@@ -677,6 +679,58 @@ public class MainActivity extends Activity {
                     })
                     .start();
         }, 2000L);
+    }
+
+
+    private void maybeShowFirstRunTutorial() {
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (sp.getBoolean(PREF_TUTORIAL_SHOWN, false)) return;
+        sp.edit().putBoolean(PREF_TUTORIAL_SHOWN, true).apply();
+        uiHandler.postDelayed(() -> showTutorialOverlay(0), 2300L);
+    }
+
+    private void showTutorialOverlay(final int step) {
+        if (screen == null) return;
+        final int safeStep = Math.max(0, Math.min(2, step));
+
+        final FrameLayout overlay = new FrameLayout(this);
+        overlay.setClickable(true);
+        overlay.setFocusable(true);
+        overlay.setBackground(new TutorialOverlayDrawable(safeStep));
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(18), dp(16), dp(18), dp(16));
+        card.setBackground(round(Color.rgb(25, 16, 38), dp(22), Color.argb(70, 255, 255, 255), 1));
+
+        TextView title = habboText(safeStep == 0 ? t("tutorial_settings_title") : (safeStep == 1 ? t("tutorial_search_title") : t("tutorial_history_title")), 21, true);
+        title.setTextColor(Color.WHITE);
+        title.setGravity(Gravity.CENTER);
+        card.addView(title, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView body = text(safeStep == 0 ? t("tutorial_settings_body") : (safeStep == 1 ? t("tutorial_search_body") : t("tutorial_history_body")), 14, Color.argb(225,255,255,255), false);
+        body.setGravity(Gravity.CENTER);
+        body.setLineSpacing(dp(3), 1f);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
+        bp.setMargins(0, dp(10), 0, dp(14));
+        card.addView(body, bp);
+
+        TextView next = dialogButton(safeStep >= 2 ? t("tutorial_finish") : t("tutorial_next"));
+        next.setTextColor(Color.WHITE);
+        next.setBackground(grad(dp(14), purple2, purple));
+        card.addView(next, new LinearLayout.LayoutParams(-1, dp(48)));
+
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        cp.setMargins(dp(18), 0, dp(18), dp(28));
+        overlay.addView(card, cp);
+
+        next.setOnClickListener(v -> {
+            try { screen.removeView(overlay); } catch (Exception ignored) {}
+            if (safeStep < 2) showTutorialOverlay(safeStep + 1);
+        });
+
+        screen.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
+        overlay.bringToFront();
     }
 
     private void showStartState() {
@@ -780,7 +834,7 @@ public class MainActivity extends Activity {
                     setLoading(false, "");
                     hidePullRefreshIndicator();
                     hidePullRefreshIndicator();
-                    showError(e.getMessage() == null ? "Falha ao buscar perfil." : e.getMessage());
+                    showError(e.getMessage() == null ? t("error_search_profile") : e.getMessage());
                 });
             }
         });
@@ -1477,7 +1531,7 @@ public class MainActivity extends Activity {
         rootDialog.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(rootDialog);
 
-        TextView title = text("Visuais — " + (date == null ? "" : date), 18, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
+        TextView title = text(t("looks") + " — " + (date == null ? "" : date), 18, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
         title.setGravity(Gravity.CENTER);
         rootDialog.addView(title, lp(-1,-2,0,0,0,12));
 
@@ -1512,7 +1566,7 @@ public class MainActivity extends Activity {
         clothesContainer.addView(loadingBox, lp(-1,-2,0,18,0,18));
 
         Button close = new Button(this);
-        close.setText("Fechar");
+        close.setText(t("close"));
         close.setAllCaps(false);
         close.setTextColor(Color.WHITE);
         close.setBackground(grad(dp(14), purple2, purple));
@@ -1560,19 +1614,64 @@ public class MainActivity extends Activity {
         if (!icon.isEmpty()) loadImage(img, icon);
         LinearLayout txt = new LinearLayout(this); txt.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1); tp.leftMargin = dp(12); row.addView(txt,tp);
         String name = clothingName(o, code);
-        TextView nm = habboText(name.isEmpty()?"Peça":name, 15, true); nm.setMaxLines(2); nm.setEllipsize(TextUtils.TruncateAt.END); txt.addView(nm);
-        String lineCode = firstNestedText(o, "line", "localeNames", "br"); if (lineCode.isEmpty()) lineCode = firstText(o, "lineCode", "category", "_slot");
+        TextView nm = habboText(name.isEmpty()?t("item"):name, 15, true); nm.setMaxLines(2); nm.setEllipsize(TextUtils.TruncateAt.END); txt.addView(nm);
+        String lineCode = clothingLineName(o, code);
         txt.addView(text(lineCode.isEmpty()?code:lineCode, 13, muted, false));
         return row;
     }
 
 
     private String clothingName(JSONObject o, String fallback) {
-        String n = firstNestedText(o, "localeNames", "br");
-        if (n.isEmpty()) n = firstNestedText(o, "localeNames", "pt");
-        if (n.isEmpty()) n = firstNestedText(o, "localeNames", "us");
+        String n = pickLocalizedValue(o == null ? null : o.optJSONObject("localeNames"), fallback);
         if (n.isEmpty()) n = firstText(o, "name", "publicName", "furniName", "classname", "className", "code");
         return n.isEmpty() ? fallback : n;
+    }
+
+    private String clothingLineName(JSONObject o, String fallback) {
+        String n = "";
+        if (o != null) {
+            JSONObject line = o.optJSONObject("line");
+            if (line != null) n = pickLocalizedValue(line.optJSONObject("localeNames"), "");
+        }
+        if (n.isEmpty()) n = firstText(o, "lineCode", "category", "_slot");
+        return n.isEmpty() ? fallback : n;
+    }
+
+    private ArrayList<String> localeCandidateKeys() {
+        ArrayList<String> keys = new ArrayList<>();
+        String hotel = normalizeHotelKey(currentHotelKey);
+        String lang = currentLang();
+        addLocaleKey(keys, hotel);
+        if ("com".equals(hotel)) addLocaleKey(keys, "us");
+        if ("pt".equals(lang)) { addLocaleKey(keys, "br"); addLocaleKey(keys, "pt"); }
+        if ("en".equals(lang)) addLocaleKey(keys, "us");
+        addLocaleKey(keys, lang);
+        addLocaleKey(keys, Locale.getDefault().getLanguage());
+        String[] fallback = {"us", "br", "pt", "es", "fr", "de", "it", "nl", "tr", "fi"};
+        for (String f : fallback) addLocaleKey(keys, f);
+        return keys;
+    }
+
+    private void addLocaleKey(ArrayList<String> keys, String value) {
+        if (value == null) return;
+        String k = value.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
+        if (k.isEmpty()) return;
+        if ("com".equals(k)) k = "us";
+        if (!keys.contains(k)) keys.add(k);
+    }
+
+    private String pickLocalizedValue(JSONObject localeMap, String fallback) {
+        if (localeMap == null) return fallback == null ? "" : fallback;
+        for (String key : localeCandidateKeys()) {
+            String v = localeMap.optString(key, "").trim();
+            if (!v.isEmpty() && !"null".equalsIgnoreCase(v)) return v;
+        }
+        Iterator<String> it = localeMap.keys();
+        while (it.hasNext()) {
+            String v = localeMap.optString(it.next(), "").trim();
+            if (!v.isEmpty() && !"null".equalsIgnoreCase(v)) return v;
+        }
+        return fallback == null ? "" : fallback;
     }
 
     private String firstNestedText(JSONObject o, String... path) {
@@ -1641,6 +1740,11 @@ public class MainActivity extends Activity {
                         if (!roFig.isEmpty()) photo.put("roomOwnerFigureString", roFig);
                     } catch(Exception ignored) {}
                 }
+                case "error_search_profile": return "Failed to search profile.";
+                case "no_profile_found": return "No profile found";
+                case "generic_loading": return "Loading...";
+                case "no_friend_found": return "No friends found.";
+                case "no_removed_friend_found": return "No removed friends found.";
             }
         }
     }
@@ -1877,8 +1981,8 @@ public class MainActivity extends Activity {
         infoGrid.setOrientation(LinearLayout.VERTICAL);
         wrap.addView(infoGrid, lp(-1, -2, 0, 0, 0, 12));
 
-        infoGrid.addView(photoInfoCard("Data", getPhotoTimestamp(photo), "", ""));
-        if (!room.isEmpty()) infoGrid.addView(photoInfoCard("Quarto", room, "", ""));
+        infoGrid.addView(photoInfoCard(t("date"), getPhotoTimestamp(photo), "", ""));
+        if (!room.isEmpty()) infoGrid.addView(photoInfoCard(t("room"), room, "", ""));
         if (!ownerName.isEmpty()) {
             LinearLayout ownerCard = photoInfoCard(t("owner"), ownerName, ownerFigure, ownerName);
             ownerCard.setOnClickListener(v -> {
@@ -1888,7 +1992,7 @@ public class MainActivity extends Activity {
             });
             infoGrid.addView(ownerCard);
         }
-        infoGrid.addView(photoInfoCard("Curtidas", String.valueOf(likers.size()), "", ""));
+        infoGrid.addView(photoInfoCard(t("likes"), String.valueOf(likers.size()), "", ""));
 
         if (!likers.isEmpty()) {
             TextView likesTitle = habboText(t("liked_by"), 17, true);
@@ -1915,7 +2019,7 @@ public class MainActivity extends Activity {
         }
 
         Button close = new Button(this);
-        close.setText("Fechar");
+        close.setText(t("close"));
         close.setAllCaps(false);
         close.setTextColor(Color.WHITE);
         close.setBackground(grad(dp(14), purple2, purple));
@@ -2056,8 +2160,8 @@ public class MainActivity extends Activity {
         if (friendsList.isEmpty() && removedList.isEmpty()) return;
         LinearLayout c = sectionCard(null, 0, false);
         LinearLayout tabs = new LinearLayout(this); tabs.setOrientation(LinearLayout.HORIZONTAL); tabs.setGravity(Gravity.LEFT); c.addView(tabs, lp(-1, dp(58), 0, 0, 0, 14));
-        TextView btFriends = tabButton("Amigos (" + friendsList.size() + ")", true);
-        TextView btRemoved = tabButton("Removidos", false);
+        TextView btFriends = tabButton(t("friends") + " (" + friendsList.size() + ")", true);
+        TextView btRemoved = tabButton(t("removed"), false);
         tabs.addView(btFriends); tabs.addView(btRemoved);
         LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); c.addView(content, lp(-1, -2, 0, 0, 0, 0));
         final boolean[] showingRemoved = {false}; final int[] page = {1};
@@ -2084,7 +2188,7 @@ public class MainActivity extends Activity {
     private Drawable tabBg(boolean active) { return active ? grad(dp(13), purple2, Color.rgb(166, 42, 235)) : round(Color.argb(12,255,255,255), dp(13), Color.argb(28,255,255,255), 1); }
 
     private void renderFriendsPage(LinearLayout content, ArrayList<JSONObject> data, int page, int per, boolean removed) {
-        if (data.isEmpty()) { content.addView(centerNote(removed ? "Nenhum amigo removido encontrado." : "Nenhum amigo encontrado.")); return; }
+        if (data.isEmpty()) { content.addView(centerNote(removed ? t("no_removed_friend_found") : t("no_friend_found"))); return; }
         int start = Math.max(0, (page-1)*per), end = Math.min(data.size(), start+per);
         for (int i=start; i<end; i+=2) {
             LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); content.addView(row, lp(-1, -2, 0, 0, 0, 12));
@@ -2149,7 +2253,7 @@ public class MainActivity extends Activity {
     private void renderPager(LinearLayout content, int total, int per, int[] page, Runnable rerender) {
         int totalPages = Math.max(1, (int)Math.ceil(total/(double)per));
         if (totalPages <= 1) return;
-        TextView label = text("Página " + page[0] + " de " + totalPages, 16, Color.WHITE, true); label.setGravity(Gravity.CENTER); content.addView(label, lp(-1,-2,0,6,0,12));
+        TextView label = text(tr("page_of", page[0], totalPages), 16, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true); label.setGravity(Gravity.CENTER); content.addView(label, lp(-1,-2,0,6,0,12));
         LinearLayout p = new LinearLayout(this); p.setGravity(Gravity.CENTER); p.setOrientation(LinearLayout.HORIZONTAL); content.addView(p, lp(-1, dp(58), 0, 0, 0, 0));
         TextView prev = pageButton("‹", page[0] > 1); p.addView(prev);
         TextView one = pageButton(String.valueOf(page[0]), true); one.setBackground(grad(dp(14), purple2, purple)); p.addView(one);
@@ -2164,7 +2268,7 @@ public class MainActivity extends Activity {
         if (rooms.isEmpty() && oldRooms.isEmpty()) return;
         LinearLayout c = sectionCard(null, 0, false);
         LinearLayout tabs = new LinearLayout(this); tabs.setOrientation(LinearLayout.HORIZONTAL); c.addView(tabs, lp(-1, dp(58), 0, 0, 0, 14));
-        TextView btRooms = tabButton("Quartos (" + rooms.size() + ")", true); TextView btOld = tabButton("Antigos", false); tabs.addView(btRooms); tabs.addView(btOld);
+        TextView btRooms = tabButton(t("rooms") + " (" + rooms.size() + ")", true); TextView btOld = tabButton(t("previous"), false); tabs.addView(btRooms); tabs.addView(btOld);
         LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); c.addView(content, lp(-1,-2,0,0,0,0));
         final boolean[] old = {false}; final int[] page = {1}; Runnable[] render = new Runnable[1];
         render[0] = () -> { content.removeAllViews(); btRooms.setBackground(old[0]?tabBg(false):tabBg(true)); btRooms.setTextColor(old[0]?Color.argb(150,255,255,255):Color.WHITE); btOld.setBackground(old[0]?tabBg(true):tabBg(false)); btOld.setTextColor(old[0]?Color.WHITE:Color.argb(150,255,255,255)); ArrayList<JSONObject> data=old[0]?oldRooms:rooms; renderRoomsPage(content,data,page[0],4,old[0]); renderPager(content,data.size(),4,page,render[0]); };
@@ -2172,7 +2276,7 @@ public class MainActivity extends Activity {
     }
 
     private void renderRoomsPage(LinearLayout content, ArrayList<JSONObject> list, int page, int per, boolean oldRoom) {
-        if (list.isEmpty()) { content.addView(centerNote("Nenhum quarto encontrado.")); return; }
+        if (list.isEmpty()) { content.addView(centerNote(t("no_rooms_found"))); return; }
         int start=(page-1)*per, end=Math.min(list.size(), start+per);
         for (int i=start;i<end;i++) content.addView(roomRow(list.get(i), oldRoom));
     }
@@ -2183,7 +2287,7 @@ public class MainActivity extends Activity {
         String image = getRoomImageUrl(room);
         if (!image.isEmpty()) Glide.with(this).load(image).error(R.drawable.quarto).into(img); else img.setImageResource(R.drawable.quarto);
         LinearLayout txt = new LinearLayout(this); txt.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0,-2,1); tp.leftMargin=dp(12); row.addView(txt,tp);
-        TextView roomName = habboText(firstText(room,"name","roomName","caption","title").isEmpty()?"Quarto":firstText(room,"name","roomName","caption","title"), 16, true); roomName.setMaxLines(1); roomName.setEllipsize(TextUtils.TruncateAt.END); txt.addView(roomName);
+        TextView roomName = habboText(firstText(room,"name","roomName","caption","title").isEmpty()?t("room"):firstText(room,"name","roomName","caption","title"), 16, true); roomName.setMaxLines(1); roomName.setEllipsize(TextUtils.TruncateAt.END); txt.addView(roomName);
         String score = firstText(room,"score","rating"); String date = niceDate(firstText(room,"createdAt","creationTime","date"));
         TextView meta = habboText("•  " + emptyDash(score) + "   " + date, 13, false);
         meta.setTextColor(lightTheme ? Color.rgb(97,97,97) : Color.argb(215,255,255,255));
@@ -2375,7 +2479,7 @@ public class MainActivity extends Activity {
         resultWrap.removeAllViews();
         LinearLayout c = sectionCard(null, 0, false);
         c.setPadding(dp(18), dp(18), dp(18), dp(18));
-        TextView title = habboText("Nenhum perfil encontrado", 22, true); title.setGravity(Gravity.CENTER); c.addView(title, lp(-1,-2,0,0,0,8));
+        TextView title = habboText(t("no_profile_found"), 22, true); title.setGravity(Gravity.CENTER); c.addView(title, lp(-1,-2,0,0,0,8));
         TextView body = text(tr("not_found_body", nick), 14, muted, false); body.setGravity(Gravity.CENTER); body.setLineSpacing(dp(2),1f); c.addView(body, lp(-1,-2,0,0,0,14));
         if (suggestions != null && !suggestions.isEmpty()) {
             TextView st = habboText("Esse nick parece ter sido usado antes por:", 17, true); c.addView(st, lp(-1,-2,0,0,0,10));
@@ -2409,7 +2513,7 @@ public class MainActivity extends Activity {
         searchBtn.setText(loading ? t("searching_profile") : t("search_button"));
         progress.setVisibility(View.GONE);
         statusText.setText(loading ? "" : (message == null ? "" : message));
-        if (loading) showLoadingSkeleton(message == null ? "Buscando perfil..." : message);
+        if (loading) showLoadingSkeleton(message == null ? t("searching_profile") : message);
     }
 
     private void showInlineLoading(String message) {
@@ -2447,7 +2551,7 @@ public class MainActivity extends Activity {
         }
         row.addView(spinner, new LinearLayout.LayoutParams(dp(30), dp(30)));
 
-        TextView tv = text(message == null ? "Carregando..." : message, 13, Color.argb(230,255,255,255), true);
+        TextView tv = text(message == null ? t("generic_loading") : message, 13, Color.argb(230,255,255,255), true);
         tv.setSingleLine(true);
         tv.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
@@ -2588,7 +2692,7 @@ private int loadingProgressFor(String message) {
     }
 
     private String habbodexFigureUrl(String figure) {
-        return HABBODEX + "/furnidex/furni/from-figure-string?figureString=" + enc(figure);
+        return HABBODEX + "/furnidex/furni/from-figure-string?figureString=" + enc(figure) + "&hotel=" + enc(habbodexHotelCode(currentHotelKey));
     }
 
     private String habbodexSuggestUrl(String name) {
@@ -2804,7 +2908,7 @@ private int loadingProgressFor(String message) {
 
     private static class ProfileNotFoundException extends Exception {
         final String nick; final ArrayList<JSONObject> suggestions;
-        ProfileNotFoundException(String nick, ArrayList<JSONObject> suggestions) { super("Perfil não encontrado."); this.nick = nick; this.suggestions = suggestions == null ? new ArrayList<>() : suggestions; }
+        ProfileNotFoundException(String nick, ArrayList<JSONObject> suggestions) { super("not_found"); this.nick = nick; this.suggestions = suggestions == null ? new ArrayList<>() : suggestions; }
     }
 
 
@@ -3257,15 +3361,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Search hotel";
                 case "hotel_changed": return "Hotel and language updated.";
                 case "adfree_title": return "Ad-free access";
-                case "adfree_msg_add": return "You still have %s without ads. Do you want to watch a video to add 30 more minutes? The maximum limit is 24 hours.";
-                case "adfree_msg_new": return "Do you want to watch a video to unlock 30 minutes without ads while searching profiles?";
+                case "adfree_msg_add": return "You still have %s without ads. Do you want to watch a video to add 15 more minutes? The maximum limit is 4 hours.";
+                case "adfree_msg_new": return "Do you want to watch a video to unlock 15 minutes without ads while searching profiles?";
                 case "time_left": return "Time left";
                 case "cancel": return "Cancel";
                 case "watch_video": return "Watch video";
                 case "cannot_show_video": return "Couldn't show the video right now.";
-                case "limit_24h": return "You already reached the 24-hour ad-free limit.";
+                case "limit_24h": return "You already reached the 4-hour ad-free limit.";
                 case "video_loading": return "The video is still loading. Try again in a few seconds.";
-                case "adfree_granted": return "30 ad-free minutes unlocked.";
+                case "adfree_granted": return "15 ad-free minutes unlocked.";
                 case "disclaimer1": return "This application is not affiliated with, endorsed, sponsored, or specifically approved by Sulake Corporation Oy or its affiliates.";
                 case "disclaimer2": return "It is only a public data lookup tool.";
                 case "private": return "Private";
@@ -3276,11 +3380,13 @@ private int loadingProgressFor(String message) {
                 case "last_login": return "Last login";
                 case "creation": return "Created";
                 case "friends": return "Friends";
+                case "removed": return "Removed";
                 case "rooms": return "Rooms";
                 case "groups": return "Groups";
                 case "photos": return "Photos";
                 case "stars": return "Stars";
                 case "level": return "Level";
+                case "previous": return "Previous";
                 case "previous_names": return "Previous names";
                 case "previous_mottos": return "Previous mottos";
                 case "previous_styles": return "Previous looks";
@@ -3298,6 +3404,7 @@ private int loadingProgressFor(String message) {
                 case "cannot_load_clothes": return "Couldn't load the items.";
                 case "no_clothes_found": return "No items found";
                 case "current_look": return "Current look";
+                case "looks": return "Looks";
                 case "liked_by": return "Liked by";
                 case "no_description": return "No description.";
                 case "name": return "Name";
@@ -3308,10 +3415,82 @@ private int loadingProgressFor(String message) {
                 case "room": return "Room";
                 case "date": return "Date";
                 case "likes": return "Likes";
-
+                case "page_of": return "Page %s of %s";
+                case "no_rooms_found": return "No rooms found.";
+                case "close": return "Close";
+                case "item": return "Item";
+                case "tutorial_settings_title": return "Change hotel";
+                case "tutorial_settings_body": return "Tap the gear to choose the hotel and change the language used by the app.";
+                case "tutorial_search_title": return "Search profile";
+                case "tutorial_search_body": return "Enter a nickname in the search bar and tap Search to look up public data.";
+                case "tutorial_history_title": return "History";
+                case "tutorial_history_body": return "Use the history button to quickly return to profiles you already opened.";
+                case "tutorial_next": return "Next";
+                case "tutorial_finish": return "Got it";
+                case "error_search_profile": return "Error al buscar el perfil.";
+                case "no_profile_found": return "No se encontró ningún perfil";
+                case "generic_loading": return "Cargando...";
+                case "no_friend_found": return "No se encontraron amigos.";
+                case "no_removed_friend_found": return "No se encontraron amigos eliminados.";
             }
-        } else if ("es".equals(lang)) {
+        }
+        else if ("es".equals(lang)) {
             switch (key) {
+                case "private": return "Privado";
+                case "banned": return "Baneado";
+                case "status": return "Estado";
+                case "online": return "En línea";
+                case "offline": return "Desconectado";
+                case "last_login": return "Último acceso";
+                case "creation": return "Creación";
+                case "friends": return "Amigos";
+                case "removed": return "Eliminados";
+                case "rooms": return "Salas";
+                case "groups": return "Grupos";
+                case "photos": return "Fotos";
+                case "stars": return "Estrellas";
+                case "level": return "Nivel";
+                case "previous": return "Anteriores";
+                case "previous_names": return "Nombres anteriores";
+                case "previous_mottos": return "Misiones anteriores";
+                case "previous_styles": return "Looks anteriores";
+                case "user_photos": return "Fotos del usuario";
+                case "selected_badges": return "Placas seleccionadas";
+                case "profile_history": return "Historial de perfiles";
+                case "no_history": return "Aún no hay perfiles abiertos.";
+                case "clear_history": return "Limpiar historial";
+                case "history_cleared": return "Historial limpiado.";
+                case "loading_details": return "Cargando detalles del perfil...";
+                case "loading_history": return "Cargando historial...";
+                case "loading_styles_friends": return "Cargando looks y amigos...";
+                case "loading_rooms_groups": return "Cargando salas y grupos...";
+                case "loading_clothes": return "Cargando prendas...";
+                case "cannot_load_clothes": return "No fue posible cargar las prendas.";
+                case "no_clothes_found": return "No se encontraron prendas";
+                case "current_look": return "Look actual";
+                case "looks": return "Looks";
+                case "liked_by": return "Me gusta de";
+                case "no_description": return "Sin descripción.";
+                case "name": return "Nombre";
+                case "description": return "Descripción";
+                case "created": return "Creado";
+                case "code": return "Código";
+                case "owner": return "Dueño";
+                case "room": return "Sala";
+                case "date": return "Fecha";
+                case "likes": return "Me gusta";
+                case "page_of": return "Página %s de %s";
+                case "no_rooms_found": return "No se encontraron salas.";
+                case "close": return "Cerrar";
+                case "item": return "Prenda";
+                case "tutorial_settings_title": return "Cambiar hotel";
+                case "tutorial_settings_body": return "Toca el engranaje para elegir el hotel y cambiar el idioma usado por la app.";
+                case "tutorial_search_title": return "Buscar perfil";
+                case "tutorial_search_body": return "Escribe un nick en la barra y toca Buscar para consultar datos públicos.";
+                case "tutorial_history_title": return "Historial";
+                case "tutorial_history_body": return "Usa el botón de historial para volver rápidamente a perfiles abiertos.";
+                case "tutorial_next": return "Siguiente";
+                case "tutorial_finish": return "Entendido";
                 case "searching": return "Buscando —";
                 case "search_button": return "Buscar";
                 case "search_hint": return "Escribe un nick del hotel para consultar un perfil...";
@@ -3327,20 +3506,76 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Hotel de búsqueda";
                 case "hotel_changed": return "Hotel e idioma actualizados.";
                 case "adfree_title": return "Acceso sin anuncios";
-                case "adfree_msg_add": return "Todavía tienes %s sin anuncios. ¿Quieres ver un vídeo para añadir 30 minutos más? El límite máximo es 24 horas.";
-                case "adfree_msg_new": return "¿Quieres ver un vídeo para desbloquear 30 minutos sin anuncios al buscar perfiles?";
+                case "adfree_msg_add": return "Todavía tienes %s sin anuncios. ¿Quieres ver un vídeo para añadir 15 minutos más? El límite máximo es 4 horas.";
+                case "adfree_msg_new": return "¿Quieres ver un vídeo para desbloquear 15 minutos sin anuncios al buscar perfiles?";
                 case "time_left": return "Tiempo restante";
                 case "cancel": return "Cancelar";
                 case "watch_video": return "Ver vídeo";
                 case "cannot_show_video": return "No se pudo mostrar el vídeo ahora.";
-                case "limit_24h": return "Ya alcanzaste el límite de 24 horas sin anuncios.";
+                case "limit_24h": return "Ya alcanzaste el límite de 4 horas sin anuncios.";
                 case "video_loading": return "El vídeo todavía se está cargando. Inténtalo de nuevo en unos segundos.";
-                case "adfree_granted": return "Se liberaron 30 minutos sin anuncios.";
+                case "adfree_granted": return "Se liberaron 15 minutos sin anuncios.";
                 case "disclaimer1": return "Esta aplicación no está afiliada, respaldada, patrocinada ni específicamente aprobada por Sulake Corporation Oy o sus afiliadas.";
                 case "disclaimer2": return "Solo es una herramienta de consulta de datos públicos.";
             }
-        } else if ("de".equals(lang)) {
+        }
+        else if ("de".equals(lang)) {
             switch (key) {
+                case "private": return "Privat";
+                case "banned": return "Gesperrt";
+                case "status": return "Status";
+                case "online": return "Online";
+                case "offline": return "Offline";
+                case "last_login": return "Letzter Login";
+                case "creation": return "Erstellt";
+                case "friends": return "Freunde";
+                case "removed": return "Entfernt";
+                case "rooms": return "Räume";
+                case "groups": return "Gruppen";
+                case "photos": return "Fotos";
+                case "stars": return "Sterne";
+                case "level": return "Level";
+                case "previous": return "Vorherige";
+                case "previous_names": return "Frühere Namen";
+                case "previous_mottos": return "Frühere Mottos";
+                case "previous_styles": return "Frühere Looks";
+                case "user_photos": return "Benutzerfotos";
+                case "selected_badges": return "Ausgewählte Abzeichen";
+                case "profile_history": return "Profilverlauf";
+                case "no_history": return "Noch keine Profile geöffnet.";
+                case "clear_history": return "Verlauf löschen";
+                case "history_cleared": return "Verlauf gelöscht.";
+                case "loading_details": return "Profildetails werden geladen...";
+                case "loading_history": return "Verlauf wird geladen...";
+                case "loading_styles_friends": return "Looks und Freunde werden geladen...";
+                case "loading_rooms_groups": return "Räume und Gruppen werden geladen...";
+                case "loading_clothes": return "Kleidung wird geladen...";
+                case "cannot_load_clothes": return "Die Teile konnten nicht geladen werden.";
+                case "no_clothes_found": return "Keine Teile gefunden";
+                case "current_look": return "Aktueller Look";
+                case "looks": return "Looks";
+                case "liked_by": return "Gefällt von";
+                case "no_description": return "Keine Beschreibung.";
+                case "name": return "Name";
+                case "description": return "Beschreibung";
+                case "created": return "Erstellt";
+                case "code": return "Code";
+                case "owner": return "Besitzer";
+                case "room": return "Raum";
+                case "date": return "Datum";
+                case "likes": return "Likes";
+                case "page_of": return "Seite %s von %s";
+                case "no_rooms_found": return "Keine Räume gefunden.";
+                case "close": return "Schließen";
+                case "item": return "Teil";
+                case "tutorial_settings_title": return "Hotel wechseln";
+                case "tutorial_settings_body": return "Tippe auf das Zahnrad, um das Hotel und die App-Sprache zu ändern.";
+                case "tutorial_search_title": return "Profil suchen";
+                case "tutorial_search_body": return "Gib einen Namen ein und tippe auf Suchen, um öffentliche Daten abzurufen.";
+                case "tutorial_history_title": return "Verlauf";
+                case "tutorial_history_body": return "Mit dem Verlauf kommst du schnell zu bereits geöffneten Profilen zurück.";
+                case "tutorial_next": return "Weiter";
+                case "tutorial_finish": return "Verstanden";
                 case "searching": return "Suche —";
                 case "search_button": return "Suchen";
                 case "search_hint": return "Gib einen Hotel-Namen ein, um ein Profil aufzurufen...";
@@ -3356,20 +3591,76 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Suchhotel";
                 case "hotel_changed": return "Hotel und Sprache aktualisiert.";
                 case "adfree_title": return "Werbefreier Zugriff";
-                case "adfree_msg_add": return "Du hast noch %s ohne Werbung. Möchtest du ein Video ansehen, um weitere 30 Minuten hinzuzufügen? Das Maximum beträgt 24 Stunden.";
-                case "adfree_msg_new": return "Möchtest du ein Video ansehen, um 30 Minuten ohne Werbung bei der Profilsuche freizuschalten?";
+                case "adfree_msg_add": return "Du hast noch %s ohne Werbung. Möchtest du ein Video ansehen, um weitere 15 Minuten hinzuzufügen? Das Maximum beträgt 4 Stunden.";
+                case "adfree_msg_new": return "Möchtest du ein Video ansehen, um 15 Minuten ohne Werbung bei der Profilsuche freizuschalten?";
                 case "time_left": return "Verbleibende Zeit";
                 case "cancel": return "Abbrechen";
                 case "watch_video": return "Video ansehen";
                 case "cannot_show_video": return "Das Video konnte jetzt nicht angezeigt werden.";
-                case "limit_24h": return "Du hast bereits das werbefreie Limit von 24 Stunden erreicht.";
+                case "limit_24h": return "Du hast bereits das werbefreie Limit von 4 Stunden erreicht.";
                 case "video_loading": return "Das Video wird noch geladen. Versuche es in einigen Sekunden erneut.";
-                case "adfree_granted": return "30 Minuten ohne Werbung freigeschaltet.";
+                case "adfree_granted": return "15 Minuten ohne Werbung freigeschaltet.";
                 case "disclaimer1": return "Diese Anwendung ist weder mit Sulake Corporation Oy oder ihren verbundenen Unternehmen verbunden noch von ihnen unterstützt, gesponsert oder ausdrücklich genehmigt.";
                 case "disclaimer2": return "Sie ist nur ein Tool zur Abfrage öffentlicher Daten.";
             }
-        } else if ("fr".equals(lang)) {
+        }
+        else if ("fr".equals(lang)) {
             switch (key) {
+                case "private": return "Privé";
+                case "banned": return "Banni";
+                case "status": return "Statut";
+                case "online": return "En ligne";
+                case "offline": return "Hors ligne";
+                case "last_login": return "Dernière connexion";
+                case "creation": return "Création";
+                case "friends": return "Amis";
+                case "removed": return "Supprimés";
+                case "rooms": return "Apparts";
+                case "groups": return "Groupes";
+                case "photos": return "Photos";
+                case "stars": return "Étoiles";
+                case "level": return "Niveau";
+                case "previous": return "Anciens";
+                case "previous_names": return "Anciens noms";
+                case "previous_mottos": return "Anciennes missions";
+                case "previous_styles": return "Anciens looks";
+                case "user_photos": return "Photos de l'utilisateur";
+                case "selected_badges": return "Badges sélectionnés";
+                case "profile_history": return "Historique des profils";
+                case "no_history": return "Aucun profil ouvert pour le moment.";
+                case "clear_history": return "Effacer l'historique";
+                case "history_cleared": return "Historique effacé.";
+                case "loading_details": return "Chargement des détails du profil...";
+                case "loading_history": return "Chargement de l'historique...";
+                case "loading_styles_friends": return "Chargement des looks et amis...";
+                case "loading_rooms_groups": return "Chargement des apparts et groupes...";
+                case "loading_clothes": return "Chargement des vêtements...";
+                case "cannot_load_clothes": return "Impossible de charger les éléments.";
+                case "no_clothes_found": return "Aucun élément trouvé";
+                case "current_look": return "Look actuel";
+                case "looks": return "Looks";
+                case "liked_by": return "Aimé par";
+                case "no_description": return "Aucune description.";
+                case "name": return "Nom";
+                case "description": return "Description";
+                case "created": return "Créé";
+                case "code": return "Code";
+                case "owner": return "Propriétaire";
+                case "room": return "Appart";
+                case "date": return "Date";
+                case "likes": return "J'aime";
+                case "page_of": return "Page %s sur %s";
+                case "no_rooms_found": return "Aucun appart trouvé.";
+                case "close": return "Fermer";
+                case "item": return "Élément";
+                case "tutorial_settings_title": return "Changer d'hôtel";
+                case "tutorial_settings_body": return "Touchez l'engrenage pour choisir l'hôtel et changer la langue de l'app.";
+                case "tutorial_search_title": return "Rechercher un profil";
+                case "tutorial_search_body": return "Saisissez un pseudo puis touchez Rechercher pour consulter les données publiques.";
+                case "tutorial_history_title": return "Historique";
+                case "tutorial_history_body": return "Utilisez le bouton d'historique pour revenir vite aux profils ouverts.";
+                case "tutorial_next": return "Suivant";
+                case "tutorial_finish": return "Compris";
                 case "searching": return "Recherche —";
                 case "search_button": return "Rechercher";
                 case "search_hint": return "Saisissez un pseudo de l'hôtel pour consulter un profil...";
@@ -3385,20 +3676,76 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Hôtel de recherche";
                 case "hotel_changed": return "Hôtel et langue mis à jour.";
                 case "adfree_title": return "Accès sans publicité";
-                case "adfree_msg_add": return "Il vous reste encore %s sans publicité. Voulez-vous regarder une vidéo pour ajouter 30 minutes supplémentaires ? La limite maximale est de 24 heures.";
-                case "adfree_msg_new": return "Voulez-vous regarder une vidéo pour débloquer 30 minutes sans publicité lors de la recherche de profils ?";
+                case "adfree_msg_add": return "Il vous reste encore %s sans publicité. Voulez-vous regarder une vidéo pour ajouter 15 minutes supplémentaires ? La limite maximale est de 4 heures.";
+                case "adfree_msg_new": return "Voulez-vous regarder une vidéo pour débloquer 15 minutes sans publicité lors de la recherche de profils ?";
                 case "time_left": return "Temps restant";
                 case "cancel": return "Annuler";
                 case "watch_video": return "Voir la vidéo";
                 case "cannot_show_video": return "Impossible d'afficher la vidéo pour le moment.";
-                case "limit_24h": return "Vous avez déjà atteint la limite de 24 heures sans publicité.";
+                case "limit_24h": return "Vous avez déjà atteint la limite de 4 heures sans publicité.";
                 case "video_loading": return "La vidéo est encore en cours de chargement. Réessayez dans quelques secondes.";
-                case "adfree_granted": return "30 minutes sans publicité débloquées.";
+                case "adfree_granted": return "15 minutes sans publicité débloquées.";
                 case "disclaimer1": return "Cette application n'est ni affiliée, ni approuvée, ni sponsorisée, ni spécifiquement autorisée par Sulake Corporation Oy ou ses sociétés affiliées.";
                 case "disclaimer2": return "Il s'agit uniquement d'un outil de consultation de données publiques.";
             }
-        } else if ("fi".equals(lang)) {
+        }
+        else if ("fi".equals(lang)) {
             switch (key) {
+                case "private": return "Yksityinen";
+                case "banned": return "Porttikielto";
+                case "status": return "Tila";
+                case "online": return "Paikalla";
+                case "offline": return "Poissa";
+                case "last_login": return "Viimeisin kirjautuminen";
+                case "creation": return "Luotu";
+                case "friends": return "Kaverit";
+                case "removed": return "Poistetut";
+                case "rooms": return "Huoneet";
+                case "groups": return "Ryhmät";
+                case "photos": return "Kuvat";
+                case "stars": return "Tähdet";
+                case "level": return "Taso";
+                case "previous": return "Aiemmat";
+                case "previous_names": return "Aiemmat nimet";
+                case "previous_mottos": return "Aiemmat motot";
+                case "previous_styles": return "Aiemmat asut";
+                case "user_photos": return "Käyttäjän kuvat";
+                case "selected_badges": return "Valitut merkit";
+                case "profile_history": return "Profiilihistoria";
+                case "no_history": return "Ei vielä avattuja profiileja.";
+                case "clear_history": return "Tyhjennä historia";
+                case "history_cleared": return "Historia tyhjennetty.";
+                case "loading_details": return "Ladataan profiilin tietoja...";
+                case "loading_history": return "Ladataan historiaa...";
+                case "loading_styles_friends": return "Ladataan asuja ja kavereita...";
+                case "loading_rooms_groups": return "Ladataan huoneita ja ryhmiä...";
+                case "loading_clothes": return "Ladataan vaatteita...";
+                case "cannot_load_clothes": return "Kohteita ei voitu ladata.";
+                case "no_clothes_found": return "Kohteita ei löytynyt";
+                case "current_look": return "Nykyinen asu";
+                case "looks": return "Asut";
+                case "liked_by": return "Tykkääjät";
+                case "no_description": return "Ei kuvausta.";
+                case "name": return "Nimi";
+                case "description": return "Kuvaus";
+                case "created": return "Luotu";
+                case "code": return "Koodi";
+                case "owner": return "Omistaja";
+                case "room": return "Huone";
+                case "date": return "Päiväys";
+                case "likes": return "Tykkäykset";
+                case "page_of": return "Sivu %s/%s";
+                case "no_rooms_found": return "Huoneita ei löytynyt.";
+                case "close": return "Sulje";
+                case "item": return "Kohde";
+                case "tutorial_settings_title": return "Vaihda hotelli";
+                case "tutorial_settings_body": return "Napauta ratasta valitaksesi hotellin ja sovelluksen kielen.";
+                case "tutorial_search_title": return "Hae profiilia";
+                case "tutorial_search_body": return "Kirjoita nimimerkki ja napauta Hae nähdäksesi julkiset tiedot.";
+                case "tutorial_history_title": return "Historia";
+                case "tutorial_history_body": return "Historiapainikkeella pääset nopeasti aiemmin avattuihin profiileihin.";
+                case "tutorial_next": return "Seuraava";
+                case "tutorial_finish": return "Selvä";
                 case "searching": return "Haetaan —";
                 case "search_button": return "Hae";
                 case "search_hint": return "Kirjoita hotellin nimi tarkistaaksesi profiilin...";
@@ -3414,20 +3761,76 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Hakuhotelli";
                 case "hotel_changed": return "Hotelli ja kieli päivitetty.";
                 case "adfree_title": return "Mainokseton käyttö";
-                case "adfree_msg_add": return "Sinulla on vielä %s ilman mainoksia. Haluatko katsoa videon lisätäksesi vielä 30 minuuttia? Enimmäisraja on 24 tuntia.";
-                case "adfree_msg_new": return "Haluatko katsoa videon avataksesi 30 minuuttia ilman mainoksia profiileja haettaessa?";
+                case "adfree_msg_add": return "Sinulla on vielä %s ilman mainoksia. Haluatko katsoa videon lisätäksesi vielä 15 minuuttia? Enimmäisraja on 4 tuntia.";
+                case "adfree_msg_new": return "Haluatko katsoa videon avataksesi 15 minuuttia ilman mainoksia profiileja haettaessa?";
                 case "time_left": return "Aikaa jäljellä";
                 case "cancel": return "Peruuta";
                 case "watch_video": return "Katso video";
                 case "cannot_show_video": return "Videota ei voitu näyttää juuri nyt.";
-                case "limit_24h": return "Olet jo saavuttanut 24 tunnin mainoksettoman rajan.";
+                case "limit_24h": return "Olet jo saavuttanut 4 tunnin mainoksettoman rajan.";
                 case "video_loading": return "Video latautuu vielä. Yritä uudelleen muutaman sekunnin kuluttua.";
-                case "adfree_granted": return "30 minuuttia ilman mainoksia avattu.";
+                case "adfree_granted": return "15 minuuttia ilman mainoksia avattu.";
                 case "disclaimer1": return "Tämä sovellus ei ole Sulake Corporation Oy:n tai sen tytäryhtiöiden kanssa sidoksissa eikä niiden hyväksymä, sponsoroima tai erityisesti hyväksymä.";
                 case "disclaimer2": return "Se on vain julkisten tietojen hakutyökalu.";
             }
-        } else if ("it".equals(lang)) {
+        }
+        else if ("it".equals(lang)) {
             switch (key) {
+                case "private": return "Privato";
+                case "banned": return "Bannato";
+                case "status": return "Stato";
+                case "online": return "Online";
+                case "offline": return "Offline";
+                case "last_login": return "Ultimo accesso";
+                case "creation": return "Creazione";
+                case "friends": return "Amici";
+                case "removed": return "Rimossi";
+                case "rooms": return "Stanze";
+                case "groups": return "Gruppi";
+                case "photos": return "Foto";
+                case "stars": return "Stelle";
+                case "level": return "Livello";
+                case "previous": return "Precedenti";
+                case "previous_names": return "Nomi precedenti";
+                case "previous_mottos": return "Missioni precedenti";
+                case "previous_styles": return "Look precedenti";
+                case "user_photos": return "Foto utente";
+                case "selected_badges": return "Badge selezionati";
+                case "profile_history": return "Cronologia profili";
+                case "no_history": return "Nessun profilo aperto ancora.";
+                case "clear_history": return "Cancella cronologia";
+                case "history_cleared": return "Cronologia cancellata.";
+                case "loading_details": return "Caricamento dettagli profilo...";
+                case "loading_history": return "Caricamento cronologia...";
+                case "loading_styles_friends": return "Caricamento look e amici...";
+                case "loading_rooms_groups": return "Caricamento stanze e gruppi...";
+                case "loading_clothes": return "Caricamento vestiti...";
+                case "cannot_load_clothes": return "Impossibile caricare gli elementi.";
+                case "no_clothes_found": return "Nessun elemento trovato";
+                case "current_look": return "Look attuale";
+                case "looks": return "Look";
+                case "liked_by": return "Piaciuto a";
+                case "no_description": return "Nessuna descrizione.";
+                case "name": return "Nome";
+                case "description": return "Descrizione";
+                case "created": return "Creato";
+                case "code": return "Codice";
+                case "owner": return "Proprietario";
+                case "room": return "Stanza";
+                case "date": return "Data";
+                case "likes": return "Mi piace";
+                case "page_of": return "Pagina %s di %s";
+                case "no_rooms_found": return "Nessuna stanza trovata.";
+                case "close": return "Chiudi";
+                case "item": return "Elemento";
+                case "tutorial_settings_title": return "Cambia hotel";
+                case "tutorial_settings_body": return "Tocca l'ingranaggio per scegliere l'hotel e cambiare la lingua dell'app.";
+                case "tutorial_search_title": return "Cerca profilo";
+                case "tutorial_search_body": return "Inserisci un nick e tocca Cerca per consultare dati pubblici.";
+                case "tutorial_history_title": return "Cronologia";
+                case "tutorial_history_body": return "Usa il pulsante cronologia per tornare rapidamente ai profili aperti.";
+                case "tutorial_next": return "Avanti";
+                case "tutorial_finish": return "Capito";
                 case "searching": return "Ricerca —";
                 case "search_button": return "Cerca";
                 case "search_hint": return "Inserisci un nick dell'hotel per consultare un profilo...";
@@ -3443,20 +3846,76 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Hotel di ricerca";
                 case "hotel_changed": return "Hotel e lingua aggiornati.";
                 case "adfree_title": return "Accesso senza annunci";
-                case "adfree_msg_add": return "Hai ancora %s senza annunci. Vuoi guardare un video per aggiungere altri 30 minuti? Il limite massimo è di 24 ore.";
-                case "adfree_msg_new": return "Vuoi guardare un video per sbloccare 30 minuti senza annunci durante la ricerca dei profili?";
+                case "adfree_msg_add": return "Hai ancora %s senza annunci. Vuoi guardare un video per aggiungere altri 15 minuti? Il limite massimo è di 4 ore.";
+                case "adfree_msg_new": return "Vuoi guardare un video per sbloccare 15 minuti senza annunci durante la ricerca dei profili?";
                 case "time_left": return "Tempo restante";
                 case "cancel": return "Annulla";
                 case "watch_video": return "Guarda video";
                 case "cannot_show_video": return "Non è stato possibile mostrare il video in questo momento.";
-                case "limit_24h": return "Hai già raggiunto il limite di 24 ore senza annunci.";
+                case "limit_24h": return "Hai già raggiunto il limite di 4 ore senza annunci.";
                 case "video_loading": return "Il video si sta ancora caricando. Riprova tra qualche secondo.";
-                case "adfree_granted": return "30 minuti senza annunci sbloccati.";
+                case "adfree_granted": return "15 minuti senza annunci sbloccati.";
                 case "disclaimer1": return "Questa applicazione non è affiliata, approvata, sponsorizzata o specificamente approvata da Sulake Corporation Oy o dalle sue affiliate.";
                 case "disclaimer2": return "È solo uno strumento di consultazione di dati pubblici.";
             }
-        } else if ("nl".equals(lang)) {
+        }
+        else if ("nl".equals(lang)) {
             switch (key) {
+                case "private": return "Privé";
+                case "banned": return "Verbannen";
+                case "status": return "Status";
+                case "online": return "Online";
+                case "offline": return "Offline";
+                case "last_login": return "Laatste login";
+                case "creation": return "Aangemaakt";
+                case "friends": return "Vrienden";
+                case "removed": return "Verwijderd";
+                case "rooms": return "Kamers";
+                case "groups": return "Groepen";
+                case "photos": return "Foto's";
+                case "stars": return "Sterren";
+                case "level": return "Level";
+                case "previous": return "Vorige";
+                case "previous_names": return "Vorige namen";
+                case "previous_mottos": return "Vorige motto's";
+                case "previous_styles": return "Vorige looks";
+                case "user_photos": return "Gebruikersfoto's";
+                case "selected_badges": return "Geselecteerde badges";
+                case "profile_history": return "Profielgeschiedenis";
+                case "no_history": return "Nog geen profielen geopend.";
+                case "clear_history": return "Geschiedenis wissen";
+                case "history_cleared": return "Geschiedenis gewist.";
+                case "loading_details": return "Profielgegevens laden...";
+                case "loading_history": return "Geschiedenis laden...";
+                case "loading_styles_friends": return "Looks en vrienden laden...";
+                case "loading_rooms_groups": return "Kamers en groepen laden...";
+                case "loading_clothes": return "Kleding laden...";
+                case "cannot_load_clothes": return "Items konden niet worden geladen.";
+                case "no_clothes_found": return "Geen items gevonden";
+                case "current_look": return "Huidige look";
+                case "looks": return "Looks";
+                case "liked_by": return "Geliked door";
+                case "no_description": return "Geen beschrijving.";
+                case "name": return "Naam";
+                case "description": return "Beschrijving";
+                case "created": return "Aangemaakt";
+                case "code": return "Code";
+                case "owner": return "Eigenaar";
+                case "room": return "Kamer";
+                case "date": return "Datum";
+                case "likes": return "Likes";
+                case "page_of": return "Pagina %s van %s";
+                case "no_rooms_found": return "Geen kamers gevonden.";
+                case "close": return "Sluiten";
+                case "item": return "Item";
+                case "tutorial_settings_title": return "Hotel wijzigen";
+                case "tutorial_settings_body": return "Tik op het tandwiel om het hotel en de app-taal te wijzigen.";
+                case "tutorial_search_title": return "Profiel zoeken";
+                case "tutorial_search_body": return "Voer een naam in en tik op Zoeken om openbare gegevens te bekijken.";
+                case "tutorial_history_title": return "Geschiedenis";
+                case "tutorial_history_body": return "Gebruik geschiedenis om snel terug te keren naar geopende profielen.";
+                case "tutorial_next": return "Volgende";
+                case "tutorial_finish": return "Begrepen";
                 case "searching": return "Zoeken —";
                 case "search_button": return "Zoeken";
                 case "search_hint": return "Voer een hotelnaam in om een profiel te bekijken...";
@@ -3472,20 +3931,76 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Zoekhotel";
                 case "hotel_changed": return "Hotel en taal bijgewerkt.";
                 case "adfree_title": return "Advertentievrije toegang";
-                case "adfree_msg_add": return "Je hebt nog %s zonder advertenties. Wil je een video bekijken om nog 30 minuten toe te voegen? De maximale limiet is 24 uur.";
-                case "adfree_msg_new": return "Wil je een video bekijken om 30 minuten zonder advertenties vrij te schakelen tijdens het zoeken naar profielen?";
+                case "adfree_msg_add": return "Je hebt nog %s zonder advertenties. Wil je een video bekijken om nog 15 minuten toe te voegen? De maximale limiet is 4 uur.";
+                case "adfree_msg_new": return "Wil je een video bekijken om 15 minuten zonder advertenties vrij te schakelen tijdens het zoeken naar profielen?";
                 case "time_left": return "Resterende tijd";
                 case "cancel": return "Annuleren";
                 case "watch_video": return "Video bekijken";
                 case "cannot_show_video": return "De video kon nu niet worden weergegeven.";
-                case "limit_24h": return "Je hebt de advertentievrije limiet van 24 uur al bereikt.";
+                case "limit_24h": return "Je hebt de advertentievrije limiet van 4 uur al bereikt.";
                 case "video_loading": return "De video wordt nog geladen. Probeer het over een paar seconden opnieuw.";
-                case "adfree_granted": return "30 minuten zonder advertenties ontgrendeld.";
+                case "adfree_granted": return "15 minuten zonder advertenties ontgrendeld.";
                 case "disclaimer1": return "Deze applicatie is niet verbonden met, onderschreven door, gesponsord door of specifiek goedgekeurd door Sulake Corporation Oy of haar gelieerde ondernemingen.";
                 case "disclaimer2": return "Het is slechts een hulpmiddel voor het raadplegen van openbare gegevens.";
             }
-        } else if ("tr".equals(lang)) {
+        }
+        else if ("tr".equals(lang)) {
             switch (key) {
+                case "private": return "Gizli";
+                case "banned": return "Banlı";
+                case "status": return "Durum";
+                case "online": return "Çevrimiçi";
+                case "offline": return "Çevrimdışı";
+                case "last_login": return "Son giriş";
+                case "creation": return "Oluşturulma";
+                case "friends": return "Arkadaşlar";
+                case "removed": return "Kaldırılanlar";
+                case "rooms": return "Odalar";
+                case "groups": return "Gruplar";
+                case "photos": return "Fotoğraflar";
+                case "stars": return "Yıldızlar";
+                case "level": return "Seviye";
+                case "previous": return "Öncekiler";
+                case "previous_names": return "Önceki adlar";
+                case "previous_mottos": return "Önceki mottolar";
+                case "previous_styles": return "Önceki görünümler";
+                case "user_photos": return "Kullanıcı fotoğrafları";
+                case "selected_badges": return "Seçili rozetler";
+                case "profile_history": return "Profil geçmişi";
+                case "no_history": return "Henüz açılmış profil yok.";
+                case "clear_history": return "Geçmişi temizle";
+                case "history_cleared": return "Geçmiş temizlendi.";
+                case "loading_details": return "Profil detayları yükleniyor...";
+                case "loading_history": return "Geçmiş yükleniyor...";
+                case "loading_styles_friends": return "Görünümler ve arkadaşlar yükleniyor...";
+                case "loading_rooms_groups": return "Odalar ve gruplar yükleniyor...";
+                case "loading_clothes": return "Kıyafetler yükleniyor...";
+                case "cannot_load_clothes": return "Öğeler yüklenemedi.";
+                case "no_clothes_found": return "Öğe bulunamadı";
+                case "current_look": return "Mevcut görünüm";
+                case "looks": return "Görünümler";
+                case "liked_by": return "Beğenenler";
+                case "no_description": return "Açıklama yok.";
+                case "name": return "Ad";
+                case "description": return "Açıklama";
+                case "created": return "Oluşturuldu";
+                case "code": return "Kod";
+                case "owner": return "Sahip";
+                case "room": return "Oda";
+                case "date": return "Tarih";
+                case "likes": return "Beğeniler";
+                case "page_of": return "Sayfa %s / %s";
+                case "no_rooms_found": return "Oda bulunamadı.";
+                case "close": return "Kapat";
+                case "item": return "Öğe";
+                case "tutorial_settings_title": return "Otel değiştir";
+                case "tutorial_settings_body": return "Otel seçmek ve uygulama dilini değiştirmek için dişliye dokunun.";
+                case "tutorial_search_title": return "Profil ara";
+                case "tutorial_search_body": return "Bir nick yazıp Ara'ya dokunarak herkese açık verileri görüntüleyin.";
+                case "tutorial_history_title": return "Geçmiş";
+                case "tutorial_history_body": return "Açılmış profillere hızlı dönmek için geçmiş düğmesini kullanın.";
+                case "tutorial_next": return "Sonraki";
+                case "tutorial_finish": return "Anladım";
                 case "searching": return "Aranıyor —";
                 case "search_button": return "Ara";
                 case "search_hint": return "Bir profili görüntülemek için otel takma adını girin...";
@@ -3501,20 +4016,19 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Arama oteli";
                 case "hotel_changed": return "Otel ve dil güncellendi.";
                 case "adfree_title": return "Reklamsız erişim";
-                case "adfree_msg_add": return "Hâlâ reklamsız %s süreniz var. 30 dakika daha eklemek için bir video izlemek ister misiniz? Maksimum sınır 24 saattir.";
-                case "adfree_msg_new": return "Profil ararken 30 dakika reklamsız kullanım açmak için bir video izlemek ister misiniz?";
+                case "adfree_msg_add": return "Hâlâ reklamsız %s süreniz var. 15 dakika daha eklemek için bir video izlemek ister misiniz? Maksimum sınır 4 saattir.";
+                case "adfree_msg_new": return "Profil ararken 15 dakika reklamsız kullanım açmak için bir video izlemek ister misiniz?";
                 case "time_left": return "Kalan süre";
                 case "cancel": return "İptal";
                 case "watch_video": return "Videoyu izle";
                 case "cannot_show_video": return "Video şu anda gösterilemedi.";
-                case "limit_24h": return "24 saatlik reklamsız sınırına zaten ulaştınız.";
+                case "limit_24h": return "4 saatlik reklamsız sınırına zaten ulaştınız.";
                 case "video_loading": return "Video hâlâ yükleniyor. Birkaç saniye sonra tekrar deneyin.";
-                case "adfree_granted": return "30 dakika reklamsız kullanım açıldı.";
+                case "adfree_granted": return "15 dakika reklamsız kullanım açıldı.";
                 case "disclaimer1": return "Bu uygulama Sulake Corporation Oy veya bağlı kuruluşlarıyla ilişkili değildir; onlar tarafından onaylanmaz, desteklenmez veya özellikle onaylanmış değildir.";
                 case "disclaimer2": return "Yalnızca herkese açık verileri sorgulamak için kullanılan bir araçtır.";
             }
         }
-
         switch (key) {
             case "searching": return "Buscando —";
             case "search_button": return "Pesquisar";
@@ -3531,15 +4045,15 @@ private int loadingProgressFor(String message) {
             case "search_hotel": return "Hotel de busca";
             case "hotel_changed": return "Hotel e idioma atualizados.";
             case "adfree_title": return "Acesso sem anúncios";
-            case "adfree_msg_add": return "Você ainda tem %s sem anúncios. Deseja assistir um vídeo para adicionar mais 30 minutos? O limite máximo é 24 horas.";
-            case "adfree_msg_new": return "Deseja assistir um vídeo para liberar 30 minutos sem anúncios ao pesquisar perfis?";
+            case "adfree_msg_add": return "Você ainda tem %s sem anúncios. Deseja assistir um vídeo para adicionar mais 15 minutos? O limite máximo é 4 horas.";
+            case "adfree_msg_new": return "Deseja assistir um vídeo para liberar 15 minutos sem anúncios ao pesquisar perfis?";
             case "time_left": return "Tempo restante";
             case "cancel": return "Cancelar";
             case "watch_video": return "Assistir vídeo";
             case "cannot_show_video": return "Não foi possível exibir o vídeo agora.";
-            case "limit_24h": return "Você já atingiu o limite de 24 horas sem anúncios.";
+            case "limit_24h": return "Você já atingiu o limite de 4 horas sem anúncios.";
             case "video_loading": return "O vídeo ainda está carregando. Tente novamente em alguns segundos.";
-            case "adfree_granted": return "30 minutos sem anúncios liberados.";
+            case "adfree_granted": return "15 minutos sem anúncios liberados.";
             case "disclaimer1": return "Este aplicativo não é afiliado, endossado, patrocinado ou especificamente aprovado pela Sulake Corporation Oy ou suas afiliadas.";
             case "disclaimer2": return "Ele é apenas uma ferramenta de consulta de dados públicos.";
             case "private": return "Privado";
@@ -3550,11 +4064,13 @@ private int loadingProgressFor(String message) {
             case "last_login": return "Último login";
             case "creation": return "Criação";
             case "friends": return "Amigos";
+            case "removed": return "Removidos";
             case "rooms": return "Quartos";
             case "groups": return "Grupos";
             case "photos": return "Fotos";
             case "stars": return "Estrelas";
             case "level": return "Level";
+            case "previous": return "Anteriores";
             case "previous_names": return "Nomes anteriores";
             case "previous_mottos": return "Missões anteriores";
             case "previous_styles": return "Visuais anteriores";
@@ -3572,6 +4088,7 @@ private int loadingProgressFor(String message) {
             case "cannot_load_clothes": return "Não foi possível carregar as peças.";
             case "no_clothes_found": return "Nenhuma peça encontrada";
             case "current_look": return "Visual atual";
+            case "looks": return "Visuais";
             case "liked_by": return "Quem curtiu";
             case "no_description": return "Sem descrição.";
             case "name": return "Nome";
@@ -3582,10 +4099,26 @@ private int loadingProgressFor(String message) {
             case "room": return "Quarto";
             case "date": return "Data";
             case "likes": return "Curtidas";
+            case "page_of": return "Página %s de %s";
+            case "no_rooms_found": return "Nenhum quarto encontrado.";
+            case "close": return "Fechar";
+            case "item": return "Peça";
+            case "tutorial_settings_title": return "Trocar hotel";
+            case "tutorial_settings_body": return "Toque na engrenagem para escolher o hotel e alterar o idioma usado pelo app.";
+            case "tutorial_search_title": return "Pesquisar perfil";
+            case "tutorial_search_body": return "Digite um nick na barra de pesquisa e toque em Pesquisar para consultar os dados públicos.";
+            case "tutorial_history_title": return "Histórico";
+            case "tutorial_history_body": return "Use o botão de histórico para voltar rapidamente aos perfis já abertos.";
+            case "tutorial_next": return "Próximo";
+            case "tutorial_finish": return "Entendi";
+            case "error_search_profile": return "Falha ao buscar perfil.";
+            case "no_profile_found": return "Nenhum perfil encontrado";
+            case "generic_loading": return "Carregando...";
+            case "no_friend_found": return "Nenhum amigo encontrado.";
+            case "no_removed_friend_found": return "Nenhum amigo removido encontrado.";
         }
         return key;
     }
-
 
     private String habboApiUrl(String path) {
         if (path == null) path = "";
@@ -4251,6 +4784,48 @@ private int loadingProgressFor(String message) {
             p.setStrokeWidth(Math.max(1.5f, m*.035f));
             c.drawLine(cx-m*.09f, cy+m*.26f, cx+m*.09f, cy+m*.26f, p);
             c.drawLine(cx, cy+m*.16f, cx, cy+m*.26f, p);
+        }
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
+
+
+
+    public class TutorialOverlayDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        int step;
+        TutorialOverlayDrawable(int s) { step = s; }
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.argb(210, 0, 0, 0));
+            c.drawRect(b, p);
+
+            float cx;
+            float cy;
+            float radius;
+            if (step == 0) {
+                cx = b.right - dp(29);
+                cy = b.top + dp(35);
+                radius = dp(34);
+            } else if (step == 1) {
+                cx = b.centerX();
+                cy = b.top + dp(230);
+                radius = Math.min(dp(170), b.width() * 0.40f);
+            } else {
+                cx = b.left + dp(29);
+                cy = b.top + dp(35);
+                radius = dp(34);
+            }
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            p.setColor(Color.rgb(205, 88, 255));
+            c.drawCircle(cx, cy, radius, p);
+            p.setStrokeWidth(dp(1));
+            p.setColor(Color.argb(190, 255, 255, 255));
+            c.drawCircle(cx, cy, radius + dp(7), p);
         }
         @Override public void setAlpha(int a){p.setAlpha(a);}
         @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
