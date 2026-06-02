@@ -553,8 +553,8 @@ public class MainActivity extends Activity {
         ImageView topLogo = new ImageView(this);
         topLogo.setAdjustViewBounds(true);
         topLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        topLogo.setImageResource(R.drawable.toxic_logo_opening);
-        root.addView(topLogo, lp(-1, dp(118), 24, -8, 24, 0));
+        topLogo.setImageResource(R.drawable.toxic_top_logo);
+        root.addView(topLogo, lp(-1, dp(132), 12, -14, 12, 0));
 
         LinearLayout subtitleRow = new LinearLayout(this);
         subtitleRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -3672,11 +3672,14 @@ private int loadingProgressFor(String message) {
             if (dialog != null) dialog.dismiss();
             currentHotelKey = normalizeHotelKey(item.hotelKey);
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
+            currentLoadedNick = "";
+            activeSearchToken++;
+            searchInProgress = false;
+            rebuildUiPreservingProfile();
             if (searchInput != null) {
                 searchInput.setText(item.nick);
                 searchInput.setSelection(searchInput.getText().length());
             }
-            currentLoadedNick = "";
             search();
         });
         return row;
