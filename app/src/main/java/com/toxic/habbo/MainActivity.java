@@ -244,7 +244,7 @@ public class MainActivity extends Activity {
                             public void onAdFailedToShowFullScreenContent(AdError adError) {
                                 rewardedAd = null;
                                 loadRewardedAd();
-                                toast("Não foi possível exibir o vídeo agora.");
+                                toast(t("cannot_show_video"));
                             }
 
                             @Override
@@ -267,8 +267,8 @@ public class MainActivity extends Activity {
         consumeAdFreeElapsed();
         String remaining = formatAdFreeRemaining();
         String message = hasAdFreeAccess()
-                ? "Você ainda tem " + remaining + " sem anúncios. Deseja assistir um vídeo para adicionar mais 30 minutos? O limite máximo é 24 horas."
-                : "Deseja assistir um vídeo para liberar 30 minutos sem anúncios ao pesquisar perfis?";
+                ? tr("adfree_msg_add", remaining)
+                : t("adfree_msg_new");
 
         final Dialog dialog = new Dialog(this);
         LinearLayout wrap = new LinearLayout(this);
@@ -284,7 +284,7 @@ public class MainActivity extends Activity {
         iconLine.addView(icon, new LinearLayout.LayoutParams(dp(54), dp(54)));
         wrap.addView(iconLine, lp(-1, dp(58), 0, 0, 0, 10));
 
-        TextView title = toxicLogoText("Acesso sem anúncios", 21);
+        TextView title = toxicLogoText(t("adfree_title"), 21);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
@@ -296,7 +296,7 @@ public class MainActivity extends Activity {
         wrap.addView(msg, lp(-1, -2, 0, 0, 0, 14));
 
         if (hasAdFreeAccess()) {
-            TextView timer = text("Tempo restante: " + formatAdFreeRemainingShort(), 13, lightTheme ? Color.rgb(50,50,50) : Color.WHITE, true);
+            TextView timer = text(t("time_left") + ": " + formatAdFreeRemainingShort(), 13, lightTheme ? Color.rgb(50,50,50) : Color.WHITE, true);
             timer.setGravity(Gravity.CENTER);
             timer.setPadding(dp(10), dp(8), dp(10), dp(8));
             timer.setBackground(round(lightTheme ? Color.rgb(238,238,242) : Color.argb(24,255,255,255), dp(999), lightTheme ? Color.rgb(216,216,222) : Color.argb(30,255,255,255), 1));
@@ -308,7 +308,7 @@ public class MainActivity extends Activity {
         buttons.setGravity(Gravity.CENTER);
         wrap.addView(buttons, lp(-1, dp(48), 0, 0, 0, 0));
 
-        TextView cancel = dialogButton("Cancelar");
+        TextView cancel = dialogButton(t("cancel"));
         cancel.setTextColor(lightTheme ? Color.rgb(45,45,45) : Color.WHITE);
         cancel.setBackground(round(lightTheme ? Color.rgb(242,242,244) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(216,216,220) : Color.argb(30,255,255,255), 1));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(48), 1);
@@ -316,7 +316,7 @@ public class MainActivity extends Activity {
         buttons.addView(cancel, cp);
         cancel.setOnClickListener(v -> dialog.dismiss());
 
-        TextView watch = dialogButton("Assistir vídeo");
+        TextView watch = dialogButton(t("watch_video"));
         watch.setTextColor(Color.WHITE);
         watch.setBackground(grad(dp(14), purple2, purple));
         LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(0, dp(48), 1);
@@ -343,13 +343,13 @@ public class MainActivity extends Activity {
         consumeAdFreeElapsed();
 
         if (adFreeRemainingMs >= MAX_AD_FREE_MS) {
-            toast("Você já atingiu o limite de 24 horas sem anúncios.");
+            toast(t("limit_24h"));
             updateRewardButtonText();
             return;
         }
 
         if (rewardedAd == null) {
-            toast("O vídeo ainda está carregando. Tente novamente em alguns segundos.");
+            toast(t("video_loading"));
             loadRewardedAd();
             return;
         }
@@ -362,7 +362,7 @@ public class MainActivity extends Activity {
         adFreeRemainingMs = Math.min(MAX_AD_FREE_MS, Math.max(0L, adFreeRemainingMs) + millis);
         saveAdFreeRemaining();
         updateRewardButtonText();
-        toast("30 minutos sem anúncios liberados.");
+        toast(t("adfree_granted"));
     }
 
     private boolean hasAdFreeAccess() {
@@ -554,16 +554,16 @@ public class MainActivity extends Activity {
         topLogo.setAdjustViewBounds(true);
         topLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         topLogo.setImageResource(R.drawable.toxic_logo_opening);
-        root.addView(topLogo, lp(-1, dp(92), 40, 0, 40, 4));
+        root.addView(topLogo, lp(-1, dp(110), 24, 0, 24, 2));
 
         LinearLayout subtitleRow = new LinearLayout(this);
         subtitleRow.setOrientation(LinearLayout.HORIZONTAL);
         subtitleRow.setGravity(Gravity.CENTER);
         root.addView(subtitleRow, lp(-1, dp(24), 0, 0, 0, 10));
 
-        TextView subtitle = text("Buscando Habbos —", 14, muted, false);
+        TextView subtitle = text(t("searching"), 14, muted, false);
         subtitle.setGravity(Gravity.CENTER);
-        subtitle.setTypeface(Typeface.DEFAULT);
+        subtitle.setTypeface(Typeface.DEFAULT_BOLD);
         subtitleRow.addView(subtitle, new LinearLayout.LayoutParams(-2, -2));
 
         ImageView selectedHotelFlag = new ImageView(this);
@@ -581,7 +581,7 @@ public class MainActivity extends Activity {
 
         searchInput = new EditText(this);
         searchInput.setSingleLine(true);
-        searchInput.setHint("Digite um nick");
+        searchInput.setHint(t("search_hint"));
         searchInput.setHintTextColor(lightTheme ? Color.rgb(117, 117, 117) : Color.argb(135,255,255,255));
         searchInput.setTextColor(lightTheme ? Color.rgb(33, 33, 33) : Color.WHITE);
         searchInput.setTextSize(16);
@@ -599,7 +599,7 @@ public class MainActivity extends Activity {
         searchCard.addView(suggestionsBox, lp(-1, -2, 0, 0, 0, 10));
 
         searchBtn = new Button(this);
-        searchBtn.setText("Pesquisar");
+        searchBtn.setText(t("search_button"));
         searchBtn.setTextColor(Color.WHITE);
         searchBtn.setTextSize(16);
         searchBtn.setAllCaps(false);
@@ -633,14 +633,30 @@ public class MainActivity extends Activity {
         splash.setClickable(true);
         splash.setFocusable(true);
 
+        LinearLayout splashCenter = new LinearLayout(this);
+        splashCenter.setOrientation(LinearLayout.VERTICAL);
+        splashCenter.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams centerLp = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER);
+        splash.addView(splashCenter, centerLp);
+
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.toxic_logo_opening);
         logo.setAdjustViewBounds(true);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        logo.setPadding(dp(28), dp(28), dp(28), dp(28));
+        logo.setPadding(dp(18), dp(18), dp(18), dp(18));
+        splashCenter.addView(logo, new LinearLayout.LayoutParams(-1, dp(280)));
 
-        FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(-1, dp(210), Gravity.CENTER);
-        splash.addView(logo, logoLp);
+        TextView disclaimer1 = text(t("disclaimer1"), 12, Color.argb(210,255,255,255), false);
+        disclaimer1.setGravity(Gravity.CENTER);
+        disclaimer1.setLineSpacing(dp(2), 1f);
+        disclaimer1.setPadding(dp(26), dp(4), dp(26), 0);
+        splashCenter.addView(disclaimer1, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView disclaimer2 = text(t("disclaimer2"), 12, Color.argb(188,255,255,255), false);
+        disclaimer2.setGravity(Gravity.CENTER);
+        disclaimer2.setLineSpacing(dp(2), 1f);
+        disclaimer2.setPadding(dp(26), dp(2), dp(26), 0);
+        splashCenter.addView(disclaimer2, new LinearLayout.LayoutParams(-1, -2));
 
         screen.addView(splash, new FrameLayout.LayoutParams(-1, -1));
         splash.bringToFront();
@@ -658,18 +674,18 @@ public class MainActivity extends Activity {
 
     private void showStartState() {
         resultWrap.removeAllViews();
-        LinearLayout c = sectionCard("Pronto para buscar", 0, false);
-        c.addView(centerNote("Digite um nick do " + hotelName(currentHotelKey) + " para consultar perfil, fotos, missões anteriores, visuais, amigos, quartos e grupos."));
+        LinearLayout c = sectionCard(t("ready_search"), 0, false);
+        c.addView(centerNote(t("start_note")));
     }
 
     private void search() {
         final String nick = searchInput.getText().toString().trim();
         final String nickKey = normalizeNickKey(nick);
-        if (nickKey.isEmpty()) { hidePullRefreshIndicator(); toast("Digite um nick do Habbo."); return; }
+        if (nickKey.isEmpty()) { hidePullRefreshIndicator(); toast(t("type_nick_toast")); return; }
 
         if (searchInProgress && nickKey.equals(activeSearchNick)) {
             hidePullRefreshIndicator();
-            toast("Esse perfil já está sendo carregado.");
+            toast(t("same_profile_loading"));
             return;
         }
 
@@ -678,7 +694,7 @@ public class MainActivity extends Activity {
             long wait = PROFILE_REFRESH_COOLDOWN_MS - (now - lastSameNickRefreshAt);
             if (wait > 0) {
                 hidePullRefreshIndicator();
-                toast("Aguarde " + Math.max(1, (int)Math.ceil(wait / 1000.0)) + "s para atualizar este perfil novamente.");
+                toast(tr("wait_refresh", Math.max(1, (int)Math.ceil(wait / 1000.0))));
                 return;
             }
         }
@@ -736,7 +752,7 @@ public class MainActivity extends Activity {
                     currentLoadedNick = normalizeNickKey(r.name);
                     lastSameNickRefreshAt = System.currentTimeMillis();
                     searchBtn.setEnabled(true);
-                    searchBtn.setText("Pesquisar");
+                    searchBtn.setText(t("search_button"));
                     hidePullRefreshIndicator();
                 });
             } catch (ProfileNotFoundException e) {
@@ -1155,7 +1171,7 @@ public class MainActivity extends Activity {
         resultWrap.addView(profile, lp(-1, -2, 0, 0, 0, 18));
 
         FrameLayout avatarFrame = new FrameLayout(this);
-        avatarFrame.setBackground(round(lightTheme ? Color.rgb(246,246,248) : Color.rgb(15, 8, 25), dp(20), lightTheme ? Color.rgb(218,218,222) : Color.argb(22,255,255,255), 1));
+        avatarFrame.setBackground(round(lightTheme ? Color.rgb(252,252,252) : Color.rgb(15, 8, 25), dp(20), lightTheme ? Color.rgb(222,222,226) : Color.argb(22,255,255,255), 1));
         profile.addView(avatarFrame, lp(-1, dp(280), 0, 0, 0, 16));
         ImageView avatar = new ImageView(this);
         avatar.setAdjustViewBounds(true);
@@ -2353,7 +2369,7 @@ public class MainActivity extends Activity {
         LinearLayout c = sectionCard(null, 0, false);
         c.setPadding(dp(18), dp(18), dp(18), dp(18));
         TextView title = habboText("Nenhum perfil encontrado", 22, true); title.setGravity(Gravity.CENTER); c.addView(title, lp(-1,-2,0,0,0,8));
-        TextView body = text("Não encontrei uma conta atual com o nick " + nick + " no Habbo BR.", 14, muted, false); body.setGravity(Gravity.CENTER); body.setLineSpacing(dp(2),1f); c.addView(body, lp(-1,-2,0,0,0,14));
+        TextView body = text(tr("not_found_body", nick), 14, muted, false); body.setGravity(Gravity.CENTER); body.setLineSpacing(dp(2),1f); c.addView(body, lp(-1,-2,0,0,0,14));
         if (suggestions != null && !suggestions.isEmpty()) {
             TextView st = habboText("Esse nick parece ter sido usado antes por:", 17, true); c.addView(st, lp(-1,-2,0,0,0,10));
             for (JSONObject user : suggestions) c.addView(suggestionRow(nick, user, false));
@@ -2383,7 +2399,7 @@ public class MainActivity extends Activity {
     private void showError(String msg) { resultWrap.removeAllViews(); LinearLayout c = sectionCard("Erro", 0, false); TextView t = text(msg, 15, Color.WHITE, true); t.setGravity(Gravity.CENTER); c.addView(t); }
     private void setLoading(boolean loading, String message) {
         searchBtn.setEnabled(!loading);
-        searchBtn.setText(loading ? "Pesquisando perfil..." : "Pesquisar");
+        searchBtn.setText(loading ? t("searching_profile") : t("search_button"));
         progress.setVisibility(View.GONE);
         statusText.setText(loading ? "" : (message == null ? "" : message));
         if (loading) showLoadingSkeleton(message == null ? "Buscando perfil..." : message);
@@ -3020,11 +3036,11 @@ private int loadingProgressFor(String message) {
         wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(wrap);
 
-        TextView title = habboText("Configurações", 24, true);
+        TextView title = habboText(t("settings"), 24, true);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
 
-        TextView hotelTitle = text("Hotel de busca", 13, themeMutedColor(), true);
+        TextView hotelTitle = text(t("search_hotel"), 13, themeMutedColor(), true);
         hotelTitle.setGravity(Gravity.CENTER);
         wrap.addView(hotelTitle, lp(-1, -2, 0, 0, 0, 8));
 
@@ -3111,7 +3127,7 @@ private int loadingProgressFor(String message) {
             long wait = PROFILE_REFRESH_COOLDOWN_MS - (now - lastSameNickRefreshAt);
             if (wait > 0) {
                 hidePullRefreshIndicator();
-                toast("Aguarde " + Math.max(1, (int)Math.ceil(wait / 1000.0)) + "s para atualizar este perfil novamente.");
+                toast(tr("wait_refresh", Math.max(1, (int)Math.ceil(wait / 1000.0))));
                 return;
             }
         }
@@ -3126,7 +3142,7 @@ private int loadingProgressFor(String message) {
 
     private void showPullRefreshIndicator() {
         if (pullRefreshChip == null) return;
-        if (pullRefreshText != null) pullRefreshText.setText("Atualizando perfil...");
+        if (pullRefreshText != null) pullRefreshText.setText(t("updating_profile"));
         pullRefreshChip.setVisibility(View.VISIBLE);
         pullRefreshChip.animate().cancel();
         pullRefreshChip.setAlpha(0f);
@@ -3200,6 +3216,296 @@ private int loadingProgressFor(String message) {
         return hotelLabel(key);
     }
 
+    private String currentLang() {
+        String h = normalizeHotelKey(currentHotelKey);
+        if ("com".equals(h)) return "en";
+        if ("es".equals(h)) return "es";
+        if ("de".equals(h)) return "de";
+        if ("fr".equals(h)) return "fr";
+        if ("fi".equals(h)) return "fi";
+        if ("it".equals(h)) return "it";
+        if ("nl".equals(h)) return "nl";
+        if ("tr".equals(h)) return "tr";
+        return "pt";
+    }
+
+    private String tr(String key, Object... args) {
+        try {
+            return String.format(Locale.ROOT, t(key), args);
+        } catch (Exception ignored) {
+            return t(key);
+        }
+    }
+
+    private String t(String key) {
+        String lang = currentLang();
+
+        if ("en".equals(lang)) {
+            switch (key) {
+                case "searching": return "Searching —";
+                case "search_button": return "Search";
+                case "search_hint": return "Enter a hotel nickname to look up a profile...";
+                case "ready_search": return "Ready to search";
+                case "start_note": return "Enter a nickname from the selected hotel to look up a profile and public data.";
+                case "type_nick_toast": return "Enter a hotel nickname to search.";
+                case "same_profile_loading": return "This profile is already being loaded.";
+                case "wait_refresh": return "Wait %ss before refreshing this profile again.";
+                case "updating_profile": return "Updating profile...";
+                case "searching_profile": return "Searching profile...";
+                case "not_found_body": return "I couldn't find a current account with the nickname %s in the selected hotel.";
+                case "settings": return "Settings";
+                case "search_hotel": return "Search hotel";
+                case "hotel_changed": return "Hotel and language updated.";
+                case "adfree_title": return "Ad-free access";
+                case "adfree_msg_add": return "You still have %s without ads. Do you want to watch a video to add 30 more minutes? The maximum limit is 24 hours.";
+                case "adfree_msg_new": return "Do you want to watch a video to unlock 30 minutes without ads while searching profiles?";
+                case "time_left": return "Time left";
+                case "cancel": return "Cancel";
+                case "watch_video": return "Watch video";
+                case "cannot_show_video": return "Couldn't show the video right now.";
+                case "limit_24h": return "You already reached the 24-hour ad-free limit.";
+                case "video_loading": return "The video is still loading. Try again in a few seconds.";
+                case "adfree_granted": return "30 ad-free minutes unlocked.";
+                case "disclaimer1": return "This application is not affiliated with, endorsed, sponsored, or specifically approved by Sulake Corporation Oy or its affiliates.";
+                case "disclaimer2": return "It is only a public data lookup tool.";
+            }
+        } else if ("es".equals(lang)) {
+            switch (key) {
+                case "searching": return "Buscando —";
+                case "search_button": return "Buscar";
+                case "search_hint": return "Escribe un nick del hotel para consultar un perfil...";
+                case "ready_search": return "Listo para buscar";
+                case "start_note": return "Escribe un nick del hotel seleccionado para consultar un perfil y datos públicos.";
+                case "type_nick_toast": return "Escribe un nick del hotel para buscar.";
+                case "same_profile_loading": return "Ese perfil ya se está cargando.";
+                case "wait_refresh": return "Espera %ss para actualizar este perfil nuevamente.";
+                case "updating_profile": return "Actualizando perfil...";
+                case "searching_profile": return "Buscando perfil...";
+                case "not_found_body": return "No encontré una cuenta actual con el nick %s en el hotel seleccionado.";
+                case "settings": return "Configuración";
+                case "search_hotel": return "Hotel de búsqueda";
+                case "hotel_changed": return "Hotel e idioma actualizados.";
+                case "adfree_title": return "Acceso sin anuncios";
+                case "adfree_msg_add": return "Todavía tienes %s sin anuncios. ¿Quieres ver un vídeo para añadir 30 minutos más? El límite máximo es 24 horas.";
+                case "adfree_msg_new": return "¿Quieres ver un vídeo para desbloquear 30 minutos sin anuncios al buscar perfiles?";
+                case "time_left": return "Tiempo restante";
+                case "cancel": return "Cancelar";
+                case "watch_video": return "Ver vídeo";
+                case "cannot_show_video": return "No se pudo mostrar el vídeo ahora.";
+                case "limit_24h": return "Ya alcanzaste el límite de 24 horas sin anuncios.";
+                case "video_loading": return "El vídeo todavía se está cargando. Inténtalo de nuevo en unos segundos.";
+                case "adfree_granted": return "Se liberaron 30 minutos sin anuncios.";
+                case "disclaimer1": return "Esta aplicación no está afiliada, respaldada, patrocinada ni específicamente aprobada por Sulake Corporation Oy o sus afiliadas.";
+                case "disclaimer2": return "Solo es una herramienta de consulta de datos públicos.";
+            }
+        } else if ("de".equals(lang)) {
+            switch (key) {
+                case "searching": return "Suche —";
+                case "search_button": return "Suchen";
+                case "search_hint": return "Gib einen Hotel-Namen ein, um ein Profil aufzurufen...";
+                case "ready_search": return "Bereit zur Suche";
+                case "start_note": return "Gib einen Nickname des ausgewählten Hotels ein, um ein Profil und öffentliche Daten aufzurufen.";
+                case "type_nick_toast": return "Gib einen Hotel-Nickname ein, um zu suchen.";
+                case "same_profile_loading": return "Dieses Profil wird bereits geladen.";
+                case "wait_refresh": return "Warte %ss, um dieses Profil erneut zu aktualisieren.";
+                case "updating_profile": return "Profil wird aktualisiert...";
+                case "searching_profile": return "Profil wird gesucht...";
+                case "not_found_body": return "Ich konnte im ausgewählten Hotel kein aktuelles Konto mit dem Nickname %s finden.";
+                case "settings": return "Einstellungen";
+                case "search_hotel": return "Suchhotel";
+                case "hotel_changed": return "Hotel und Sprache aktualisiert.";
+                case "adfree_title": return "Werbefreier Zugriff";
+                case "adfree_msg_add": return "Du hast noch %s ohne Werbung. Möchtest du ein Video ansehen, um weitere 30 Minuten hinzuzufügen? Das Maximum beträgt 24 Stunden.";
+                case "adfree_msg_new": return "Möchtest du ein Video ansehen, um 30 Minuten ohne Werbung bei der Profilsuche freizuschalten?";
+                case "time_left": return "Verbleibende Zeit";
+                case "cancel": return "Abbrechen";
+                case "watch_video": return "Video ansehen";
+                case "cannot_show_video": return "Das Video konnte jetzt nicht angezeigt werden.";
+                case "limit_24h": return "Du hast bereits das werbefreie Limit von 24 Stunden erreicht.";
+                case "video_loading": return "Das Video wird noch geladen. Versuche es in einigen Sekunden erneut.";
+                case "adfree_granted": return "30 Minuten ohne Werbung freigeschaltet.";
+                case "disclaimer1": return "Diese Anwendung ist weder mit Sulake Corporation Oy oder ihren verbundenen Unternehmen verbunden noch von ihnen unterstützt, gesponsert oder ausdrücklich genehmigt.";
+                case "disclaimer2": return "Sie ist nur ein Tool zur Abfrage öffentlicher Daten.";
+            }
+        } else if ("fr".equals(lang)) {
+            switch (key) {
+                case "searching": return "Recherche —";
+                case "search_button": return "Rechercher";
+                case "search_hint": return "Saisissez un pseudo de l'hôtel pour consulter un profil...";
+                case "ready_search": return "Prêt à rechercher";
+                case "start_note": return "Saisissez un pseudo de l'hôtel sélectionné pour consulter un profil et des données publiques.";
+                case "type_nick_toast": return "Saisissez un pseudo de l'hôtel pour rechercher.";
+                case "same_profile_loading": return "Ce profil est déjà en cours de chargement.";
+                case "wait_refresh": return "Attendez %ss avant d'actualiser ce profil à nouveau.";
+                case "updating_profile": return "Mise à jour du profil...";
+                case "searching_profile": return "Recherche du profil...";
+                case "not_found_body": return "Je n'ai trouvé aucun compte actuel avec le pseudo %s dans l'hôtel sélectionné.";
+                case "settings": return "Paramètres";
+                case "search_hotel": return "Hôtel de recherche";
+                case "hotel_changed": return "Hôtel et langue mis à jour.";
+                case "adfree_title": return "Accès sans publicité";
+                case "adfree_msg_add": return "Il vous reste encore %s sans publicité. Voulez-vous regarder une vidéo pour ajouter 30 minutes supplémentaires ? La limite maximale est de 24 heures.";
+                case "adfree_msg_new": return "Voulez-vous regarder une vidéo pour débloquer 30 minutes sans publicité lors de la recherche de profils ?";
+                case "time_left": return "Temps restant";
+                case "cancel": return "Annuler";
+                case "watch_video": return "Voir la vidéo";
+                case "cannot_show_video": return "Impossible d'afficher la vidéo pour le moment.";
+                case "limit_24h": return "Vous avez déjà atteint la limite de 24 heures sans publicité.";
+                case "video_loading": return "La vidéo est encore en cours de chargement. Réessayez dans quelques secondes.";
+                case "adfree_granted": return "30 minutes sans publicité débloquées.";
+                case "disclaimer1": return "Cette application n'est ni affiliée, ni approuvée, ni sponsorisée, ni spécifiquement autorisée par Sulake Corporation Oy ou ses sociétés affiliées.";
+                case "disclaimer2": return "Il s'agit uniquement d'un outil de consultation de données publiques.";
+            }
+        } else if ("fi".equals(lang)) {
+            switch (key) {
+                case "searching": return "Haetaan —";
+                case "search_button": return "Hae";
+                case "search_hint": return "Kirjoita hotellin nimi tarkistaaksesi profiilin...";
+                case "ready_search": return "Valmis hakuun";
+                case "start_note": return "Kirjoita valitun hotellin nimimerkki tarkistaaksesi profiilin ja julkiset tiedot.";
+                case "type_nick_toast": return "Kirjoita hotellin nimimerkki hakeaksesi.";
+                case "same_profile_loading": return "Tätä profiilia ladataan jo.";
+                case "wait_refresh": return "Odota %ss ennen kuin päivität tämän profiilin uudelleen.";
+                case "updating_profile": return "Päivitetään profiilia...";
+                case "searching_profile": return "Haetaan profiilia...";
+                case "not_found_body": return "En löytänyt nykyistä tiliä nimimerkillä %s valitusta hotellista.";
+                case "settings": return "Asetukset";
+                case "search_hotel": return "Hakuhotelli";
+                case "hotel_changed": return "Hotelli ja kieli päivitetty.";
+                case "adfree_title": return "Mainokseton käyttö";
+                case "adfree_msg_add": return "Sinulla on vielä %s ilman mainoksia. Haluatko katsoa videon lisätäksesi vielä 30 minuuttia? Enimmäisraja on 24 tuntia.";
+                case "adfree_msg_new": return "Haluatko katsoa videon avataksesi 30 minuuttia ilman mainoksia profiileja haettaessa?";
+                case "time_left": return "Aikaa jäljellä";
+                case "cancel": return "Peruuta";
+                case "watch_video": return "Katso video";
+                case "cannot_show_video": return "Videota ei voitu näyttää juuri nyt.";
+                case "limit_24h": return "Olet jo saavuttanut 24 tunnin mainoksettoman rajan.";
+                case "video_loading": return "Video latautuu vielä. Yritä uudelleen muutaman sekunnin kuluttua.";
+                case "adfree_granted": return "30 minuuttia ilman mainoksia avattu.";
+                case "disclaimer1": return "Tämä sovellus ei ole Sulake Corporation Oy:n tai sen tytäryhtiöiden kanssa sidoksissa eikä niiden hyväksymä, sponsoroima tai erityisesti hyväksymä.";
+                case "disclaimer2": return "Se on vain julkisten tietojen hakutyökalu.";
+            }
+        } else if ("it".equals(lang)) {
+            switch (key) {
+                case "searching": return "Ricerca —";
+                case "search_button": return "Cerca";
+                case "search_hint": return "Inserisci un nick dell'hotel per consultare un profilo...";
+                case "ready_search": return "Pronto per cercare";
+                case "start_note": return "Inserisci un nick dell'hotel selezionato per consultare un profilo e dati pubblici.";
+                case "type_nick_toast": return "Inserisci un nick dell'hotel per cercare.";
+                case "same_profile_loading": return "Questo profilo è già in caricamento.";
+                case "wait_refresh": return "Attendi %ss prima di aggiornare di nuovo questo profilo.";
+                case "updating_profile": return "Aggiornamento profilo...";
+                case "searching_profile": return "Ricerca profilo...";
+                case "not_found_body": return "Non ho trovato un account attuale con il nick %s nell'hotel selezionato.";
+                case "settings": return "Impostazioni";
+                case "search_hotel": return "Hotel di ricerca";
+                case "hotel_changed": return "Hotel e lingua aggiornati.";
+                case "adfree_title": return "Accesso senza annunci";
+                case "adfree_msg_add": return "Hai ancora %s senza annunci. Vuoi guardare un video per aggiungere altri 30 minuti? Il limite massimo è di 24 ore.";
+                case "adfree_msg_new": return "Vuoi guardare un video per sbloccare 30 minuti senza annunci durante la ricerca dei profili?";
+                case "time_left": return "Tempo restante";
+                case "cancel": return "Annulla";
+                case "watch_video": return "Guarda video";
+                case "cannot_show_video": return "Non è stato possibile mostrare il video in questo momento.";
+                case "limit_24h": return "Hai già raggiunto il limite di 24 ore senza annunci.";
+                case "video_loading": return "Il video si sta ancora caricando. Riprova tra qualche secondo.";
+                case "adfree_granted": return "30 minuti senza annunci sbloccati.";
+                case "disclaimer1": return "Questa applicazione non è affiliata, approvata, sponsorizzata o specificamente approvata da Sulake Corporation Oy o dalle sue affiliate.";
+                case "disclaimer2": return "È solo uno strumento di consultazione di dati pubblici.";
+            }
+        } else if ("nl".equals(lang)) {
+            switch (key) {
+                case "searching": return "Zoeken —";
+                case "search_button": return "Zoeken";
+                case "search_hint": return "Voer een hotelnaam in om een profiel te bekijken...";
+                case "ready_search": return "Klaar om te zoeken";
+                case "start_note": return "Voer een bijnaam van het geselecteerde hotel in om een profiel en openbare gegevens te bekijken.";
+                case "type_nick_toast": return "Voer een hotelbijnaam in om te zoeken.";
+                case "same_profile_loading": return "Dit profiel wordt al geladen.";
+                case "wait_refresh": return "Wacht %ss voordat je dit profiel opnieuw ververst.";
+                case "updating_profile": return "Profiel bijwerken...";
+                case "searching_profile": return "Profiel zoeken...";
+                case "not_found_body": return "Ik kon geen actueel account vinden met de bijnaam %s in het geselecteerde hotel.";
+                case "settings": return "Instellingen";
+                case "search_hotel": return "Zoekhotel";
+                case "hotel_changed": return "Hotel en taal bijgewerkt.";
+                case "adfree_title": return "Advertentievrije toegang";
+                case "adfree_msg_add": return "Je hebt nog %s zonder advertenties. Wil je een video bekijken om nog 30 minuten toe te voegen? De maximale limiet is 24 uur.";
+                case "adfree_msg_new": return "Wil je een video bekijken om 30 minuten zonder advertenties vrij te schakelen tijdens het zoeken naar profielen?";
+                case "time_left": return "Resterende tijd";
+                case "cancel": return "Annuleren";
+                case "watch_video": return "Video bekijken";
+                case "cannot_show_video": return "De video kon nu niet worden weergegeven.";
+                case "limit_24h": return "Je hebt de advertentievrije limiet van 24 uur al bereikt.";
+                case "video_loading": return "De video wordt nog geladen. Probeer het over een paar seconden opnieuw.";
+                case "adfree_granted": return "30 minuten zonder advertenties ontgrendeld.";
+                case "disclaimer1": return "Deze applicatie is niet verbonden met, onderschreven door, gesponsord door of specifiek goedgekeurd door Sulake Corporation Oy of haar gelieerde ondernemingen.";
+                case "disclaimer2": return "Het is slechts een hulpmiddel voor het raadplegen van openbare gegevens.";
+            }
+        } else if ("tr".equals(lang)) {
+            switch (key) {
+                case "searching": return "Aranıyor —";
+                case "search_button": return "Ara";
+                case "search_hint": return "Bir profili görüntülemek için otel takma adını girin...";
+                case "ready_search": return "Aramaya hazır";
+                case "start_note": return "Bir profil ve herkese açık verileri görüntülemek için seçili otelin takma adını girin.";
+                case "type_nick_toast": return "Aramak için bir otel takma adı girin.";
+                case "same_profile_loading": return "Bu profil zaten yükleniyor.";
+                case "wait_refresh": return "Bu profili tekrar yenilemek için %ss bekleyin.";
+                case "updating_profile": return "Profil güncelleniyor...";
+                case "searching_profile": return "Profil aranıyor...";
+                case "not_found_body": return "Seçili otelde %s takma adına sahip güncel bir hesap bulamadım.";
+                case "settings": return "Ayarlar";
+                case "search_hotel": return "Arama oteli";
+                case "hotel_changed": return "Otel ve dil güncellendi.";
+                case "adfree_title": return "Reklamsız erişim";
+                case "adfree_msg_add": return "Hâlâ reklamsız %s süreniz var. 30 dakika daha eklemek için bir video izlemek ister misiniz? Maksimum sınır 24 saattir.";
+                case "adfree_msg_new": return "Profil ararken 30 dakika reklamsız kullanım açmak için bir video izlemek ister misiniz?";
+                case "time_left": return "Kalan süre";
+                case "cancel": return "İptal";
+                case "watch_video": return "Videoyu izle";
+                case "cannot_show_video": return "Video şu anda gösterilemedi.";
+                case "limit_24h": return "24 saatlik reklamsız sınırına zaten ulaştınız.";
+                case "video_loading": return "Video hâlâ yükleniyor. Birkaç saniye sonra tekrar deneyin.";
+                case "adfree_granted": return "30 dakika reklamsız kullanım açıldı.";
+                case "disclaimer1": return "Bu uygulama Sulake Corporation Oy veya bağlı kuruluşlarıyla ilişkili değildir; onlar tarafından onaylanmaz, desteklenmez veya özellikle onaylanmış değildir.";
+                case "disclaimer2": return "Yalnızca herkese açık verileri sorgulamak için kullanılan bir araçtır.";
+            }
+        }
+
+        switch (key) {
+            case "searching": return "Buscando —";
+            case "search_button": return "Pesquisar";
+            case "search_hint": return "Digite um nick do hotel para consultar perfil...";
+            case "ready_search": return "Pronto para buscar";
+            case "start_note": return "Digite um nick do hotel selecionado para consultar um perfil e dados públicos.";
+            case "type_nick_toast": return "Digite um nick do hotel para consultar perfil...";
+            case "same_profile_loading": return "Esse perfil já está sendo carregado.";
+            case "wait_refresh": return "Aguarde %ss para atualizar este perfil novamente.";
+            case "updating_profile": return "Atualizando perfil...";
+            case "searching_profile": return "Pesquisando perfil...";
+            case "not_found_body": return "Não encontrei uma conta atual com o nick %s no hotel selecionado.";
+            case "settings": return "Configurações";
+            case "search_hotel": return "Hotel de busca";
+            case "hotel_changed": return "Hotel e idioma atualizados.";
+            case "adfree_title": return "Acesso sem anúncios";
+            case "adfree_msg_add": return "Você ainda tem %s sem anúncios. Deseja assistir um vídeo para adicionar mais 30 minutos? O limite máximo é 24 horas.";
+            case "adfree_msg_new": return "Deseja assistir um vídeo para liberar 30 minutos sem anúncios ao pesquisar perfis?";
+            case "time_left": return "Tempo restante";
+            case "cancel": return "Cancelar";
+            case "watch_video": return "Assistir vídeo";
+            case "cannot_show_video": return "Não foi possível exibir o vídeo agora.";
+            case "limit_24h": return "Você já atingiu o limite de 24 horas sem anúncios.";
+            case "video_loading": return "O vídeo ainda está carregando. Tente novamente em alguns segundos.";
+            case "adfree_granted": return "30 minutos sem anúncios liberados.";
+            case "disclaimer1": return "Este aplicativo não é afiliado, endossado, patrocinado ou especificamente aprovado pela Sulake Corporation Oy ou suas afiliadas.";
+            case "disclaimer2": return "Ele é apenas uma ferramenta de consulta de dados públicos.";
+        }
+        return key;
+    }
+
+
     private String habboApiUrl(String path) {
         if (path == null) path = "";
         if (!path.startsWith("/")) path = "/" + path;
@@ -3253,7 +3559,7 @@ private int loadingProgressFor(String message) {
             activeRenderedProfile = null;
             resultWrap.removeAllViews();
             rebuildUiPreservingProfile();
-            toast("Hotel alterado para " + hotelLabel(currentHotelKey));
+            toast(t("hotel_changed"));
         });
     }
 
