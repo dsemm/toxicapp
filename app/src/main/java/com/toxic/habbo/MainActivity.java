@@ -554,7 +554,7 @@ public class MainActivity extends Activity {
         topLogo.setAdjustViewBounds(true);
         topLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         topLogo.setImageResource(R.drawable.toxic_top_logo);
-        root.addView(topLogo, lp(-1, dp(132), 12, -14, 12, 0));
+        root.addView(topLogo, lp(-1, dp(92), 44, -8, 44, 0));
 
         LinearLayout subtitleRow = new LinearLayout(this);
         subtitleRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -723,7 +723,7 @@ public class MainActivity extends Activity {
         pushCurrentProfileToHistory(nickKey);
 
         resultWrap.removeAllViews();
-        setLoading(true, "Buscando " + nick + "...");
+        setLoading(true, t("searching_profile") + " " + nick + "...");
         maybeShowProfileInterstitial();
 
         executor.execute(() -> {
@@ -738,7 +738,7 @@ public class MainActivity extends Activity {
 
                 runOnUiThread(() -> {
                     if (!isActiveToken(token)) return;
-                    showInlineLoading("Carregando detalhes do perfil...");
+                    showInlineLoading(t("loading_details"));
                     renderProfile(r);
                 });
 
@@ -875,7 +875,7 @@ public class MainActivity extends Activity {
         saveProfileCache(r, activeSearchNick);
         runOnUiThread(() -> {
             if (!isActiveToken(token)) return;
-            showInlineLoading("Carregando histórico...");
+            showInlineLoading(t("loading_history"));
             renderProfile(r);
         });
 
@@ -887,7 +887,7 @@ public class MainActivity extends Activity {
         saveProfileCache(r, activeSearchNick);
         runOnUiThread(() -> {
             if (!isActiveToken(token)) return;
-            showInlineLoading("Carregando visuais e amigos...");
+            showInlineLoading(t("loading_styles_friends"));
             renderProfile(r);
         });
 
@@ -914,7 +914,7 @@ public class MainActivity extends Activity {
         saveProfileCache(r, activeSearchNick);
         runOnUiThread(() -> {
             if (!isActiveToken(token)) return;
-            showInlineLoading("Carregando quartos e grupos...");
+            showInlineLoading(t("loading_rooms_groups"));
             renderProfile(r);
         });
 
@@ -1204,7 +1204,7 @@ public class MainActivity extends Activity {
         controls.addView(right);
         left.setOnClickListener(v -> { avatarDirection = normalizeDirection(avatarDirection + 1); updateProfileAvatar(); });
         right.setOnClickListener(v -> { avatarDirection = normalizeDirection(avatarDirection - 1); updateProfileAvatar(); });
-        clothes.setOnClickListener(v -> showClothesDialog(currentProfileFigure, "Visual atual"));
+        clothes.setOnClickListener(v -> showClothesDialog(currentProfileFigure, t("current_look")));
 
         TextView name = habboText(r.name, 31, true);
         name.setGravity(Gravity.CENTER);
@@ -1220,8 +1220,8 @@ public class MainActivity extends Activity {
         badges.setGravity(Gravity.CENTER);
         badges.setOrientation(LinearLayout.HORIZONTAL);
         profile.addView(badges, lp(-1, -2, 0, 0, 0, 6));
-        if (r.privateProfile) badges.addView(profileBadge("Privado", "lock", red));
-        if (r.banned) { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2); p.leftMargin=dp(8); badges.addView(profileBadge("Banido", "banned", red), p); }
+        if (r.privateProfile) badges.addView(profileBadge(t("private"), "lock", red));
+        if (r.banned) { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2); p.leftMargin=dp(8); badges.addView(profileBadge(t("banned"), "banned", red), p); }
 
         addSelectedBadges(r.selectedBadges);
         addPreviousNames(r.previousNames);
@@ -1291,15 +1291,15 @@ public class MainActivity extends Activity {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         resultWrap.addView(wrap, lp(-1, -2, 0, 0, 0, 18));
-        wrap.addView(statRow("status", "Status", r.online ? "Online" : "Offline"));
-        wrap.addView(statRow("clock", "Último login", niceDate(r.lastAccess), timeAgoText(r.lastAccess)));
-        wrap.addView(statRow("calendar", "Criação", niceDateOnly(r.memberSince), timeAgoText(r.memberSince)));
-        wrap.addView(statRow("friends", "Amigos", String.valueOf(r.friends.size())));
-        wrap.addView(statRow("rooms", "Quartos", String.valueOf(r.rooms.size())));
-        wrap.addView(statRow("groups", "Grupos", String.valueOf(r.groups.size())));
-        wrap.addView(statRow("photos", "Fotos", String.valueOf(r.photos.size())));
-        wrap.addView(statRow("star", "Estrelas", emptyDash(r.starGems)));
-        wrap.addView(statRow("level", "Level", emptyDash(r.level)));
+        wrap.addView(statRow("status", t("status"), r.online ? t("online") : t("offline")));
+        wrap.addView(statRow("clock", t("last_login"), niceDate(r.lastAccess), timeAgoText(r.lastAccess)));
+        wrap.addView(statRow("calendar", t("creation"), niceDateOnly(r.memberSince), timeAgoText(r.memberSince)));
+        wrap.addView(statRow("friends", t("friends"), String.valueOf(r.friends.size())));
+        wrap.addView(statRow("rooms", t("rooms"), String.valueOf(r.rooms.size())));
+        wrap.addView(statRow("groups", t("groups"), String.valueOf(r.groups.size())));
+        wrap.addView(statRow("photos", t("photos"), String.valueOf(r.photos.size())));
+        wrap.addView(statRow("star", t("stars"), emptyDash(r.starGems)));
+        wrap.addView(statRow("level", t("level"), emptyDash(r.level)));
     }
 
     private LinearLayout statRow(String icon, String label, String value) {
@@ -1356,7 +1356,7 @@ public class MainActivity extends Activity {
 
     private void addPreviousNames(ArrayList<JSONObject> list) {
         if (list.isEmpty()) return;
-        LinearLayout c = sectionCard("Nomes anteriores", list.size(), true);
+        LinearLayout c = sectionCard(t("previous_names"), list.size(), true);
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(true);
         sv.setScrollbarFadingEnabled(false);
@@ -1386,7 +1386,7 @@ public class MainActivity extends Activity {
         }
         if (valid.isEmpty()) return;
 
-        LinearLayout c = sectionCard("Missões anteriores", valid.size(), true);
+        LinearLayout c = sectionCard(t("previous_mottos"), valid.size(), true);
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(true);
         sv.setScrollbarFadingEnabled(false);
@@ -1444,7 +1444,7 @@ public class MainActivity extends Activity {
         if (list.isEmpty() && !profileResult.stylesHasMore && !profileResult.stylesLoading) return;
         final int loaded = list.size();
         final int totalLabel = Math.max(profileResult.stylesTotal, loaded);
-        LinearLayout c = sectionCardWithLoadMore("Visuais anteriores", loaded, totalLabel > 0 ? totalLabel : loaded, profileResult.stylesHasMore || profileResult.stylesLoading, profileResult.stylesLoading, () -> loadMoreStyles(profileResult, null));
+        LinearLayout c = sectionCardWithLoadMore(t("previous_styles"), loaded, totalLabel > 0 ? totalLabel : loaded, profileResult.stylesHasMore || profileResult.stylesLoading, profileResult.stylesLoading, () -> loadMoreStyles(profileResult, null));
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(172), 0, 0, 0, 8));
@@ -1505,7 +1505,7 @@ public class MainActivity extends Activity {
         ProgressBar clothesSpinner = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
         if (Build.VERSION.SDK_INT >= 21) clothesSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(purple));
         loadingBox.addView(clothesSpinner, new LinearLayout.LayoutParams(dp(28), dp(28)));
-        TextView loading = text("Carregando roupas...", 14, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, false);
+        TextView loading = text(t("loading_clothes"), 14, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, false);
         LinearLayout.LayoutParams ltp = new LinearLayout.LayoutParams(-2, -2);
         ltp.leftMargin = dp(10);
         loadingBox.addView(loading, ltp);
@@ -1537,7 +1537,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     clothesContainer.removeAllViews();
                     if (clothes.isEmpty()) {
-                        clothesContainer.addView(mottoItem("Nenhuma peça encontrada", ""));
+                        clothesContainer.addView(mottoItem(t("no_clothes_found"), ""));
                         return;
                     }
                     for (int i=0; i<Math.min(clothes.size(), 40); i++) {
@@ -1545,7 +1545,7 @@ public class MainActivity extends Activity {
                     }
                 });
             } catch (Exception ex) {
-                runOnUiThread(() -> loading.setText("Não foi possível carregar as peças."));
+                runOnUiThread(() -> loading.setText(t("cannot_load_clothes")));
             }
         });
     }
@@ -1798,7 +1798,7 @@ public class MainActivity extends Activity {
         if (list.isEmpty() && !profileResult.photosHasMore && !profileResult.photosLoading) return;
         final int loaded = list.size();
         final int totalLabel = Math.max(profileResult.photosTotal, loaded);
-        LinearLayout c = sectionCardWithLoadMore("Fotos do usuário", loaded, totalLabel > 0 ? totalLabel : loaded, profileResult.photosHasMore || profileResult.photosLoading, profileResult.photosLoading, () -> loadMorePhotos(profileResult, null));
+        LinearLayout c = sectionCardWithLoadMore(t("user_photos"), loaded, totalLabel > 0 ? totalLabel : loaded, profileResult.photosHasMore || profileResult.photosLoading, profileResult.photosLoading, () -> loadMorePhotos(profileResult, null));
         HorizontalScrollView hsv = new HorizontalScrollView(this); hsv.setHorizontalScrollBarEnabled(false);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); hsv.addView(row);
         c.addView(hsv, lp(-1, dp(165), 0, 0, 0, 0));
@@ -1880,7 +1880,7 @@ public class MainActivity extends Activity {
         infoGrid.addView(photoInfoCard("Data", getPhotoTimestamp(photo), "", ""));
         if (!room.isEmpty()) infoGrid.addView(photoInfoCard("Quarto", room, "", ""));
         if (!ownerName.isEmpty()) {
-            LinearLayout ownerCard = photoInfoCard("Dono", ownerName, ownerFigure, ownerName);
+            LinearLayout ownerCard = photoInfoCard(t("owner"), ownerName, ownerFigure, ownerName);
             ownerCard.setOnClickListener(v -> {
                 dialog.dismiss();
                 searchInput.setText(ownerName);
@@ -1891,7 +1891,7 @@ public class MainActivity extends Activity {
         infoGrid.addView(photoInfoCard("Curtidas", String.valueOf(likers.size()), "", ""));
 
         if (!likers.isEmpty()) {
-            TextView likesTitle = habboText("Quem curtiu", 17, true);
+            TextView likesTitle = habboText(t("liked_by"), 17, true);
             likesTitle.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
             wrap.addView(likesTitle, lp(-1, -2, 0, 0, 0, 8));
 
@@ -2194,7 +2194,7 @@ public class MainActivity extends Activity {
 
     private void addGroups(ArrayList<JSONObject> list) {
         if (list.isEmpty()) return;
-        LinearLayout c = sectionCard("Grupos", list.size(), true);
+        LinearLayout c = sectionCard(t("groups"), list.size(), true);
 
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(true);
@@ -2731,26 +2731,19 @@ private int loadingProgressFor(String message) {
     }
 
     private String niceDate(String in) {
+        if (in == null || in.trim().isEmpty() || "null".equalsIgnoreCase(in.trim())) return "—";
         Date d = parseHabboDate(in);
-        if (d == null) {
-            if (in == null || in.trim().isEmpty()) return "—";
-            return in.trim().replace('T',' ').replace("Z", "");
-        }
-        SimpleDateFormat out = new SimpleDateFormat("dd/MM/yyyy, HH:mm", new Locale("pt", "BR"));
-        out.setTimeZone(TimeZone.getTimeZone("America/Sao_Paulo"));
-        return out.format(d);
+        if (d == null) return in;
+        String pattern = "com".equals(normalizeHotelKey(currentHotelKey)) ? "MM/dd/yyyy HH:mm" : "dd/MM/yyyy HH:mm";
+        return new SimpleDateFormat(pattern, Locale.ROOT).format(d);
     }
 
     private String niceDateOnly(String in) {
+        if (in == null || in.trim().isEmpty() || "null".equalsIgnoreCase(in.trim())) return "—";
         Date d = parseHabboDate(in);
-        if (d == null) {
-            if (in == null || in.trim().isEmpty()) return "—";
-            String clean = in.trim().replace('T',' ').replace("Z", "");
-            return clean.length() >= 10 ? clean.substring(0, 10) : clean;
-        }
-        SimpleDateFormat out = new SimpleDateFormat("dd/MM/yyyy", new Locale("pt", "BR"));
-        out.setTimeZone(TimeZone.getTimeZone("America/Sao_Paulo"));
-        return out.format(d);
+        if (d == null) return in;
+        String pattern = "com".equals(normalizeHotelKey(currentHotelKey)) ? "MM/dd/yyyy" : "dd/MM/yyyy";
+        return new SimpleDateFormat(pattern, Locale.ROOT).format(d);
     }
 
     private String timeAgoText(String in) {
@@ -3275,6 +3268,47 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "30 ad-free minutes unlocked.";
                 case "disclaimer1": return "This application is not affiliated with, endorsed, sponsored, or specifically approved by Sulake Corporation Oy or its affiliates.";
                 case "disclaimer2": return "It is only a public data lookup tool.";
+                case "private": return "Private";
+                case "banned": return "Banned";
+                case "status": return "Status";
+                case "online": return "Online";
+                case "offline": return "Offline";
+                case "last_login": return "Last login";
+                case "creation": return "Created";
+                case "friends": return "Friends";
+                case "rooms": return "Rooms";
+                case "groups": return "Groups";
+                case "photos": return "Photos";
+                case "stars": return "Stars";
+                case "level": return "Level";
+                case "previous_names": return "Previous names";
+                case "previous_mottos": return "Previous mottos";
+                case "previous_styles": return "Previous looks";
+                case "user_photos": return "User photos";
+                case "selected_badges": return "Selected badges";
+                case "profile_history": return "Profile history";
+                case "no_history": return "No profiles opened yet.";
+                case "clear_history": return "Clear history";
+                case "history_cleared": return "History cleared.";
+                case "loading_details": return "Loading profile details...";
+                case "loading_history": return "Loading history...";
+                case "loading_styles_friends": return "Loading looks and friends...";
+                case "loading_rooms_groups": return "Loading rooms and groups...";
+                case "loading_clothes": return "Loading clothing...";
+                case "cannot_load_clothes": return "Couldn't load the items.";
+                case "no_clothes_found": return "No items found";
+                case "current_look": return "Current look";
+                case "liked_by": return "Liked by";
+                case "no_description": return "No description.";
+                case "name": return "Name";
+                case "description": return "Description";
+                case "created": return "Created";
+                case "code": return "Code";
+                case "owner": return "Owner";
+                case "room": return "Room";
+                case "date": return "Date";
+                case "likes": return "Likes";
+
             }
         } else if ("es".equals(lang)) {
             switch (key) {
@@ -3305,6 +3339,47 @@ private int loadingProgressFor(String message) {
                 case "disclaimer1": return "Esta aplicación no está afiliada, respaldada, patrocinada ni específicamente aprobada por Sulake Corporation Oy o sus afiliadas.";
                 case "disclaimer2": return "Solo es una herramienta de consulta de datos públicos.";
             }
+            case "private": return "Privado";
+            case "banned": return "Banido";
+            case "status": return "Status";
+            case "online": return "Online";
+            case "offline": return "Offline";
+            case "last_login": return "Último login";
+            case "creation": return "Criação";
+            case "friends": return "Amigos";
+            case "rooms": return "Quartos";
+            case "groups": return "Grupos";
+            case "photos": return "Fotos";
+            case "stars": return "Estrelas";
+            case "level": return "Level";
+            case "previous_names": return "Nomes anteriores";
+            case "previous_mottos": return "Missões anteriores";
+            case "previous_styles": return "Visuais anteriores";
+            case "user_photos": return "Fotos do usuário";
+            case "selected_badges": return "Emblemas selecionados";
+            case "profile_history": return "Histórico de perfis";
+            case "no_history": return "Nenhum perfil aberto ainda.";
+            case "clear_history": return "Limpar histórico";
+            case "history_cleared": return "Histórico limpo.";
+            case "loading_details": return "Carregando detalhes do perfil...";
+            case "loading_history": return "Carregando histórico...";
+            case "loading_styles_friends": return "Carregando visuais e amigos...";
+            case "loading_rooms_groups": return "Carregando quartos e grupos...";
+            case "loading_clothes": return "Carregando roupas...";
+            case "cannot_load_clothes": return "Não foi possível carregar as peças.";
+            case "no_clothes_found": return "Nenhuma peça encontrada";
+            case "current_look": return "Visual atual";
+            case "liked_by": return "Quem curtiu";
+            case "no_description": return "Sem descrição.";
+            case "name": return "Nome";
+            case "description": return "Descrição";
+            case "created": return "Criado";
+            case "code": return "Código";
+            case "owner": return "Dono";
+            case "room": return "Quarto";
+            case "date": return "Data";
+            case "likes": return "Curtidas";
+
         } else if ("de".equals(lang)) {
             switch (key) {
                 case "searching": return "Suche —";
@@ -3592,7 +3667,7 @@ private int loadingProgressFor(String message) {
         wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
         dialog.setContentView(wrap);
 
-        TextView title = habboText("Histórico de perfis", 22, true);
+        TextView title = habboText(t("profile_history"), 22, true);
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
 
@@ -3606,21 +3681,21 @@ private int loadingProgressFor(String message) {
         wrap.addView(sv, lp(-1, dp(360), 0, 0, 0, 14));
 
         if (openedProfilesHistory.isEmpty()) {
-            list.addView(centerNote("Nenhum perfil aberto ainda."));
+            list.addView(centerNote(t("no_history")));
         } else {
             for (ProfileHistoryItem item : new ArrayList<>(openedProfilesHistory)) {
                 list.addView(openedProfileHistoryRow(item, dialog));
             }
         }
 
-        TextView clear = dialogButton("Limpar histórico");
+        TextView clear = dialogButton(t("clear_history"));
         clear.setBackground(grad(dp(14), Color.rgb(120, 36, 46), Color.rgb(210, 54, 77)));
         wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 0));
         clear.setOnClickListener(v -> {
             openedProfilesHistory.clear();
             saveOpenedProfilesHistory();
             dialog.dismiss();
-            toast("Histórico limpo.");
+            toast(t("history_cleared"));
         });
 
         dialog.show();
@@ -3692,7 +3767,7 @@ private int loadingProgressFor(String message) {
         String name = firstText(badge, "name", "title");
         if (name.isEmpty()) name = code;
         String desc = firstText(badge, "description", "desc");
-        if (desc.isEmpty()) desc = "Sem descrição.";
+        if (desc.isEmpty()) desc = t("no_description");
         String created = firstText(badge, "creationTime", "createdAt", "date");
 
         final Dialog dialog = new Dialog(this);
@@ -3712,10 +3787,10 @@ private int loadingProgressFor(String message) {
         LinearLayout infoGrid = new LinearLayout(this);
         infoGrid.setOrientation(LinearLayout.VERTICAL);
         wrap.addView(infoGrid, lp(-1, -2, 0, 0, 0, 0));
-        infoGrid.addView(photoInfoCard("Nome", name, "", ""));
-        infoGrid.addView(photoInfoCard("Descrição", desc, "", ""));
-        infoGrid.addView(photoInfoCard("Criado", created.isEmpty() ? "—" : niceDateOnly(created), "", ""));
-        infoGrid.addView(photoInfoCard("Código", code, "", ""));
+        infoGrid.addView(photoInfoCard(t("name"), name, "", ""));
+        infoGrid.addView(photoInfoCard(t("description"), desc, "", ""));
+        infoGrid.addView(photoInfoCard(t("created"), created.isEmpty() ? "—" : niceDateOnly(created), "", ""));
+        infoGrid.addView(photoInfoCard(t("code"), code, "", ""));
 
         dialog.show();
         Window shownWindow = dialog.getWindow();
