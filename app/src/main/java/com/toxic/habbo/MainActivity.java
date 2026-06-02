@@ -554,7 +554,7 @@ public class MainActivity extends Activity {
         topLogo.setAdjustViewBounds(true);
         topLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         topLogo.setImageResource(R.drawable.toxic_logo_opening);
-        root.addView(topLogo, lp(-1, dp(110), 24, 0, 24, 2));
+        root.addView(topLogo, lp(-1, dp(118), 24, -8, 24, 0));
 
         LinearLayout subtitleRow = new LinearLayout(this);
         subtitleRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -643,20 +643,27 @@ public class MainActivity extends Activity {
         logo.setImageResource(R.drawable.toxic_logo_opening);
         logo.setAdjustViewBounds(true);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        logo.setPadding(dp(18), dp(18), dp(18), dp(18));
-        splashCenter.addView(logo, new LinearLayout.LayoutParams(-1, dp(280)));
+        logo.setPadding(dp(8), dp(8), dp(8), dp(8));
+        splashCenter.addView(logo, new LinearLayout.LayoutParams(-1, dp(320)));
+
+        LinearLayout disclaimerWrap = new LinearLayout(this);
+        disclaimerWrap.setOrientation(LinearLayout.VERTICAL);
+        disclaimerWrap.setGravity(Gravity.CENTER_HORIZONTAL);
+        FrameLayout.LayoutParams disclaimerLp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        disclaimerLp.bottomMargin = dp(24);
+        splash.addView(disclaimerWrap, disclaimerLp);
 
         TextView disclaimer1 = text(t("disclaimer1"), 12, Color.argb(210,255,255,255), false);
         disclaimer1.setGravity(Gravity.CENTER);
         disclaimer1.setLineSpacing(dp(2), 1f);
         disclaimer1.setPadding(dp(26), dp(4), dp(26), 0);
-        splashCenter.addView(disclaimer1, new LinearLayout.LayoutParams(-1, -2));
+        disclaimerWrap.addView(disclaimer1, new LinearLayout.LayoutParams(-1, -2));
 
         TextView disclaimer2 = text(t("disclaimer2"), 12, Color.argb(188,255,255,255), false);
         disclaimer2.setGravity(Gravity.CENTER);
         disclaimer2.setLineSpacing(dp(2), 1f);
         disclaimer2.setPadding(dp(26), dp(2), dp(26), 0);
-        splashCenter.addView(disclaimer2, new LinearLayout.LayoutParams(-1, -2));
+        disclaimerWrap.addView(disclaimer2, new LinearLayout.LayoutParams(-1, -2));
 
         screen.addView(splash, new FrameLayout.LayoutParams(-1, -1));
         splash.bringToFront();
