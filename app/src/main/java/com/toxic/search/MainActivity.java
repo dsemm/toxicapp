@@ -871,7 +871,7 @@ public class MainActivity extends Activity {
         r.motto = firstText(base, "motto", "mission");
         if (r.motto.isEmpty() && habboPublic != null) r.motto = habboPublic.optString("motto", "");
         r.online = optBoolAny(base, false, "online", "isOnline");
-        if (habboPublic != null && habboPublic.has("online")) r.online = habboPublic.optBoolean("online", r.online);
+        if (habboPublic != null && habboPublic.has("online")) r.online = r.online || habboPublic.optBoolean("online", false);
         r.privateProfile = !optBoolAny(base, true, "profileVisible", "isProfileVisible", "visible");
         if (habboPublic != null && habboPublic.has("profileVisible")) r.privateProfile = !habboPublic.optBoolean("profileVisible", true);
         r.banned = isSameProfileObject(base, habboPublic) ? false : optBoolTrue(base, "isBanned", "banned", "ban", "is_banned");
@@ -891,6 +891,7 @@ public class MainActivity extends Activity {
                 if (r.motto.isEmpty()) r.motto = firstText(dexProfile, "motto", "mission");
                 if (r.memberSince.isEmpty()) r.memberSince = firstText(dexProfile, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
                 if (r.lastAccess.isEmpty()) r.lastAccess = firstText(dexProfile, "lastAccessTime", "lastLoginTime", "lastOnline");
+                r.online = r.online || optBoolAny(dexProfile, false, "online", "isOnline");
                 if (r.level.isEmpty()) r.level = firstText(dexProfile, "currentLevel", "level");
                 if (r.starGems.isEmpty()) r.starGems = firstText(dexProfile, "starGemCount", "starGems");
                 if (r.totalBadges.isEmpty()) r.totalBadges = firstText(dexProfile, "totalBadges", "badgeCount", "badgesCount", "badgesTotal");
@@ -908,7 +909,7 @@ public class MainActivity extends Activity {
                     if (r.totalBadges.isEmpty()) r.totalBadges = firstText(user, "totalBadges", "badgeCount", "badgesCount", "badgesTotal");
                     if (r.memberSince.isEmpty()) r.memberSince = firstText(user, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
                     if (r.lastAccess.isEmpty()) r.lastAccess = firstText(user, "lastAccessTime", "lastLoginTime", "lastOnline");
-                    r.online = optBoolAny(user, r.online, "online", "isOnline");
+                    r.online = r.online || optBoolAny(user, false, "online", "isOnline");
                     r.selectedBadges = mergeLists(r.selectedBadges, extractListFromKeys(user, "selectedBadges", "badges"));
                 }
                 r.friends = mergeLists(r.friends, extractList(officialProfile, "friends"));
@@ -955,17 +956,18 @@ public class MainActivity extends Activity {
         if (badgesPage != null && badgesPage.items != null && !badgesPage.items.isEmpty()) r.selectedBadges = mergeLists(badgesPage.items, r.selectedBadges);
 
         PageResult allBadgesPage = null;
-        try { allBadgesPage = fetchBadgesPage(r.uniqueId, 1, 100, true); } catch(Exception ignored) {}
+        try { allBadgesPage = fetchAllBadges(r.uniqueId, true, 100, 25); } catch(Exception ignored) {}
         if (allBadgesPage != null) {
             r.badges = allBadgesPage.items == null ? new ArrayList<>() : allBadgesPage.items;
             if (allBadgesPage.total > 0) r.totalBadges = String.valueOf(allBadgesPage.total);
         }
         PageResult allBadgesWithAchievementsPage = null;
-        try { allBadgesWithAchievementsPage = fetchBadgesPage(r.uniqueId, 1, 100, false); } catch(Exception ignored) {}
+        try { allBadgesWithAchievementsPage = fetchAllBadges(r.uniqueId, false, 100, 25); } catch(Exception ignored) {}
         if (allBadgesWithAchievementsPage != null) {
             r.badgesWithAchievements = allBadgesWithAchievementsPage.items == null ? new ArrayList<>() : allBadgesWithAchievementsPage.items;
             if (allBadgesWithAchievementsPage.total > 0) r.totalBadges = String.valueOf(allBadgesWithAchievementsPage.total);
         }
+        enrichSelectedBadgesWithOwnership(r);
         if (!isActiveToken(token)) return;
 
         PageResult stylesPage = null;
@@ -1031,6 +1033,54 @@ public class MainActivity extends Activity {
             out.hasMore = nextPage > 0 && nextPage != out.page;
         } catch(Exception ignored) {}
         return out;
+    }
+
+    private PageResult fetchAllBadges(String uniqueId, boolean hideAchievements, int limit, int maxPages) {
+        PageResult out = new PageResult();
+        out.page = 1;
+        out.total = 0;
+        out.hasMore = false;
+        int page = 1;
+        for (int i = 0; i < Math.max(1, maxPages); i++) {
+            PageResult p = fetchBadgesPage(uniqueId, page, limit, hideAchievements);
+            if (p == null) break;
+            if (p.total > 0) out.total = Math.max(out.total, p.total);
+            if (p.items == null || p.items.isEmpty()) break;
+            out.items = mergeLists(out.items, p.items);
+            if (!p.hasMore || p.nextPage <= 0 || p.nextPage == page) break;
+            page = p.nextPage;
+        }
+        if (out.total <= 0) out.total = out.items.size();
+        return out;
+    }
+
+    private void enrichSelectedBadgesWithOwnership(ProfileResult r) {
+        if (r == null || r.selectedBadges == null || r.selectedBadges.isEmpty()) return;
+        HashMap<String, JSONObject> byCode = new HashMap<>();
+        addBadgesToLookup(byCode, r.badges);
+        addBadgesToLookup(byCode, r.badgesWithAchievements);
+        for (JSONObject selected : r.selectedBadges) {
+            if (selected == null) continue;
+            String code = firstText(selected, "code", "badgeCode");
+            if (code.isEmpty()) continue;
+            JSONObject full = byCode.get(code.toUpperCase(Locale.ROOT));
+            if (full == null) continue;
+            try {
+                if (!selected.has("totalOwners") && full.has("totalOwners")) selected.put("totalOwners", full.opt("totalOwners"));
+                if (firstText(selected, "name", "title").isEmpty() && !firstText(full, "name", "title").isEmpty()) selected.put("name", firstText(full, "name", "title"));
+                if (firstText(selected, "description", "desc").isEmpty() && !firstText(full, "description", "desc").isEmpty()) selected.put("description", firstText(full, "description", "desc"));
+                if (firstText(selected, "creationTime", "createdAt", "date").isEmpty() && !firstText(full, "creationTime", "createdAt", "date").isEmpty()) selected.put("creationTime", firstText(full, "creationTime", "createdAt", "date"));
+            } catch(Exception ignored) {}
+        }
+    }
+
+    private void addBadgesToLookup(HashMap<String, JSONObject> byCode, ArrayList<JSONObject> list) {
+        if (byCode == null || list == null) return;
+        for (JSONObject b : list) {
+            if (b == null) continue;
+            String code = firstText(b, "code", "badgeCode");
+            if (!code.isEmpty()) byCode.put(code.toUpperCase(Locale.ROOT), b);
+        }
     }
 
     private ArrayList<JSONObject> fetchAll(String uniqueId, String endpoint, String primaryKey, int limit, int maxPages) {
@@ -2361,6 +2411,7 @@ public class MainActivity extends Activity {
         if (r == null) return;
         ArrayList<JSONObject> normal = r.badges == null ? new ArrayList<>() : r.badges;
         ArrayList<JSONObject> withAchievements = r.badgesWithAchievements == null ? new ArrayList<>() : r.badgesWithAchievements;
+
         int total = 0;
         try { total = Integer.parseInt(String.valueOf(r.totalBadges)); } catch(Exception ignored) {}
         total = Math.max(total, Math.max(normal.size(), withAchievements.size()));
@@ -2370,73 +2421,85 @@ public class MainActivity extends Activity {
 
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
-        controls.setGravity(Gravity.CENTER);
-        c.addView(controls, lp(-1, dp(46), 0, 0, 0, 12));
+        controls.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        c.addView(controls, lp(-1, dp(50), 0, 0, 0, 10));
 
-        TextView hideAch = tabButton(t("hide_achievements"), true);
-        TextView showAch = tabButton(t("show_achievements"), false);
-        controls.addView(hideAch);
-        controls.addView(showAch);
+        final boolean[] showAchievements = {false};
+        final int[] page = {1};
 
-        ScrollView sv = new ScrollView(this);
-        sv.setVerticalScrollBarEnabled(true);
-        sv.setScrollbarFadingEnabled(false);
-        tintScrollBar(sv);
-        sv.setOnTouchListener((view, event) -> {
-            view.getParent().requestDisallowInterceptTouchEvent(true);
-            return false;
-        });
+        TextView achievements = habboText(t("achievements"), 16, true);
+        achievements.setGravity(Gravity.CENTER);
+        achievements.setTextColor(Color.WHITE);
+        achievements.setPadding(dp(14), 0, dp(14), 0);
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-2, dp(42));
+        ap.rightMargin = dp(8);
+        controls.addView(achievements, ap);
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        sv.addView(content, new ScrollView.LayoutParams(-1, -2));
-        c.addView(sv, lp(-1, dp(350), 0, 0, 0, 0));
+        c.addView(content, lp(-1, -2, 0, 0, 0, 0));
 
-        final boolean[] showAchievements = {false};
         Runnable[] render = new Runnable[1];
         render[0] = () -> {
-            hideAch.setBackground(showAchievements[0] ? tabBg(false) : tabBg(true));
-            hideAch.setTextColor(showAchievements[0] ? Color.argb(150,255,255,255) : Color.WHITE);
-            showAch.setBackground(showAchievements[0] ? tabBg(true) : tabBg(false));
-            showAch.setTextColor(showAchievements[0] ? Color.WHITE : Color.argb(150,255,255,255));
+            content.removeAllViews();
+
+            achievements.setBackground(showAchievements[0]
+                    ? round(Color.rgb(39, 174, 96), dp(14), Color.argb(65,255,255,255), 1)
+                    : round(Color.rgb(207, 65, 65), dp(14), Color.argb(65,255,255,255), 1));
+
             ArrayList<JSONObject> data = showAchievements[0] ? withAchievements : normal;
-            if (data.isEmpty() && showAchievements[0]) data = normal;
-            renderBadgeGrid(content, data);
+            if (data == null) data = new ArrayList<>();
+            renderBadgePage(content, data, page[0], 24);
+            renderPager(content, data.size(), 24, page, render[0]);
         };
-        hideAch.setOnClickListener(v -> { showAchievements[0] = false; render[0].run(); });
-        showAch.setOnClickListener(v -> { showAchievements[0] = true; render[0].run(); });
+
+        achievements.setOnClickListener(v -> {
+            showAchievements[0] = !showAchievements[0];
+            page[0] = 1;
+            render[0].run();
+        });
+
         render[0].run();
     }
 
-    private void renderBadgeGrid(LinearLayout content, ArrayList<JSONObject> list) {
-        content.removeAllViews();
+    private void renderBadgePage(LinearLayout content, ArrayList<JSONObject> list, int page, int per) {
         if (list == null || list.isEmpty()) {
             content.addView(centerNote(t("no_badges_found")));
             return;
         }
+
+        int start = Math.max(0, (page - 1) * per);
+        int end = Math.min(list.size(), start + per);
         int perRow = 4;
         LinearLayout row = null;
-        for (int i = 0; i < Math.min(list.size(), 100); i++) {
-            if (i % perRow == 0) {
+
+        for (int i = start; i < end; i++) {
+            if ((i - start) % perRow == 0) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setGravity(Gravity.CENTER);
-                content.addView(row, lp(-1, dp(86), 0, 0, 0, 8));
+                content.addView(row, lp(-1, dp(82), 0, 0, 0, 8));
             }
+
             JSONObject badgeObj = list.get(i);
             String code = firstText(badgeObj, "code", "badgeCode");
-            LinearLayout cell = new LinearLayout(this);
-            cell.setGravity(Gravity.CENTER);
-            cell.setPadding(dp(6), dp(6), dp(6), dp(6));
-            cell.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(22,255,255,255), dp(16), lightTheme ? Color.rgb(220,220,224) : Color.argb(30,255,255,255), 1));
+
+            FrameLayout cell = new FrameLayout(this);
+            cell.setPadding(0, 0, 0, 0);
+            cell.setBackgroundColor(Color.TRANSPARENT);
+            cell.setClickable(true);
+
             ImageView img = new ImageView(this);
             img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            cell.addView(img, new LinearLayout.LayoutParams(dp(58), dp(58)));
+            img.setPadding(dp(8), dp(8), dp(8), dp(8));
+            cell.addView(img, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
             if (!code.isEmpty()) loadImage(img, badgeImageUrl(code));
+
             cell.setOnClickListener(v -> showBadgeDialog(badgeObj));
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(78), 1);
-            cp.leftMargin = dp(4);
-            cp.rightMargin = dp(4);
+
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(76), 1);
+            cp.leftMargin = dp(2);
+            cp.rightMargin = dp(2);
             if (row != null) row.addView(cell, cp);
         }
     }
@@ -3567,6 +3630,8 @@ private int loadingProgressFor(String message) {
                 case "hide_achievements": return "Hide achievements";
                 case "no_badges_found": return "No badges found.";
                 case "obtained": return "Obtained";
+                case "achievements": return "Achievements";
+                case "total_owners": return "Owners";
             }
         }
         else if ("es".equals(lang)) {
@@ -3670,6 +3735,8 @@ private int loadingProgressFor(String message) {
                 case "hide_achievements": return "Ocultar logros";
                 case "no_badges_found": return "No se encontraron placas.";
                 case "obtained": return "Obtenido";
+                case "achievements": return "Logros";
+                case "total_owners": return "Propietarios";
             }
         }
         else if ("de".equals(lang)) {
@@ -3773,6 +3840,8 @@ private int loadingProgressFor(String message) {
                 case "hide_achievements": return "Erfolge ausblenden";
                 case "no_badges_found": return "Keine Abzeichen gefunden.";
                 case "obtained": return "Erhalten";
+                case "achievements": return "Erfolge";
+                case "total_owners": return "Besitzer";
             }
         }
         else if ("fr".equals(lang)) {
@@ -3876,6 +3945,8 @@ private int loadingProgressFor(String message) {
                 case "hide_achievements": return "Masquer les succès";
                 case "no_badges_found": return "Aucun badge trouvé.";
                 case "obtained": return "Obtenu";
+                case "achievements": return "Succès";
+                case "total_owners": return "Propriétaires";
             }
         }
         else if ("fi".equals(lang)) {
@@ -3979,6 +4050,8 @@ private int loadingProgressFor(String message) {
                 case "hide_achievements": return "Piilota saavutukset";
                 case "no_badges_found": return "Merkkejä ei löytynyt.";
                 case "obtained": return "Saatu";
+                case "achievements": return "Saavutukset";
+                case "total_owners": return "Omistajat";
             }
         }
         else if ("it".equals(lang)) {
@@ -4082,6 +4155,8 @@ private int loadingProgressFor(String message) {
                 case "hide_achievements": return "Nascondi risultati";
                 case "no_badges_found": return "Nessun badge trovato.";
                 case "obtained": return "Ottenuto";
+                case "achievements": return "Risultati";
+                case "total_owners": return "Proprietari";
             }
         }
         else if ("nl".equals(lang)) {
@@ -4185,6 +4260,8 @@ private int loadingProgressFor(String message) {
                 case "hide_achievements": return "Prestaties verbergen";
                 case "no_badges_found": return "Geen badges gevonden.";
                 case "obtained": return "Verkregen";
+                case "achievements": return "Prestaties";
+                case "total_owners": return "Eigenaren";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4288,6 +4365,8 @@ private int loadingProgressFor(String message) {
                 case "hide_achievements": return "Başarıları gizle";
                 case "no_badges_found": return "Rozet bulunamadı.";
                 case "obtained": return "Alındı";
+                case "achievements": return "Başarılar";
+                case "total_owners": return "Sahip olanlar";
             }
         }
         switch (key) {
@@ -4390,6 +4469,8 @@ private int loadingProgressFor(String message) {
             case "hide_achievements": return "Ocultar conquistas";
             case "no_badges_found": return "Nenhum emblema encontrado.";
             case "obtained": return "Obtido";
+            case "achievements": return "Conquistas";
+            case "total_owners": return "Possuem";
         }
         return key;
     }
@@ -4575,6 +4656,7 @@ private int loadingProgressFor(String message) {
         String desc = firstText(badge, "description", "desc");
         if (desc.isEmpty()) desc = t("no_description");
         String created = firstText(badge, "creationTime", "createdAt", "date");
+        String owners = firstText(badge, "totalOwners", "owners", "ownerCount", "count");
 
         final Dialog dialog = new Dialog(this);
         LinearLayout wrap = new LinearLayout(this);
@@ -4596,6 +4678,7 @@ private int loadingProgressFor(String message) {
         infoGrid.addView(photoInfoCard(t("name"), name, "", ""));
         infoGrid.addView(photoInfoCard(t("description"), desc, "", ""));
         infoGrid.addView(photoInfoCard(t("obtained"), created.isEmpty() ? "—" : niceDateOnly(created), "", ""));
+        if (!owners.isEmpty()) infoGrid.addView(photoInfoCard(t("total_owners"), owners, "", ""));
         infoGrid.addView(photoInfoCard(t("code"), code, "", ""));
 
         dialog.show();

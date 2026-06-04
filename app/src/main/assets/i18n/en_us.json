@@ -97,5 +97,7 @@
   "show_achievements": "Show achievements",
   "hide_achievements": "Hide achievements",
   "no_badges_found": "No badges found.",
-  "obtained": "Obtained"
+  "obtained": "Obtained",
+  "achievements": "Achievements",
+  "total_owners": "Owners"
 }

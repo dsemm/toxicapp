@@ -97,5 +97,7 @@
   "show_achievements": "Mostrar logros",
   "hide_achievements": "Ocultar logros",
   "no_badges_found": "No se encontraron placas.",
-  "obtained": "Obtenido"
+  "obtained": "Obtenido",
+  "achievements": "Logros",
+  "total_owners": "Propietarios"
 }

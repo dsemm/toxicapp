@@ -97,5 +97,7 @@
   "show_achievements": "Erfolge anzeigen",
   "hide_achievements": "Erfolge ausblenden",
   "no_badges_found": "Keine Abzeichen gefunden.",
-  "obtained": "Erhalten"
+  "obtained": "Erhalten",
+  "achievements": "Erfolge",
+  "total_owners": "Besitzer"
 }

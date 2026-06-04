@@ -97,5 +97,7 @@
   "show_achievements": "Näytä saavutukset",
   "hide_achievements": "Piilota saavutukset",
   "no_badges_found": "Merkkejä ei löytynyt.",
-  "obtained": "Saatu"
+  "obtained": "Saatu",
+  "achievements": "Saavutukset",
+  "total_owners": "Omistajat"
 }

@@ -97,5 +97,7 @@
   "show_achievements": "Prestaties tonen",
   "hide_achievements": "Prestaties verbergen",
   "no_badges_found": "Geen badges gevonden.",
-  "obtained": "Verkregen"
+  "obtained": "Verkregen",
+  "achievements": "Prestaties",
+  "total_owners": "Eigenaren"
 }

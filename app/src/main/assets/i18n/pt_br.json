@@ -97,5 +97,7 @@
   "show_achievements": "Mostrar conquistas",
   "hide_achievements": "Ocultar conquistas",
   "no_badges_found": "Nenhum emblema encontrado.",
-  "obtained": "Obtido"
+  "obtained": "Obtido",
+  "achievements": "Conquistas",
+  "total_owners": "Possuem"
 }

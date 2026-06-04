@@ -97,5 +97,7 @@
   "show_achievements": "Başarıları göster",
   "hide_achievements": "Başarıları gizle",
   "no_badges_found": "Rozet bulunamadı.",
-  "obtained": "Alındı"
+  "obtained": "Alındı",
+  "achievements": "Başarılar",
+  "total_owners": "Sahip olanlar"
 }
