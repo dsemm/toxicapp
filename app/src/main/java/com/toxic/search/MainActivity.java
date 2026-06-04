@@ -1783,11 +1783,6 @@ public class MainActivity extends Activity {
                         if (!roFig.isEmpty()) photo.put("roomOwnerFigureString", roFig);
                     } catch(Exception ignored) {}
                 }
-                case "badges": return "Rozetler";
-                case "show_achievements": return "Başarıları göster";
-                case "hide_achievements": return "Başarıları gizle";
-                case "no_badges_found": return "Rozet bulunamadı.";
-                case "obtained": return "Alındı";
             }
         }
     }
@@ -3567,11 +3562,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "App cache";
                 case "tap_to_continue": return "Tap anywhere to continue";
                 case "profile": return "Profile";
-                case "badges": return "Rozetler";
-                case "show_achievements": return "Başarıları göster";
-                case "hide_achievements": return "Başarıları gizle";
-                case "no_badges_found": return "Rozet bulunamadı.";
-                case "obtained": return "Alındı";
+                case "badges": return "Badges";
+                case "show_achievements": return "Show achievements";
+                case "hide_achievements": return "Hide achievements";
+                case "no_badges_found": return "No badges found.";
+                case "obtained": return "Obtained";
             }
         }
         else if ("es".equals(lang)) {
@@ -3670,6 +3665,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "Caché de la app";
                 case "tap_to_continue": return "Toca cualquier lugar para continuar";
                 case "profile": return "Perfil";
+                case "badges": return "Placas";
+                case "show_achievements": return "Mostrar logros";
+                case "hide_achievements": return "Ocultar logros";
+                case "no_badges_found": return "No se encontraron placas.";
+                case "obtained": return "Obtenido";
             }
         }
         else if ("de".equals(lang)) {
@@ -3768,6 +3768,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "App-Cache";
                 case "tap_to_continue": return "Tippe irgendwo, um fortzufahren";
                 case "profile": return "Profil";
+                case "badges": return "Abzeichen";
+                case "show_achievements": return "Erfolge anzeigen";
+                case "hide_achievements": return "Erfolge ausblenden";
+                case "no_badges_found": return "Keine Abzeichen gefunden.";
+                case "obtained": return "Erhalten";
             }
         }
         else if ("fr".equals(lang)) {
@@ -3866,6 +3871,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "Cache de l’app";
                 case "tap_to_continue": return "Touchez n’importe où pour continuer";
                 case "profile": return "Profil";
+                case "badges": return "Badges";
+                case "show_achievements": return "Afficher les succès";
+                case "hide_achievements": return "Masquer les succès";
+                case "no_badges_found": return "Aucun badge trouvé.";
+                case "obtained": return "Obtenu";
             }
         }
         else if ("fi".equals(lang)) {
@@ -3964,6 +3974,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "Sovelluksen välimuisti";
                 case "tap_to_continue": return "Jatka napauttamalla mitä tahansa kohtaa";
                 case "profile": return "Profiili";
+                case "badges": return "Merkit";
+                case "show_achievements": return "Näytä saavutukset";
+                case "hide_achievements": return "Piilota saavutukset";
+                case "no_badges_found": return "Merkkejä ei löytynyt.";
+                case "obtained": return "Saatu";
             }
         }
         else if ("it".equals(lang)) {
@@ -4062,6 +4077,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "Cache dell’app";
                 case "tap_to_continue": return "Tocca un punto qualsiasi per continuare";
                 case "profile": return "Profilo";
+                case "badges": return "Badge";
+                case "show_achievements": return "Mostra risultati";
+                case "hide_achievements": return "Nascondi risultati";
+                case "no_badges_found": return "Nessun badge trovato.";
+                case "obtained": return "Ottenuto";
             }
         }
         else if ("nl".equals(lang)) {
@@ -4160,6 +4180,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "App-cache";
                 case "tap_to_continue": return "Tik ergens om door te gaan";
                 case "profile": return "Profiel";
+                case "badges": return "Badges";
+                case "show_achievements": return "Prestaties tonen";
+                case "hide_achievements": return "Prestaties verbergen";
+                case "no_badges_found": return "Geen badges gevonden.";
+                case "obtained": return "Verkregen";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4258,6 +4283,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "Uygulama önbelleği";
                 case "tap_to_continue": return "Devam etmek için herhangi bir yere dokunun";
                 case "profile": return "Profil";
+                case "badges": return "Rozetler";
+                case "show_achievements": return "Başarıları göster";
+                case "hide_achievements": return "Başarıları gizle";
+                case "no_badges_found": return "Rozet bulunamadı.";
+                case "obtained": return "Alındı";
             }
         }
         switch (key) {
