@@ -96,8 +96,7 @@ public class MainActivity extends Activity {
     private boolean rewardedLoading = false;
     private TextView rewardAdBtn;
     private TextView rewardAdTimeLabel;
-    private long adFreeRemainingMs = 0L;
-    private long adFreeActiveStartedAt = 0L;
+    private long adFreeUntilMs = 0L;
     private final Runnable adFreeTicker = new Runnable() {
         @Override public void run() {
             consumeAdFreeElapsed();
@@ -105,8 +104,8 @@ public class MainActivity extends Activity {
             uiHandler.postDelayed(this, 1000L);
         }
     };
-    private static final String PREF_AD_FREE_REMAINING_MS = "ad_free_remaining_ms";
-    private static final long REWARDED_AD_FREE_MS = 15L * 60L * 1000L;
+    private static final String PREF_AD_FREE_UNTIL_MS = "ad_free_until_ms";
+    private static final long REWARDED_AD_FREE_MS = 30L * 60L * 1000L;
     private static final long MAX_AD_FREE_MS = 4L * 60L * 60L * 1000L;
 
     private final int bg = Color.rgb(13, 13, 18);
@@ -151,7 +150,7 @@ public class MainActivity extends Activity {
             getWindow().getDecorView().setSystemUiVisibility(flags);
         }
         loadOpenedProfilesHistory();
-        adFreeRemainingMs = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(PREF_AD_FREE_REMAINING_MS, 0L);
+        adFreeUntilMs = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(PREF_AD_FREE_UNTIL_MS, 0L);
         buildUi();
         MobileAds.initialize(this, initializationStatus -> {});
         loadInterstitialAd();
@@ -341,9 +340,7 @@ public class MainActivity extends Activity {
     }
 
     private void showRewardedAdForAdFreeTime() {
-        consumeAdFreeElapsed();
-
-        if (adFreeRemainingMs >= MAX_AD_FREE_MS) {
+        if (getAdFreeRemainingMs() >= MAX_AD_FREE_MS) {
             toast(t("limit_24h"));
             updateRewardButtonText();
             return;
@@ -359,51 +356,50 @@ public class MainActivity extends Activity {
     }
 
     private void grantAdFreeTime(long millis) {
-        consumeAdFreeElapsed();
-        adFreeRemainingMs = Math.min(MAX_AD_FREE_MS, Math.max(0L, adFreeRemainingMs) + millis);
-        saveAdFreeRemaining();
+        long now = System.currentTimeMillis();
+        long remaining = getAdFreeRemainingMs();
+        long updatedRemaining = Math.min(MAX_AD_FREE_MS, Math.max(0L, remaining) + millis);
+        adFreeUntilMs = now + updatedRemaining;
+        saveAdFreeUntil();
         updateRewardButtonText();
         toast(t("adfree_granted"));
     }
 
     private boolean hasAdFreeAccess() {
-        consumeAdFreeElapsed();
-        return adFreeRemainingMs > 0L;
+        return getAdFreeRemainingMs() > 0L;
+    }
+
+    private long getAdFreeRemainingMs() {
+        long now = System.currentTimeMillis();
+        long remaining = Math.max(0L, adFreeUntilMs - now);
+        if (remaining <= 0L && adFreeUntilMs != 0L) {
+            adFreeUntilMs = 0L;
+            saveAdFreeUntil();
+        }
+        return remaining;
     }
 
     private void consumeAdFreeElapsed() {
-        if (adFreeRemainingMs <= 0L) {
-            adFreeRemainingMs = 0L;
-            adFreeActiveStartedAt = System.currentTimeMillis();
-            return;
-        }
+        getAdFreeRemainingMs();
+    }
 
-        long now = System.currentTimeMillis();
-        if (adFreeActiveStartedAt <= 0L) {
-            adFreeActiveStartedAt = now;
-            return;
-        }
-
-        long elapsed = Math.max(0L, now - adFreeActiveStartedAt);
-        if (elapsed > 0L) {
-            adFreeRemainingMs = Math.max(0L, adFreeRemainingMs - elapsed);
-            adFreeActiveStartedAt = now;
-        }
+    private void saveAdFreeUntil() {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putLong(PREF_AD_FREE_UNTIL_MS, Math.max(0L, adFreeUntilMs)).apply();
     }
 
     private void saveAdFreeRemaining() {
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putLong(PREF_AD_FREE_REMAINING_MS, Math.max(0L, adFreeRemainingMs)).apply();
+        saveAdFreeUntil();
     }
 
     private void updateRewardButtonText() {
         if (rewardAdBtn == null) return;
-        consumeAdFreeElapsed();
+        long remainingMs = getAdFreeRemainingMs();
 
         rewardAdBtn.setText("");
         rewardAdBtn.setTextColor(Color.WHITE);
 
         if (rewardAdTimeLabel != null) {
-            if (adFreeRemainingMs > 0L) {
+            if (remainingMs > 0L) {
                 rewardAdTimeLabel.setText(formatAdFreeRemainingShort());
                 rewardAdTimeLabel.setTextColor(lightTheme ? Color.rgb(45,45,45) : Color.WHITE);
                 rewardAdTimeLabel.setVisibility(View.VISIBLE);
@@ -415,7 +411,7 @@ public class MainActivity extends Activity {
     }
 
     private String formatAdFreeRemainingShort() {
-        long totalSeconds = Math.max(0L, adFreeRemainingMs) / 1000L;
+        long totalSeconds = Math.max(0L, getAdFreeRemainingMs()) / 1000L;
         long hours = totalSeconds / 3600L;
         long minutes = (totalSeconds % 3600L) / 60L;
         long seconds = totalSeconds % 60L;
@@ -424,7 +420,7 @@ public class MainActivity extends Activity {
     }
 
     private String formatAdFreeRemaining() {
-        long totalSeconds = Math.max(0L, adFreeRemainingMs) / 1000L;
+        long totalSeconds = Math.max(0L, getAdFreeRemainingMs()) / 1000L;
         long hours = totalSeconds / 3600L;
         long minutes = (totalSeconds % 3600L) / 60L;
         long seconds = totalSeconds % 60L;
@@ -435,22 +431,18 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        adFreeActiveStartedAt = System.currentTimeMillis();
         uiHandler.removeCallbacks(adFreeTicker);
         uiHandler.post(adFreeTicker);
     }
 
     @Override protected void onPause() {
-        consumeAdFreeElapsed();
-        saveAdFreeRemaining();
+        saveAdFreeUntil();
         uiHandler.removeCallbacks(adFreeTicker);
-        adFreeActiveStartedAt = 0L;
         super.onPause();
     }
 
     @Override protected void onDestroy() {
-        consumeAdFreeElapsed();
-        saveAdFreeRemaining();
+        saveAdFreeUntil();
         uiHandler.removeCallbacks(adFreeTicker);
         executor.shutdownNow();
         super.onDestroy();
@@ -700,27 +692,38 @@ public class MainActivity extends Activity {
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(18), dp(16), dp(18), dp(16));
-        card.setBackground(round(Color.rgb(25, 16, 38), dp(22), Color.argb(70, 255, 255, 255), 1));
+        card.setPadding(dp(20), dp(18), dp(20), dp(18));
+        card.setBackground(new TutorialCardDrawable());
 
-        TextView title = habboText(safeStep == 0 ? t("tutorial_settings_title") : (safeStep == 1 ? t("tutorial_search_title") : t("tutorial_history_title")), 21, true);
+        TextView stepChip = text((safeStep + 1) + "/3", 12, Color.WHITE, true);
+        stepChip.setGravity(Gravity.CENTER);
+        stepChip.setPadding(dp(10), dp(4), dp(10), dp(4));
+        stepChip.setBackground(grad(dp(999), purple2, purple));
+        LinearLayout.LayoutParams scp = new LinearLayout.LayoutParams(-2, dp(28));
+        scp.gravity = Gravity.CENTER_HORIZONTAL;
+        card.addView(stepChip, scp);
+
+        TextView title = habboText(safeStep == 0 ? t("tutorial_settings_title") : (safeStep == 1 ? t("tutorial_search_title") : t("tutorial_history_title")), 22, true);
         title.setTextColor(Color.WHITE);
         title.setGravity(Gravity.CENTER);
-        card.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
+        tp.setMargins(0, dp(10), 0, 0);
+        card.addView(title, tp);
 
-        TextView body = text(safeStep == 0 ? t("tutorial_settings_body") : (safeStep == 1 ? t("tutorial_search_body") : t("tutorial_history_body")), 14, Color.argb(225,255,255,255), false);
+        TextView body = text(safeStep == 0 ? t("tutorial_settings_body") : (safeStep == 1 ? t("tutorial_search_body") : t("tutorial_history_body")), 14, Color.argb(230,255,255,255), false);
         body.setGravity(Gravity.CENTER);
-        body.setLineSpacing(dp(3), 1f);
+        body.setLineSpacing(dp(4), 1f);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
-        bp.setMargins(0, dp(10), 0, dp(10));
+        bp.setMargins(0, dp(10), 0, dp(12));
         card.addView(body, bp);
 
-        TextView hint = text(t("tap_to_continue"), 12, Color.argb(180,255,255,255), false);
+        TextView hint = text(safeStep >= 2 ? t("tutorial_finish") : t("tap_to_continue"), 12, Color.argb(190,255,255,255), true);
         hint.setGravity(Gravity.CENTER);
+        hint.setPadding(0, dp(4), 0, 0);
         card.addView(hint, new LinearLayout.LayoutParams(-1, -2));
 
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        cp.setMargins(dp(18), 0, dp(18), dp(28));
+        cp.setMargins(dp(18), 0, dp(18), dp(30));
         overlay.addView(card, cp);
 
         overlay.setOnClickListener(v -> {
@@ -877,6 +880,7 @@ public class MainActivity extends Activity {
         r.lastAccess = firstText(base, "lastAccessTime", "lastLoginTime", "lastOnline", "lastVisit");
         r.level = firstText(base, "currentLevel", "level");
         r.starGems = firstText(base, "starGemCount", "starGems");
+        r.totalBadges = firstText(base, "totalBadges", "badgeCount", "badgesCount", "badgesTotal");
         r.previousNames = mergeLists(extractList(dexByName, "previousNames"), extractPreviousNamesFromSuggest(suggest, r.name));
         r.selectedBadges = extractListFromKeys(dexByName, "selectedBadges", "badges");
 
@@ -889,6 +893,7 @@ public class MainActivity extends Activity {
                 if (r.lastAccess.isEmpty()) r.lastAccess = firstText(dexProfile, "lastAccessTime", "lastLoginTime", "lastOnline");
                 if (r.level.isEmpty()) r.level = firstText(dexProfile, "currentLevel", "level");
                 if (r.starGems.isEmpty()) r.starGems = firstText(dexProfile, "starGemCount", "starGems");
+                if (r.totalBadges.isEmpty()) r.totalBadges = firstText(dexProfile, "totalBadges", "badgeCount", "badgesCount", "badgesTotal");
                 r.previousNames = mergeLists(r.previousNames, extractList(dexProfile, "previousNames"));
                 r.selectedBadges = mergeLists(r.selectedBadges, extractListFromKeys(dexProfile, "selectedBadges", "badges"));
             }
@@ -900,6 +905,7 @@ public class MainActivity extends Activity {
                 if (user != null) {
                     if (r.level.isEmpty()) r.level = firstText(user, "currentLevel", "level");
                     if (r.starGems.isEmpty()) r.starGems = firstText(user, "starGemCount", "starGems");
+                    if (r.totalBadges.isEmpty()) r.totalBadges = firstText(user, "totalBadges", "badgeCount", "badgesCount", "badgesTotal");
                     if (r.memberSince.isEmpty()) r.memberSince = firstText(user, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
                     if (r.lastAccess.isEmpty()) r.lastAccess = firstText(user, "lastAccessTime", "lastLoginTime", "lastOnline");
                     r.online = optBoolAny(user, r.online, "online", "isOnline");
@@ -947,6 +953,19 @@ public class MainActivity extends Activity {
         PageResult badgesPage = null;
         try { badgesPage = fetchPage(r.uniqueId, "selected-badges", null, 1, 20); } catch(Exception ignored) {}
         if (badgesPage != null && badgesPage.items != null && !badgesPage.items.isEmpty()) r.selectedBadges = mergeLists(badgesPage.items, r.selectedBadges);
+
+        PageResult allBadgesPage = null;
+        try { allBadgesPage = fetchBadgesPage(r.uniqueId, 1, 100, true); } catch(Exception ignored) {}
+        if (allBadgesPage != null) {
+            r.badges = allBadgesPage.items == null ? new ArrayList<>() : allBadgesPage.items;
+            if (allBadgesPage.total > 0) r.totalBadges = String.valueOf(allBadgesPage.total);
+        }
+        PageResult allBadgesWithAchievementsPage = null;
+        try { allBadgesWithAchievementsPage = fetchBadgesPage(r.uniqueId, 1, 100, false); } catch(Exception ignored) {}
+        if (allBadgesWithAchievementsPage != null) {
+            r.badgesWithAchievements = allBadgesWithAchievementsPage.items == null ? new ArrayList<>() : allBadgesWithAchievementsPage.items;
+            if (allBadgesWithAchievementsPage.total > 0) r.totalBadges = String.valueOf(allBadgesWithAchievementsPage.total);
+        }
         if (!isActiveToken(token)) return;
 
         PageResult stylesPage = null;
@@ -989,6 +1008,29 @@ public class MainActivity extends Activity {
         try { enrichPhotoRoomInfo(r); } catch(Exception ignored) {}
         putProfileCache(r, activeSearchNick);
         saveProfileCache(r, activeSearchNick);
+    }
+
+    private PageResult fetchBadgesPage(String uniqueId, int page, int limit, boolean hideAchievements) {
+        PageResult out = new PageResult();
+        out.page = Math.max(1, page);
+        try {
+            String url = habbodexEndpointUrl(uniqueId, "badges", out.page, limit) + "&hideAchievements=" + (hideAchievements ? "true" : "false");
+            JSONObject pageData = unwrap(getJson(url));
+            if (pageData == null) return out;
+            out.items = extractList(pageData, "badges");
+            if (out.items.isEmpty()) out.items = extractList(pageData, "result");
+            if (out.items.isEmpty()) out.items = extractList(pageData, null);
+            out.total = extractTotalCount(pageData);
+            JSONObject next = pageData.optJSONObject("next");
+            int nextPage = next == null ? 0 : next.optInt("page", 0);
+            if (nextPage <= 0) {
+                JSONObject pagination = pageData.optJSONObject("pagination");
+                if (pagination != null) nextPage = pagination.optInt("nextPage", 0);
+            }
+            out.nextPage = nextPage;
+            out.hasMore = nextPage > 0 && nextPage != out.page;
+        } catch(Exception ignored) {}
+        return out;
     }
 
     private ArrayList<JSONObject> fetchAll(String uniqueId, String endpoint, String primaryKey, int limit, int maxPages) {
@@ -1285,6 +1327,7 @@ public class MainActivity extends Activity {
         addFriendsTabs(r.friends, r.oldFriends);
         addRoomsTabs(r.rooms, r.oldRooms);
         addGroups(r.groups);
+        addBadgesSection(r);
     }
 
     private LinearLayout profileBadge(String label, String icon, int color) {
@@ -1353,6 +1396,7 @@ public class MainActivity extends Activity {
         wrap.addView(statRow("photos", t("photos"), String.valueOf(r.photos.size())));
         wrap.addView(statRow("star", t("stars"), emptyDash(r.starGems)));
         wrap.addView(statRow("level", t("level"), emptyDash(r.level)));
+        wrap.addView(statRow("badge", t("badges"), emptyDash(r.totalBadges)));
     }
 
     private LinearLayout statRow(String icon, String label, String value) {
@@ -1739,6 +1783,11 @@ public class MainActivity extends Activity {
                         if (!roFig.isEmpty()) photo.put("roomOwnerFigureString", roFig);
                     } catch(Exception ignored) {}
                 }
+                case "badges": return "Rozetler";
+                case "show_achievements": return "Başarıları göster";
+                case "hide_achievements": return "Başarıları gizle";
+                case "no_badges_found": return "Rozet bulunamadı.";
+                case "obtained": return "Alındı";
             }
         }
     }
@@ -2310,6 +2359,90 @@ public class MainActivity extends Activity {
 
         for (int i=0; i<Math.min(list.size(), 60); i++) {
             inner.addView(groupRow(list.get(i)));
+        }
+    }
+
+    private void addBadgesSection(ProfileResult r) {
+        if (r == null) return;
+        ArrayList<JSONObject> normal = r.badges == null ? new ArrayList<>() : r.badges;
+        ArrayList<JSONObject> withAchievements = r.badgesWithAchievements == null ? new ArrayList<>() : r.badgesWithAchievements;
+        int total = 0;
+        try { total = Integer.parseInt(String.valueOf(r.totalBadges)); } catch(Exception ignored) {}
+        total = Math.max(total, Math.max(normal.size(), withAchievements.size()));
+        if (total <= 0 && normal.isEmpty() && withAchievements.isEmpty()) return;
+
+        LinearLayout c = sectionCard(t("badges"), total, true);
+
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER);
+        c.addView(controls, lp(-1, dp(46), 0, 0, 0, 12));
+
+        TextView hideAch = tabButton(t("hide_achievements"), true);
+        TextView showAch = tabButton(t("show_achievements"), false);
+        controls.addView(hideAch);
+        controls.addView(showAch);
+
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(true);
+        sv.setScrollbarFadingEnabled(false);
+        tintScrollBar(sv);
+        sv.setOnTouchListener((view, event) -> {
+            view.getParent().requestDisallowInterceptTouchEvent(true);
+            return false;
+        });
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(content, new ScrollView.LayoutParams(-1, -2));
+        c.addView(sv, lp(-1, dp(350), 0, 0, 0, 0));
+
+        final boolean[] showAchievements = {false};
+        Runnable[] render = new Runnable[1];
+        render[0] = () -> {
+            hideAch.setBackground(showAchievements[0] ? tabBg(false) : tabBg(true));
+            hideAch.setTextColor(showAchievements[0] ? Color.argb(150,255,255,255) : Color.WHITE);
+            showAch.setBackground(showAchievements[0] ? tabBg(true) : tabBg(false));
+            showAch.setTextColor(showAchievements[0] ? Color.WHITE : Color.argb(150,255,255,255));
+            ArrayList<JSONObject> data = showAchievements[0] ? withAchievements : normal;
+            if (data.isEmpty() && showAchievements[0]) data = normal;
+            renderBadgeGrid(content, data);
+        };
+        hideAch.setOnClickListener(v -> { showAchievements[0] = false; render[0].run(); });
+        showAch.setOnClickListener(v -> { showAchievements[0] = true; render[0].run(); });
+        render[0].run();
+    }
+
+    private void renderBadgeGrid(LinearLayout content, ArrayList<JSONObject> list) {
+        content.removeAllViews();
+        if (list == null || list.isEmpty()) {
+            content.addView(centerNote(t("no_badges_found")));
+            return;
+        }
+        int perRow = 4;
+        LinearLayout row = null;
+        for (int i = 0; i < Math.min(list.size(), 100); i++) {
+            if (i % perRow == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER);
+                content.addView(row, lp(-1, dp(86), 0, 0, 0, 8));
+            }
+            JSONObject badgeObj = list.get(i);
+            String code = firstText(badgeObj, "code", "badgeCode");
+            LinearLayout cell = new LinearLayout(this);
+            cell.setGravity(Gravity.CENTER);
+            cell.setPadding(dp(6), dp(6), dp(6), dp(6));
+            cell.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(22,255,255,255), dp(16), lightTheme ? Color.rgb(220,220,224) : Color.argb(30,255,255,255), 1));
+            ImageView img = new ImageView(this);
+            img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            cell.addView(img, new LinearLayout.LayoutParams(dp(58), dp(58)));
+            if (!code.isEmpty()) loadImage(img, badgeImageUrl(code));
+            cell.setOnClickListener(v -> showBadgeDialog(badgeObj));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(78), 1);
+            cp.leftMargin = dp(4);
+            cp.rightMargin = dp(4);
+            if (row != null) row.addView(cell, cp);
         }
     }
 
@@ -3355,15 +3488,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Search hotel";
                 case "hotel_changed": return "Hotel and language updated.";
                 case "adfree_title": return "Ad-free access";
-                case "adfree_msg_add": return "You still have %s without ads. Do you want to watch a video to add 15 more minutes? The maximum limit is 4 hours.";
-                case "adfree_msg_new": return "Do you want to watch a video to unlock 15 minutes without ads while searching profiles?";
+                case "adfree_msg_add": return "You still have %s without ads. Do you want to watch a video to add 30 more minutes? The maximum limit is 4 hours.";
+                case "adfree_msg_new": return "Do you want to watch a video to unlock 30 minutes without ads while searching profiles?";
                 case "time_left": return "Time left";
                 case "cancel": return "Cancel";
                 case "watch_video": return "Watch video";
                 case "cannot_show_video": return "Couldn't show the video right now.";
                 case "limit_24h": return "You already reached the 4-hour ad-free limit.";
                 case "video_loading": return "The video is still loading. Try again in a few seconds.";
-                case "adfree_granted": return "15 ad-free minutes unlocked.";
+                case "adfree_granted": return "30 ad-free minutes unlocked.";
                 case "disclaimer1": return "This application is not affiliated with, endorsed, sponsored, or specifically approved by Sulake Corporation Oy or its affiliates.";
                 case "disclaimer2": return "It is only a public data lookup tool.";
                 case "private": return "Private";
@@ -3434,6 +3567,11 @@ private int loadingProgressFor(String message) {
                 case "app_cache": return "App cache";
                 case "tap_to_continue": return "Tap anywhere to continue";
                 case "profile": return "Profile";
+                case "badges": return "Rozetler";
+                case "show_achievements": return "Başarıları göster";
+                case "hide_achievements": return "Başarıları gizle";
+                case "no_badges_found": return "Rozet bulunamadı.";
+                case "obtained": return "Alındı";
             }
         }
         else if ("es".equals(lang)) {
@@ -3508,15 +3646,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Hotel de búsqueda";
                 case "hotel_changed": return "Hotel e idioma actualizados.";
                 case "adfree_title": return "Acceso sin anuncios";
-                case "adfree_msg_add": return "Todavía tienes %s sin anuncios. ¿Quieres ver un vídeo para añadir 15 minutos más? El límite máximo es 4 horas.";
-                case "adfree_msg_new": return "¿Quieres ver un vídeo para desbloquear 15 minutos sin anuncios al buscar perfiles?";
+                case "adfree_msg_add": return "Todavía tienes %s sin anuncios. ¿Quieres ver un vídeo para añadir 30 minutos más? El límite máximo es 4 horas.";
+                case "adfree_msg_new": return "¿Quieres ver un vídeo para desbloquear 30 minutos sin anuncios al buscar perfiles?";
                 case "time_left": return "Tiempo restante";
                 case "cancel": return "Cancelar";
                 case "watch_video": return "Ver vídeo";
                 case "cannot_show_video": return "No se pudo mostrar el vídeo ahora.";
                 case "limit_24h": return "Ya alcanzaste el límite de 4 horas sin anuncios.";
                 case "video_loading": return "El vídeo todavía se está cargando. Inténtalo de nuevo en unos segundos.";
-                case "adfree_granted": return "Se liberaron 15 minutos sin anuncios.";
+                case "adfree_granted": return "Se liberaron 30 minutos sin anuncios.";
                 case "disclaimer1": return "Esta aplicación no está afiliada, respaldada, patrocinada ni específicamente aprobada por Sulake Corporation Oy o sus afiliadas.";
                 case "disclaimer2": return "Solo es una herramienta de consulta de datos públicos.";
                 case "error_search_profile": return "Error al buscar el perfil.";
@@ -3606,15 +3744,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Suchhotel";
                 case "hotel_changed": return "Hotel und Sprache aktualisiert.";
                 case "adfree_title": return "Werbefreier Zugriff";
-                case "adfree_msg_add": return "Du hast noch %s ohne Werbung. Möchtest du ein Video ansehen, um weitere 15 Minuten hinzuzufügen? Das Maximum beträgt 4 Stunden.";
-                case "adfree_msg_new": return "Möchtest du ein Video ansehen, um 15 Minuten ohne Werbung bei der Profilsuche freizuschalten?";
+                case "adfree_msg_add": return "Du hast noch %s ohne Werbung. Möchtest du ein Video ansehen, um weitere 30 Minuten hinzuzufügen? Das Maximum beträgt 4 Stunden.";
+                case "adfree_msg_new": return "Möchtest du ein Video ansehen, um 30 Minuten ohne Werbung bei der Profilsuche freizuschalten?";
                 case "time_left": return "Verbleibende Zeit";
                 case "cancel": return "Abbrechen";
                 case "watch_video": return "Video ansehen";
                 case "cannot_show_video": return "Das Video konnte jetzt nicht angezeigt werden.";
                 case "limit_24h": return "Du hast bereits das werbefreie Limit von 4 Stunden erreicht.";
                 case "video_loading": return "Das Video wird noch geladen. Versuche es in einigen Sekunden erneut.";
-                case "adfree_granted": return "15 Minuten ohne Werbung freigeschaltet.";
+                case "adfree_granted": return "30 Minuten ohne Werbung freigeschaltet.";
                 case "disclaimer1": return "Diese Anwendung ist weder mit Sulake Corporation Oy oder ihren verbundenen Unternehmen verbunden noch von ihnen unterstützt, gesponsert oder ausdrücklich genehmigt.";
                 case "disclaimer2": return "Sie ist nur ein Tool zur Abfrage öffentlicher Daten.";
                 case "error_search_profile": return "Fehler bei der Profilsuche.";
@@ -3704,15 +3842,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Hôtel de recherche";
                 case "hotel_changed": return "Hôtel et langue mis à jour.";
                 case "adfree_title": return "Accès sans publicité";
-                case "adfree_msg_add": return "Il vous reste encore %s sans publicité. Voulez-vous regarder une vidéo pour ajouter 15 minutes supplémentaires ? La limite maximale est de 4 heures.";
-                case "adfree_msg_new": return "Voulez-vous regarder une vidéo pour débloquer 15 minutes sans publicité lors de la recherche de profils ?";
+                case "adfree_msg_add": return "Il vous reste encore %s sans publicité. Voulez-vous regarder une vidéo pour ajouter 30 minutes supplémentaires ? La limite maximale est de 4 heures.";
+                case "adfree_msg_new": return "Voulez-vous regarder une vidéo pour débloquer 30 minutes sans publicité lors de la recherche de profils ?";
                 case "time_left": return "Temps restant";
                 case "cancel": return "Annuler";
                 case "watch_video": return "Voir la vidéo";
                 case "cannot_show_video": return "Impossible d'afficher la vidéo pour le moment.";
                 case "limit_24h": return "Vous avez déjà atteint la limite de 4 heures sans publicité.";
                 case "video_loading": return "La vidéo est encore en cours de chargement. Réessayez dans quelques secondes.";
-                case "adfree_granted": return "15 minutes sans publicité débloquées.";
+                case "adfree_granted": return "30 minutes sans publicité débloquées.";
                 case "disclaimer1": return "Cette application n'est ni affiliée, ni approuvée, ni sponsorisée, ni spécifiquement autorisée par Sulake Corporation Oy ou ses sociétés affiliées.";
                 case "disclaimer2": return "Il s'agit uniquement d'un outil de consultation de données publiques.";
                 case "error_search_profile": return "Échec de la recherche du profil.";
@@ -3802,15 +3940,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Hakuhotelli";
                 case "hotel_changed": return "Hotelli ja kieli päivitetty.";
                 case "adfree_title": return "Mainokseton käyttö";
-                case "adfree_msg_add": return "Sinulla on vielä %s ilman mainoksia. Haluatko katsoa videon lisätäksesi vielä 15 minuuttia? Enimmäisraja on 4 tuntia.";
-                case "adfree_msg_new": return "Haluatko katsoa videon avataksesi 15 minuuttia ilman mainoksia profiileja haettaessa?";
+                case "adfree_msg_add": return "Sinulla on vielä %s ilman mainoksia. Haluatko katsoa videon lisätäksesi vielä 30 minuuttia? Enimmäisraja on 4 tuntia.";
+                case "adfree_msg_new": return "Haluatko katsoa videon avataksesi 30 minuuttia ilman mainoksia profiileja haettaessa?";
                 case "time_left": return "Aikaa jäljellä";
                 case "cancel": return "Peruuta";
                 case "watch_video": return "Katso video";
                 case "cannot_show_video": return "Videota ei voitu näyttää juuri nyt.";
                 case "limit_24h": return "Olet jo saavuttanut 4 tunnin mainoksettoman rajan.";
                 case "video_loading": return "Video latautuu vielä. Yritä uudelleen muutaman sekunnin kuluttua.";
-                case "adfree_granted": return "15 minuuttia ilman mainoksia avattu.";
+                case "adfree_granted": return "30 minuuttia ilman mainoksia avattu.";
                 case "disclaimer1": return "Tämä sovellus ei ole Sulake Corporation Oy:n tai sen tytäryhtiöiden kanssa sidoksissa eikä niiden hyväksymä, sponsoroima tai erityisesti hyväksymä.";
                 case "disclaimer2": return "Se on vain julkisten tietojen hakutyökalu.";
                 case "error_search_profile": return "Profiilin haku epäonnistui.";
@@ -3900,15 +4038,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Hotel di ricerca";
                 case "hotel_changed": return "Hotel e lingua aggiornati.";
                 case "adfree_title": return "Accesso senza annunci";
-                case "adfree_msg_add": return "Hai ancora %s senza annunci. Vuoi guardare un video per aggiungere altri 15 minuti? Il limite massimo è di 4 ore.";
-                case "adfree_msg_new": return "Vuoi guardare un video per sbloccare 15 minuti senza annunci durante la ricerca dei profili?";
+                case "adfree_msg_add": return "Hai ancora %s senza annunci. Vuoi guardare un video per aggiungere altri 30 minuti? Il limite massimo è di 4 ore.";
+                case "adfree_msg_new": return "Vuoi guardare un video per sbloccare 30 minuti senza annunci durante la ricerca dei profili?";
                 case "time_left": return "Tempo restante";
                 case "cancel": return "Annulla";
                 case "watch_video": return "Guarda video";
                 case "cannot_show_video": return "Non è stato possibile mostrare il video in questo momento.";
                 case "limit_24h": return "Hai già raggiunto il limite di 4 ore senza annunci.";
                 case "video_loading": return "Il video si sta ancora caricando. Riprova tra qualche secondo.";
-                case "adfree_granted": return "15 minuti senza annunci sbloccati.";
+                case "adfree_granted": return "30 minuti senza annunci sbloccati.";
                 case "disclaimer1": return "Questa applicazione non è affiliata, approvata, sponsorizzata o specificamente approvata da Sulake Corporation Oy o dalle sue affiliate.";
                 case "disclaimer2": return "È solo uno strumento di consultazione di dati pubblici.";
                 case "error_search_profile": return "Errore durante la ricerca del profilo.";
@@ -3998,15 +4136,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Zoekhotel";
                 case "hotel_changed": return "Hotel en taal bijgewerkt.";
                 case "adfree_title": return "Advertentievrije toegang";
-                case "adfree_msg_add": return "Je hebt nog %s zonder advertenties. Wil je een video bekijken om nog 15 minuten toe te voegen? De maximale limiet is 4 uur.";
-                case "adfree_msg_new": return "Wil je een video bekijken om 15 minuten zonder advertenties vrij te schakelen tijdens het zoeken naar profielen?";
+                case "adfree_msg_add": return "Je hebt nog %s zonder advertenties. Wil je een video bekijken om nog 30 minuten toe te voegen? De maximale limiet is 4 uur.";
+                case "adfree_msg_new": return "Wil je een video bekijken om 30 minuten zonder advertenties vrij te schakelen tijdens het zoeken naar profielen?";
                 case "time_left": return "Resterende tijd";
                 case "cancel": return "Annuleren";
                 case "watch_video": return "Video bekijken";
                 case "cannot_show_video": return "De video kon nu niet worden weergegeven.";
                 case "limit_24h": return "Je hebt de advertentievrije limiet van 4 uur al bereikt.";
                 case "video_loading": return "De video wordt nog geladen. Probeer het over een paar seconden opnieuw.";
-                case "adfree_granted": return "15 minuten zonder advertenties ontgrendeld.";
+                case "adfree_granted": return "30 minuten zonder advertenties ontgrendeld.";
                 case "disclaimer1": return "Deze applicatie is niet verbonden met, onderschreven door, gesponsord door of specifiek goedgekeurd door Sulake Corporation Oy of haar gelieerde ondernemingen.";
                 case "disclaimer2": return "Het is slechts een hulpmiddel voor het raadplegen van openbare gegevens.";
                 case "error_search_profile": return "Profiel zoeken mislukt.";
@@ -4096,15 +4234,15 @@ private int loadingProgressFor(String message) {
                 case "search_hotel": return "Arama oteli";
                 case "hotel_changed": return "Otel ve dil güncellendi.";
                 case "adfree_title": return "Reklamsız erişim";
-                case "adfree_msg_add": return "Hâlâ reklamsız %s süreniz var. 15 dakika daha eklemek için bir video izlemek ister misiniz? Maksimum sınır 4 saattir.";
-                case "adfree_msg_new": return "Profil ararken 15 dakika reklamsız kullanım açmak için bir video izlemek ister misiniz?";
+                case "adfree_msg_add": return "Hâlâ reklamsız %s süreniz var. 30 dakika daha eklemek için bir video izlemek ister misiniz? Maksimum sınır 4 saattir.";
+                case "adfree_msg_new": return "Profil ararken 30 dakika reklamsız kullanım açmak için bir video izlemek ister misiniz?";
                 case "time_left": return "Kalan süre";
                 case "cancel": return "İptal";
                 case "watch_video": return "Videoyu izle";
                 case "cannot_show_video": return "Video şu anda gösterilemedi.";
                 case "limit_24h": return "4 saatlik reklamsız sınırına zaten ulaştınız.";
                 case "video_loading": return "Video hâlâ yükleniyor. Birkaç saniye sonra tekrar deneyin.";
-                case "adfree_granted": return "15 dakika reklamsız kullanım açıldı.";
+                case "adfree_granted": return "30 dakika reklamsız kullanım açıldı.";
                 case "disclaimer1": return "Bu uygulama Sulake Corporation Oy veya bağlı kuruluşlarıyla ilişkili değildir; onlar tarafından onaylanmaz, desteklenmez veya özellikle onaylanmış değildir.";
                 case "disclaimer2": return "Yalnızca herkese açık verileri sorgulamak için kullanılan bir araçtır.";
                 case "error_search_profile": return "Profil aranamadı.";
@@ -4138,15 +4276,15 @@ private int loadingProgressFor(String message) {
             case "search_hotel": return "Hotel de busca";
             case "hotel_changed": return "Hotel e idioma atualizados.";
             case "adfree_title": return "Acesso sem anúncios";
-            case "adfree_msg_add": return "Você ainda tem %s sem anúncios. Deseja assistir um vídeo para adicionar mais 15 minutos? O limite máximo é 4 horas.";
-            case "adfree_msg_new": return "Deseja assistir um vídeo para liberar 15 minutos sem anúncios ao pesquisar perfis?";
+            case "adfree_msg_add": return "Você ainda tem %s sem anúncios. Deseja assistir um vídeo para adicionar mais 30 minutos? O limite máximo é 4 horas.";
+            case "adfree_msg_new": return "Deseja assistir um vídeo para liberar 30 minutos sem anúncios ao pesquisar perfis?";
             case "time_left": return "Tempo restante";
             case "cancel": return "Cancelar";
             case "watch_video": return "Assistir vídeo";
             case "cannot_show_video": return "Não foi possível exibir o vídeo agora.";
             case "limit_24h": return "Você já atingiu o limite de 4 horas sem anúncios.";
             case "video_loading": return "O vídeo ainda está carregando. Tente novamente em alguns segundos.";
-            case "adfree_granted": return "15 minutos sem anúncios liberados.";
+            case "adfree_granted": return "30 minutos sem anúncios liberados.";
             case "disclaimer1": return "Este aplicativo não é afiliado, endossado, patrocinado ou especificamente aprovado pela Sulake Corporation Oy ou suas afiliadas.";
             case "disclaimer2": return "Ele é apenas uma ferramenta de consulta de dados públicos.";
             case "private": return "Privado";
@@ -4217,6 +4355,11 @@ private int loadingProgressFor(String message) {
             case "app_cache": return "Cache do app";
             case "tap_to_continue": return "Toque em qualquer lugar para continuar";
             case "profile": return "Perfil";
+            case "badges": return "Emblemas";
+            case "show_achievements": return "Mostrar conquistas";
+            case "hide_achievements": return "Ocultar conquistas";
+            case "no_badges_found": return "Nenhum emblema encontrado.";
+            case "obtained": return "Obtido";
         }
         return key;
     }
@@ -4422,7 +4565,7 @@ private int loadingProgressFor(String message) {
         wrap.addView(infoGrid, lp(-1, -2, 0, 0, 0, 0));
         infoGrid.addView(photoInfoCard(t("name"), name, "", ""));
         infoGrid.addView(photoInfoCard(t("description"), desc, "", ""));
-        infoGrid.addView(photoInfoCard(t("created"), created.isEmpty() ? "—" : niceDateOnly(created), "", ""));
+        infoGrid.addView(photoInfoCard(t("obtained"), created.isEmpty() ? "—" : niceDateOnly(created), "", ""));
         infoGrid.addView(photoInfoCard(t("code"), code, "", ""));
 
         dialog.show();
@@ -4472,7 +4615,7 @@ private int loadingProgressFor(String message) {
         c.searchedNick = src.searchedNick; c.uniqueId = src.uniqueId; c.name = src.name; c.motto = src.motto; c.figure = src.figure; c.memberSince = src.memberSince; c.lastAccess = src.lastAccess; c.level = src.level; c.starGems = src.starGems; c.hotelKey = src.hotelKey;
         c.online = src.online; c.privateProfile = src.privateProfile; c.banned = src.banned;
         c.habboPublic = src.habboPublic; c.dex = src.dex; c.suggest = src.suggest; c.dexProfile = src.dexProfile; c.officialProfile = src.officialProfile;
-        c.previousNames = new ArrayList<>(src.previousNames); c.previousMottos = new ArrayList<>(src.previousMottos); c.previousStyles = new ArrayList<>(src.previousStyles); c.photos = new ArrayList<>(src.photos); c.friends = new ArrayList<>(src.friends); c.oldFriends = new ArrayList<>(src.oldFriends); c.rooms = new ArrayList<>(src.rooms); c.oldRooms = new ArrayList<>(src.oldRooms); c.groups = new ArrayList<>(src.groups); c.selectedBadges = new ArrayList<>(src.selectedBadges);
+        c.previousNames = new ArrayList<>(src.previousNames); c.previousMottos = new ArrayList<>(src.previousMottos); c.previousStyles = new ArrayList<>(src.previousStyles); c.photos = new ArrayList<>(src.photos); c.friends = new ArrayList<>(src.friends); c.oldFriends = new ArrayList<>(src.oldFriends); c.rooms = new ArrayList<>(src.rooms); c.oldRooms = new ArrayList<>(src.oldRooms); c.groups = new ArrayList<>(src.groups); c.badges = new ArrayList<>(src.badges); c.badgesWithAchievements = new ArrayList<>(src.badgesWithAchievements); c.totalBadges = src.totalBadges; c.selectedBadges = new ArrayList<>(src.selectedBadges);
         c.photosNextPage = src.photosNextPage; c.stylesNextPage = src.stylesNextPage; c.photosTotal = src.photosTotal; c.stylesTotal = src.stylesTotal;
         c.photosHasMore = src.photosHasMore; c.stylesHasMore = src.stylesHasMore; c.photosLoading = false; c.stylesLoading = false;
         return c;
@@ -4568,7 +4711,7 @@ private int loadingProgressFor(String message) {
         cached.oldFriends = mergeLists(fresh.oldFriends, cached.oldFriends);
         cached.rooms = mergeLists(fresh.rooms, cached.rooms);
         cached.oldRooms = mergeLists(fresh.oldRooms, cached.oldRooms);
-        cached.groups = mergeLists(fresh.groups, cached.groups);
+        cached.groups = mergeLists(fresh.groups, cached.groups); cached.badges = mergeLists(fresh.badges, cached.badges); cached.badgesWithAchievements = mergeLists(fresh.badgesWithAchievements, cached.badgesWithAchievements); if (!fresh.totalBadges.isEmpty()) cached.totalBadges = fresh.totalBadges;
         cached.selectedBadges = mergeLists(fresh.selectedBadges, cached.selectedBadges);
         return cached;
     }
@@ -4619,10 +4762,10 @@ private int loadingProgressFor(String message) {
     }
 
     private static class ProfileResult {
-        String searchedNick = "", uniqueId = "", name = "", motto = "", figure = "", memberSince = "", lastAccess = "", level = "", starGems = "", hotelKey = "br";
+        String searchedNick = "", uniqueId = "", name = "", motto = "", figure = "", memberSince = "", lastAccess = "", level = "", starGems = "", totalBadges = "", hotelKey = "br";
         boolean online = false, privateProfile = false, banned = false;
         JSONObject habboPublic, dex, suggest, dexProfile, officialProfile;
-        ArrayList<JSONObject> previousNames = new ArrayList<>(), previousMottos = new ArrayList<>(), previousStyles = new ArrayList<>(), photos = new ArrayList<>(), friends = new ArrayList<>(), oldFriends = new ArrayList<>(), rooms = new ArrayList<>(), oldRooms = new ArrayList<>(), groups = new ArrayList<>(), selectedBadges = new ArrayList<>();
+        ArrayList<JSONObject> previousNames = new ArrayList<>(), previousMottos = new ArrayList<>(), previousStyles = new ArrayList<>(), photos = new ArrayList<>(), friends = new ArrayList<>(), oldFriends = new ArrayList<>(), rooms = new ArrayList<>(), oldRooms = new ArrayList<>(), groups = new ArrayList<>(), selectedBadges = new ArrayList<>(), badges = new ArrayList<>(), badgesWithAchievements = new ArrayList<>();
         int photosNextPage = 0, stylesNextPage = 0, photosTotal = 0, stylesTotal = 0;
         boolean photosHasMore = false, stylesHasMore = false, photosLoading = false, stylesLoading = false;
     }
@@ -4901,24 +5044,53 @@ private int loadingProgressFor(String message) {
             Rect b = getBounds();
             RectF hole;
             if (step == 0) {
-                hole = new RectF(b.right - dp(62), b.top + dp(4), b.right - dp(4), b.top + dp(70));
+                hole = new RectF(b.right - dp(76), b.top + dp(4), b.right - dp(2), b.top + dp(78));
             } else if (step == 1) {
-                hole = new RectF(b.left + dp(14), b.top + dp(178), b.right - dp(14), b.top + dp(282));
+                hole = new RectF(b.left + dp(10), b.top + dp(142), b.right - dp(10), b.top + dp(258));
             } else {
-                hole = new RectF(b.left + dp(4), b.top + dp(4), b.left + dp(62), b.top + dp(70));
+                hole = new RectF(b.left + dp(2), b.top + dp(4), b.left + dp(76), b.top + dp(78));
             }
 
+            Path overlayPath = new Path();
+            overlayPath.setFillType(Path.FillType.EVEN_ODD);
+            overlayPath.addRect(new RectF(b.left, b.top, b.right, b.bottom), Path.Direction.CW);
+            overlayPath.addRoundRect(hole, dp(24), dp(24), Path.Direction.CW);
+
             p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.argb(215, 0, 0, 0));
-            c.drawRect(b.left, b.top, b.right, hole.top, p);
-            c.drawRect(b.left, hole.bottom, b.right, b.bottom, p);
-            c.drawRect(b.left, hole.top, hole.left, hole.bottom, p);
-            c.drawRect(hole.right, hole.top, b.right, hole.bottom, p);
+            p.setColor(Color.argb(218, 0, 0, 0));
+            c.drawPath(overlayPath, p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2));
+            p.setColor(Color.argb(245, 210, 112, 255));
+            c.drawRoundRect(hole, dp(24), dp(24), p);
+
+            p.setStrokeWidth(dp(8));
+            p.setColor(Color.argb(44, 210, 112, 255));
+            c.drawRoundRect(hole, dp(28), dp(28), p);
         }
         @Override public void setAlpha(int a){p.setAlpha(a);}
         @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
 
+    public class TutorialCardDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            RectF r = new RectF(b.left, b.top, b.right, b.bottom);
+            p.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, Color.rgb(35, 20, 55), Color.rgb(78, 28, 112), Shader.TileMode.CLAMP));
+            p.setStyle(Paint.Style.FILL);
+            c.drawRoundRect(r, dp(26), dp(26), p);
+            p.setShader(null);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1));
+            p.setColor(Color.argb(70,255,255,255));
+            c.drawRoundRect(r, dp(26), dp(26), p);
+        }
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
 
 }

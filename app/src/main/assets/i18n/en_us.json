@@ -15,7 +15,7 @@
   "hotel_changed": "Hotel and language updated.",
   "adfree_title": "Ad-free access",
   "adfree_msg_add": "You still have %s without ads. Do you want to watch a video to add 15 more minutes? The maximum limit is 4 hours.",
-  "adfree_msg_new": "Do you want to watch a video to unlock 15 minutes without ads while searching profiles?",
+  "adfree_msg_new": "Do you want to watch a video to unlock 30 minutes without ads while searching profiles?",
   "time_left": "Time left",
   "cancel": "Cancel",
   "watch_video": "Watch video",
@@ -92,5 +92,10 @@
   "session_profiles": "Profiles in session",
   "app_cache": "App cache",
   "tap_to_continue": "Tap anywhere to continue",
-  "profile": "Profile"
+  "profile": "Profile",
+  "badges": "Badges",
+  "show_achievements": "Show achievements",
+  "hide_achievements": "Hide achievements",
+  "no_badges_found": "No badges found.",
+  "obtained": "Obtained"
 }
