@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
     private TextView statusText;
     private ProgressBar progress;
     private LinearLayout suggestionsBox;
+    private ScrollView suggestionsScroll;
     private int suggestionRequestId = 0;
     private Handler uiHandler = new Handler(Looper.getMainLooper());
     private int avatarDirection = 2;
@@ -509,10 +510,10 @@ public class MainActivity extends Activity {
         historyLp.leftMargin = dp(8);
         screen.addView(historyBtn, historyLp);
 
-        TextView settingsBtn = text("⚙", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
+        TextView settingsBtn = text("", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
         settingsBtn.setGravity(Gravity.CENTER);
         settingsBtn.setPadding(0, 0, 0, 0);
-        settingsBtn.setBackgroundColor(Color.TRANSPARENT);
+        settingsBtn.setBackground(new SettingsGearDrawable());
         settingsBtn.setOnClickListener(v -> showSettingsDialog());
         FrameLayout.LayoutParams settingsLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
         settingsLp.topMargin = dp(14);
@@ -586,10 +587,18 @@ public class MainActivity extends Activity {
         searchInput.setOnFocusChangeListener((v, hasFocus) -> searchInput.setCursorVisible(hasFocus));
         searchCard.addView(searchInput, lp(-1, dp(42), 0, 0, 0, 8));
 
+        suggestionsScroll = new ScrollView(this);
+        suggestionsScroll.setVisibility(View.GONE);
+        suggestionsScroll.setFillViewport(false);
+        suggestionsScroll.setVerticalScrollBarEnabled(true);
+        suggestionsScroll.setScrollbarFadingEnabled(false);
+        tintScrollBar(suggestionsScroll);
+
         suggestionsBox = new LinearLayout(this);
         suggestionsBox.setOrientation(LinearLayout.VERTICAL);
-        suggestionsBox.setVisibility(View.GONE);
-        searchCard.addView(suggestionsBox, lp(-1, -2, 0, 0, 0, 10));
+        suggestionsScroll.addView(suggestionsBox, new ScrollView.LayoutParams(-1, -2));
+
+        searchCard.addView(suggestionsScroll, lp(-1, dp(230), 0, 0, 0, 10));
 
         searchBtn = new Button(this);
         searchBtn.setText(t("search_button"));
@@ -763,7 +772,7 @@ public class MainActivity extends Activity {
         }
 
         clearSearchFocus();
-        suggestionsBox.setVisibility(View.GONE);
+        setSuggestionsVisible(false);
 
         final int token = ++activeSearchToken;
         activeSearchNick = nickKey;
@@ -2565,6 +2574,12 @@ public class MainActivity extends Activity {
     private TextView centerNote(String msg) { TextView v = text(msg, 14, muted, false); v.setGravity(Gravity.CENTER); v.setLineSpacing(dp(2),1f); v.setPadding(dp(8), dp(12), dp(8), dp(12)); return v; }
 
 
+
+    private void setSuggestionsVisible(boolean visible) {
+        if (suggestionsScroll != null) suggestionsScroll.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (suggestionsBox != null) suggestionsBox.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
     private void bindNickSuggestions() {
         searchInput.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -2578,7 +2593,7 @@ public class MainActivity extends Activity {
         suggestionRequestId++;
         final int requestId = suggestionRequestId;
         suggestionsBox.removeAllViews();
-        suggestionsBox.setVisibility(View.GONE);
+        setSuggestionsVisible(false);
         if (q.length() < 2) return;
 
         showSuggestionsLoading();
@@ -2593,7 +2608,7 @@ public class MainActivity extends Activity {
 
     private void showSuggestionsLoading() {
         suggestionsBox.removeAllViews();
-        suggestionsBox.setVisibility(View.VISIBLE);
+        setSuggestionsVisible(true);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2615,8 +2630,8 @@ public class MainActivity extends Activity {
 
     private void renderLiveSuggestions(String query, ArrayList<JSONObject> list) {
         suggestionsBox.removeAllViews();
-        if (list == null || list.isEmpty()) { suggestionsBox.setVisibility(View.GONE); return; }
-        suggestionsBox.setVisibility(View.VISIBLE);
+        if (list == null || list.isEmpty()) { setSuggestionsVisible(false); return; }
+        setSuggestionsVisible(true);
         TextView title = text(t("suggestions"), 12, Color.argb(210,255,255,255), true);
         suggestionsBox.addView(title, lp(-1, -2, 2, 2, 2, 6));
         for (int i=0; i<Math.min(list.size(), 6); i++) suggestionsBox.addView(suggestionRow(query, list.get(i), true));
@@ -2649,7 +2664,7 @@ public class MainActivity extends Activity {
             String current = firstText(user, "name", "username", "habboName");
             String currentKey = normalizeNickKey(current);
             if (currentKey.isEmpty()) continue;
-            if (currentKey.startsWith(q) || currentKey.contains(q)) {
+            if (currentKey.startsWith(q)) {
                 String id = stableSuggestionKey(user);
                 if (seen.add(id)) out.add(user);
             }
@@ -2711,10 +2726,23 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(10), dp(8), dp(10), dp(8));
         row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(24,255,255,255), dp(14), lightTheme ? Color.rgb(220,220,220) : Color.argb(30,255,255,255), 1));
         row.setLayoutParams(lp(-1, compact ? dp(68) : dp(82), 0, 0, 0, 8));
-        ImageView head = new ImageView(this); head.setScaleType(ImageView.ScaleType.FIT_CENTER); row.addView(head, new LinearLayout.LayoutParams(dp(compact?50:58), dp(compact?54:62)));
+        FrameLayout headWrap = new FrameLayout(this);
+        row.addView(headWrap, new LinearLayout.LayoutParams(dp(compact?50:58), dp(compact?54:62)));
+        ImageView head = new ImageView(this);
+        head.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        headWrap.addView(head, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+
         String name = firstText(user, "name", "username", "habboName");
         String fig = firstText(user, "figureString", "figure", "look");
         if (!fig.isEmpty()) loadImage(head, avatarHead(fig));
+
+        if (optBoolAny(user, false, "online", "isOnline")) {
+            IconView dot = new IconView(this, "dot");
+            FrameLayout.LayoutParams dpv = new FrameLayout.LayoutParams(dp(16), dp(16), Gravity.RIGHT | Gravity.TOP);
+            dpv.topMargin = dp(2);
+            dpv.rightMargin = dp(2);
+            headWrap.addView(dot, dpv);
+        }
         JSONObject previous = getExactPreviousNameMatch(user, query);
         String oldName = previous == null ? "" : firstText(previous, "name", "oldName", "username");
         String changed = previous == null ? "" : niceDate(firstText(previous, "changedAt", "date", "timestamp", "createdAt"));
@@ -2725,7 +2753,7 @@ public class MainActivity extends Activity {
             if (!changed.isEmpty() && !"—".equals(changed)) texts.addView(text(t("changed_at") + ": " + changed, compact ? 11 : 12, muted, false));
         }
         TextView arrow = text("›", compact ? 24 : 28, Color.WHITE, true); row.addView(arrow, new LinearLayout.LayoutParams(dp(26), -1));
-        row.setOnClickListener(v -> { suggestionsBox.setVisibility(View.GONE); searchInput.setText(name); searchInput.setSelection(searchInput.getText().length()); search(); });
+        row.setOnClickListener(v -> { setSuggestionsVisible(false); searchInput.setText(name); searchInput.setSelection(searchInput.getText().length()); search(); });
         return row;
     }
 
@@ -3314,9 +3342,24 @@ private int loadingProgressFor(String message) {
         return String.format(Locale.ROOT, "%.1f MB", mb);
     }
 
+
+    private int sessionProfileCount() {
+        cleanupSessionProfileCache();
+        HashSet<String> seen = new HashSet<>();
+        for (ProfileResult r : profileCache.values()) {
+            if (r == null) continue;
+            String key = "";
+            if (r.uniqueId != null && !r.uniqueId.trim().isEmpty()) key = "id:" + r.uniqueId.trim().toLowerCase(Locale.ROOT);
+            else if (r.name != null && !r.name.trim().isEmpty()) key = "name:" + normalizeHotelKey(r.hotelKey) + "|" + normalizeNickKey(r.name);
+            else if (r.searchedNick != null && !r.searchedNick.trim().isEmpty()) key = "searched:" + normalizeHotelKey(r.hotelKey) + "|" + normalizeNickKey(r.searchedNick);
+            if (!key.isEmpty()) seen.add(key);
+        }
+        return seen.size();
+    }
+
     private String cacheStatsText() {
         cleanupSessionProfileCache();
-        return t("session_profiles") + ": " + profileCache.size() + "\n" + t("app_cache") + ": " + formatBytes(cacheDirSize(getCacheDir()) + cacheDirSize(profileCacheDir()));
+        return t("session_profiles") + ": " + sessionProfileCount() + "\n" + t("app_cache") + ": " + formatBytes(cacheDirSize(getCacheDir()) + cacheDirSize(profileCacheDir()));
     }
 
     private void rebuildUiPreservingProfile() {
@@ -3326,15 +3369,29 @@ private int loadingProgressFor(String message) {
     }
 
     private void clearProfileCache() {
+        clearProfileCache(null);
+    }
+
+    private void clearProfileCache(Runnable done) {
         profileCache.clear();
         profileCacheTimes.clear();
+
         try { Glide.get(this).clearMemory(); } catch (Exception ignored) {}
+
         executor.execute(() -> {
             try { Glide.get(MainActivity.this).clearDiskCache(); } catch (Exception ignored) {}
             deleteContents(profileCacheDir(), true);
             deleteContents(getCacheDir(), false);
             if (Build.VERSION.SDK_INT >= 21) deleteContents(getCodeCacheDir(), false);
             try { File ext = getExternalCacheDir(); if (ext != null) deleteContents(ext, false); } catch(Exception ignored) {}
+
+            try { profileCacheDir().mkdirs(); } catch(Exception ignored) {}
+
+            runOnUiThread(() -> {
+                profileCache.clear();
+                profileCacheTimes.clear();
+                if (done != null) done.run();
+            });
         });
     }
 
@@ -3437,9 +3494,12 @@ private int loadingProgressFor(String message) {
         clear.setBackground(grad(dp(14), Color.rgb(120, 36, 46), Color.rgb(210, 54, 77)));
         wrap.addView(clear, lp(-1, dp(48), 0, 0, 0, 10));
         clear.setOnClickListener(v -> {
-            clearProfileCache();
-            info.setText(cacheStatsText());
-            toast(t("app_cache_cleared"));
+            clear.setEnabled(false);
+            clearProfileCache(() -> {
+                info.setText(cacheStatsText());
+                clear.setEnabled(true);
+                toast(t("app_cache_cleared"));
+            });
         });
 
 
@@ -5304,11 +5364,15 @@ private int loadingProgressFor(String message) {
             Rect b = getBounds();
             RectF hole;
             if (step == 0) {
-                hole = new RectF(b.right - dp(76), b.top + dp(4), b.right - dp(2), b.top + dp(78));
+                float cx = b.right - dp(29);
+                float cy = b.top + dp(35);
+                hole = new RectF(cx - dp(34), cy - dp(34), cx + dp(34), cy + dp(34));
             } else if (step == 1) {
-                hole = new RectF(b.left + dp(10), b.top + dp(142), b.right - dp(10), b.top + dp(258));
+                hole = new RectF(b.left + dp(12), b.top + dp(132), b.right - dp(12), b.top + dp(252));
             } else {
-                hole = new RectF(b.left + dp(2), b.top + dp(4), b.left + dp(76), b.top + dp(78));
+                float cx = b.left + dp(29);
+                float cy = b.top + dp(35);
+                hole = new RectF(cx - dp(34), cy - dp(34), cx + dp(34), cy + dp(34));
             }
 
             Path overlayPath = new Path();
@@ -5352,5 +5416,39 @@ private int loadingProgressFor(String message) {
         @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
+
+
+    public class SettingsGearDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float w = b.width(), h = b.height(), cx = b.centerX(), cy = b.centerY(), m = Math.min(w, h);
+
+            p.setShader(null);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setStrokeWidth(Math.max(2f, m * .075f));
+            p.setColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
+
+            for (int i = 0; i < 8; i++) {
+                double a = i * Math.PI / 4.0;
+                float x1 = cx + (float)Math.cos(a) * m * .31f;
+                float y1 = cy + (float)Math.sin(a) * m * .31f;
+                float x2 = cx + (float)Math.cos(a) * m * .43f;
+                float y2 = cy + (float)Math.sin(a) * m * .43f;
+                c.drawLine(x1, y1, x2, y2, p);
+            }
+
+            c.drawCircle(cx, cy, m * .27f, p);
+
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy, m * .105f, p);
+        }
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
+
 
 }
