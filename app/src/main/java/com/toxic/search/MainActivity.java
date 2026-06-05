@@ -859,7 +859,7 @@ public class MainActivity extends Activity {
         JSONObject suggest = unwrap(tryJson(habbodexSuggestUrl(nick)));
         r.habboPublic = habboPublic; r.dex = dexByName; r.suggest = suggest;
         JSONObject base = firstObject(validProfileObject(habboPublic), validProfileObject(dexByName));
-        if (base == null) throw new ProfileNotFoundException(nick, filterPreviousNickSuggestions(suggest, nick));
+        if (base == null) throw new ProfileNotFoundException(nick, filterExactPreviousNickSuggestions(suggest, nick));
 
         r.uniqueId = firstText(base, "uniqueId", "id", "habboId");
         if (r.uniqueId.isEmpty() && habboPublic != null) r.uniqueId = habboPublic.optString("uniqueId", "");
