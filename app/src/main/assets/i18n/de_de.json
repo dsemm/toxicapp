@@ -99,5 +99,11 @@
   "no_badges_found": "Keine Abzeichen gefunden.",
   "obtained": "Erhalten",
   "achievements": "Erfolge",
-  "total_owners": "Besitzer"
+  "total_owners": "Besitzer",
+  "suggestions": "Vorschläge",
+  "loading_suggestions": "Vorschläge werden geladen...",
+  "old_nick": "Alter Nick",
+  "changed_at": "Geändert am",
+  "old_nick_suggestions_title": "Dieser Nickname wurde offenbar früher verwendet von:",
+  "no_old_nick_suggestions": "Ich konnte auch keine aktuellen Konten finden, die diesen Nickname verwendet haben."
 }

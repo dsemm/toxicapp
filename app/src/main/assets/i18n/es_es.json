@@ -99,5 +99,11 @@
   "no_badges_found": "No se encontraron placas.",
   "obtained": "Obtenido",
   "achievements": "Logros",
-  "total_owners": "Propietarios"
+  "total_owners": "Propietarios",
+  "suggestions": "Sugerencias",
+  "loading_suggestions": "Cargando sugerencias...",
+  "old_nick": "Nick antiguo",
+  "changed_at": "Cambiado el",
+  "old_nick_suggestions_title": "Este nick parece haber sido usado antes por:",
+  "no_old_nick_suggestions": "Tampoco encontré cuentas actuales que hayan usado este nick."
 }

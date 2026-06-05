@@ -99,5 +99,11 @@
   "no_badges_found": "Rozet bulunamadı.",
   "obtained": "Alındı",
   "achievements": "Başarılar",
-  "total_owners": "Sahip olanlar"
+  "total_owners": "Sahip olanlar",
+  "suggestions": "Öneriler",
+  "loading_suggestions": "Öneriler yükleniyor...",
+  "old_nick": "Eski nick",
+  "changed_at": "Değiştirilme",
+  "old_nick_suggestions_title": "Bu nick daha önce şu kişi tarafından kullanılmış görünüyor:",
+  "no_old_nick_suggestions": "Bu nicki kullanmış güncel hesap da bulamadım."
 }

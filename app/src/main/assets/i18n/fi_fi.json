@@ -99,5 +99,11 @@
   "no_badges_found": "Merkkejä ei löytynyt.",
   "obtained": "Saatu",
   "achievements": "Saavutukset",
-  "total_owners": "Omistajat"
+  "total_owners": "Omistajat",
+  "suggestions": "Ehdotukset",
+  "loading_suggestions": "Ladataan ehdotuksia...",
+  "old_nick": "Vanha nimi",
+  "changed_at": "Muutettu",
+  "old_nick_suggestions_title": "Tätä nimimerkkiä näyttää käyttäneen aiemmin:",
+  "no_old_nick_suggestions": "En myöskään löytänyt nykyisiä tilejä, jotka olisivat käyttäneet tätä nimimerkkiä."
 }

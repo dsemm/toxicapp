@@ -99,5 +99,11 @@
   "no_badges_found": "Geen badges gevonden.",
   "obtained": "Verkregen",
   "achievements": "Prestaties",
-  "total_owners": "Eigenaren"
+  "total_owners": "Eigenaren",
+  "suggestions": "Suggesties",
+  "loading_suggestions": "Suggesties laden...",
+  "old_nick": "Oude nick",
+  "changed_at": "Gewijzigd op",
+  "old_nick_suggestions_title": "Deze nick lijkt eerder gebruikt te zijn door:",
+  "no_old_nick_suggestions": "Ik kon ook geen huidige accounts vinden die deze nick hebben gebruikt."
 }

@@ -99,5 +99,11 @@
   "no_badges_found": "No badges found.",
   "obtained": "Obtained",
   "achievements": "Achievements",
-  "total_owners": "Owners"
+  "total_owners": "Owners",
+  "suggestions": "Suggestions",
+  "loading_suggestions": "Loading suggestions...",
+  "old_nick": "Old nick",
+  "changed_at": "Changed on",
+  "old_nick_suggestions_title": "This nickname seems to have been used before by:",
+  "no_old_nick_suggestions": "I also couldn't find current accounts that used this nickname."
 }

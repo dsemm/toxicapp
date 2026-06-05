@@ -78,8 +78,6 @@ public class MainActivity extends Activity {
     private boolean pullStartedAtTop = false;
     private final ArrayList<ProfileHistoryItem> openedProfilesHistory = new ArrayList<>();
     private String currentHotelKey = "br";
-    private final HashMap<String, Long> knownOnlineProfiles = new HashMap<>();
-    private static final long ONLINE_HINT_TTL_MS = 60L * 1000L;
 
     private InterstitialAd interstitialAd;
     private boolean interstitialLoading = false;
@@ -867,14 +865,13 @@ public class MainActivity extends Activity {
         if (r.uniqueId.isEmpty() && habboPublic != null) r.uniqueId = habboPublic.optString("uniqueId", "");
         r.name = firstText(base, "name", "username", "habboName");
         if (r.name.isEmpty()) r.name = nick;
-        r.online = r.online || hasOnlineHint(nick) || hasOnlineHint(r.name);
         r.figure = firstText(base, "figureString", "figure", "figure_string");
         if (r.figure.isEmpty() && habboPublic != null) r.figure = habboPublic.optString("figureString", "");
         if (r.figure.isEmpty()) r.figure = "hd-180-1";
         r.motto = firstText(base, "motto", "mission");
         if (r.motto.isEmpty() && habboPublic != null) r.motto = habboPublic.optString("motto", "");
         r.online = optBoolAny(base, false, "online", "isOnline");
-        if (habboPublic != null && habboPublic.has("online")) r.online = r.online || habboPublic.optBoolean("online", false);
+        if (habboPublic != null && habboPublic.has("online")) r.online = habboPublic.optBoolean("online", r.online);
         r.privateProfile = !optBoolAny(base, true, "profileVisible", "isProfileVisible", "visible");
         if (habboPublic != null && habboPublic.has("profileVisible")) r.privateProfile = !habboPublic.optBoolean("profileVisible", true);
         r.banned = isSameProfileObject(base, habboPublic) ? false : optBoolTrue(base, "isBanned", "banned", "ban", "is_banned");
@@ -894,7 +891,7 @@ public class MainActivity extends Activity {
                 if (r.motto.isEmpty()) r.motto = firstText(dexProfile, "motto", "mission");
                 if (r.memberSince.isEmpty()) r.memberSince = firstText(dexProfile, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
                 if (r.lastAccess.isEmpty()) r.lastAccess = firstText(dexProfile, "lastAccessTime", "lastLoginTime", "lastOnline");
-                r.online = r.online || optBoolAny(dexProfile, false, "online", "isOnline");
+
                 if (r.level.isEmpty()) r.level = firstText(dexProfile, "currentLevel", "level");
                 if (r.starGems.isEmpty()) r.starGems = firstText(dexProfile, "starGemCount", "starGems");
                 if (r.totalBadges.isEmpty()) r.totalBadges = firstText(dexProfile, "totalBadges", "badgeCount", "badgesCount", "badgesTotal");
@@ -912,7 +909,7 @@ public class MainActivity extends Activity {
                     if (r.totalBadges.isEmpty()) r.totalBadges = firstText(user, "totalBadges", "badgeCount", "badgesCount", "badgesTotal");
                     if (r.memberSince.isEmpty()) r.memberSince = firstText(user, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
                     if (r.lastAccess.isEmpty()) r.lastAccess = firstText(user, "lastAccessTime", "lastLoginTime", "lastOnline");
-                    r.online = r.online || optBoolAny(user, false, "online", "isOnline");
+                    r.online = optBoolAny(user, r.online, "online", "isOnline");
                     r.selectedBadges = mergeLists(r.selectedBadges, extractListFromKeys(user, "selectedBadges", "badges"));
                 }
                 r.friends = mergeLists(r.friends, extractList(officialProfile, "friends"));
@@ -2319,9 +2316,7 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(dp(48), dp(18), Gravity.TOP|Gravity.CENTER_HORIZONTAL);
             headWrap.addView(novo,np);
         }
-        boolean friendOnline = optBoolAny(f, false, "online", "isOnline");
-        if (friendOnline) {
-            rememberOnlineProfile(n);
+        if (optBoolAny(f, false, "online", "isOnline")) {
             IconView dot = new IconView(this, "dot");
             FrameLayout.LayoutParams dpv = new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.RIGHT|Gravity.TOP);
             dpv.topMargin=dp(8); dpv.rightMargin=dp(8);
@@ -2585,55 +2580,122 @@ public class MainActivity extends Activity {
         suggestionsBox.removeAllViews();
         suggestionsBox.setVisibility(View.GONE);
         if (q.length() < 2) return;
-        uiHandler.postDelayed(() -> {
-            if (requestId != suggestionRequestId) return;
-            executor.execute(() -> {
-                ArrayList<JSONObject> suggestions = fetchPreviousNickSuggestions(q);
-                runOnUiThread(() -> {
-                    if (requestId == suggestionRequestId) renderLiveSuggestions(q, suggestions);
-                });
+
+        showSuggestionsLoading();
+
+        executor.execute(() -> {
+            ArrayList<JSONObject> suggestions = fetchLiveNickSuggestions(q);
+            runOnUiThread(() -> {
+                if (requestId == suggestionRequestId) renderLiveSuggestions(q, suggestions);
             });
-        }, 320);
+        });
+    }
+
+    private void showSuggestionsLoading() {
+        suggestionsBox.removeAllViews();
+        suggestionsBox.setVisibility(View.VISIBLE);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setBackground(round(lightTheme ? Color.rgb(248,248,250) : Color.argb(22,255,255,255), dp(14), lightTheme ? Color.rgb(222,222,226) : Color.argb(30,255,255,255), 1));
+
+        ProgressBar pb = new ProgressBar(this);
+        pb.setIndeterminate(true);
+        row.addView(pb, new LinearLayout.LayoutParams(dp(28), dp(28)));
+
+        TextView tv = text(t("loading_suggestions"), 13, lightTheme ? Color.rgb(70,70,70) : Color.argb(220,255,255,255), true);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
+        tp.leftMargin = dp(10);
+        row.addView(tv, tp);
+
+        suggestionsBox.addView(row, lp(-1, -2, 0, 0, 0, 8));
     }
 
     private void renderLiveSuggestions(String query, ArrayList<JSONObject> list) {
         suggestionsBox.removeAllViews();
         if (list == null || list.isEmpty()) { suggestionsBox.setVisibility(View.GONE); return; }
         suggestionsBox.setVisibility(View.VISIBLE);
-        TextView title = text("Esse nick parece ter sido usado antes por:", 12, Color.argb(210,255,255,255), true);
+        TextView title = text(t("suggestions"), 12, Color.argb(210,255,255,255), true);
         suggestionsBox.addView(title, lp(-1, -2, 2, 2, 2, 6));
-        for (int i=0; i<Math.min(list.size(), 3); i++) suggestionsBox.addView(suggestionRow(query, list.get(i), true));
+        for (int i=0; i<Math.min(list.size(), 6); i++) suggestionsBox.addView(suggestionRow(query, list.get(i), true));
     }
 
     private ArrayList<JSONObject> fetchPreviousNickSuggestions(String query) {
         try {
             JSONObject payload = unwrap(getJson(habbodexSuggestUrl(query)));
-            return filterPreviousNickSuggestions(payload, query);
+            return filterExactPreviousNickSuggestions(payload, query);
         } catch(Exception e) { return new ArrayList<>(); }
     }
 
-    private ArrayList<JSONObject> filterPreviousNickSuggestions(JSONObject suggest, String query) {
+    private ArrayList<JSONObject> fetchLiveNickSuggestions(String query) {
+        try {
+            JSONObject payload = unwrap(getJson(habbodexSuggestUrl(query)));
+            return filterLiveNickSuggestions(payload, query);
+        } catch(Exception e) { return new ArrayList<>(); }
+    }
+
+    private ArrayList<JSONObject> filterLiveNickSuggestions(JSONObject suggest, String query) {
         ArrayList<JSONObject> out = new ArrayList<>();
-        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        HashSet<String> seen = new HashSet<>();
+        String q = normalizeNickKey(query);
+        if (q.length() < 2 || suggest == null) return out;
+
+        ArrayList<JSONObject> users = extractList(suggest, null);
+
+        // 1) Primeiro, nicks atuais parecidos com o digitado.
+        for (JSONObject user : users) {
+            String current = firstText(user, "name", "username", "habboName");
+            String currentKey = normalizeNickKey(current);
+            if (currentKey.isEmpty()) continue;
+            if (currentKey.startsWith(q) || currentKey.contains(q)) {
+                String id = stableSuggestionKey(user);
+                if (seen.add(id)) out.add(user);
+            }
+            if (out.size() >= 8) return out;
+        }
+
+        // 2) Depois, apenas se o texto digitado for 100% igual a um nick antigo.
+        for (JSONObject user : users) {
+            String current = firstText(user, "name", "username", "habboName");
+            String currentKey = normalizeNickKey(current);
+            if (currentKey.isEmpty() || currentKey.equals(q)) continue;
+            if (hasExactPreviousNick(user, q)) {
+                String id = stableSuggestionKey(user);
+                if (seen.add(id)) out.add(user);
+            }
+            if (out.size() >= 8) break;
+        }
+
+        return out;
+    }
+
+    private ArrayList<JSONObject> filterExactPreviousNickSuggestions(JSONObject suggest, String query) {
+        ArrayList<JSONObject> out = new ArrayList<>();
+        String q = normalizeNickKey(query);
         if (q.length() < 2 || suggest == null) return out;
         ArrayList<JSONObject> users = extractList(suggest, null);
         for (JSONObject user : users) {
             String current = firstText(user, "name", "username", "habboName");
-            if (current.isEmpty() || current.trim().toLowerCase(Locale.ROOT).equals(q)) continue;
-            if (matchesPreviousNick(user, q)) out.add(user);
+            String currentKey = normalizeNickKey(current);
+            if (currentKey.isEmpty() || currentKey.equals(q)) continue;
+            if (hasExactPreviousNick(user, q)) out.add(user);
             if (out.size() >= 6) break;
         }
         return out;
     }
 
-    private boolean matchesPreviousNick(JSONObject user, String query) {
-        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+    private boolean hasExactPreviousNick(JSONObject user, String normalizedQuery) {
+        String q = normalizedQuery == null ? "" : normalizedQuery.trim().toLowerCase(Locale.ROOT);
         if (q.length() < 2) return false;
-        for (JSONObject prev : extractList(user, "previousNames")) {
-            String old = firstText(prev, "name", "oldName", "username").trim().toLowerCase(Locale.ROOT);
-            if (!old.isEmpty() && (old.equals(q) || old.startsWith(q) || old.contains(q))) return true;
-        }
-        return false;
+        return getExactPreviousNameMatch(user, q) != null;
+    }
+
+    private String stableSuggestionKey(JSONObject user) {
+        String id = firstText(user, "uniqueId", "id", "habboId");
+        if (!id.isEmpty()) return id;
+        return normalizeNickKey(firstText(user, "name", "username", "habboName"));
     }
 
     private JSONObject getExactPreviousNameMatch(JSONObject user, String query) {
@@ -2654,12 +2716,14 @@ public class MainActivity extends Activity {
         String fig = firstText(user, "figureString", "figure", "look");
         if (!fig.isEmpty()) loadImage(head, avatarHead(fig));
         JSONObject previous = getExactPreviousNameMatch(user, query);
-        String oldName = previous == null ? query : firstText(previous, "name", "oldName", "username");
+        String oldName = previous == null ? "" : firstText(previous, "name", "oldName", "username");
         String changed = previous == null ? "" : niceDate(firstText(previous, "changedAt", "date", "timestamp", "createdAt"));
         LinearLayout texts = new LinearLayout(this); texts.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1); tp.leftMargin = dp(10); row.addView(texts, tp);
         TextView nm = habboText(name, compact ? 15 : 17, true); nm.setMaxLines(1); nm.setEllipsize(TextUtils.TruncateAt.END); texts.addView(nm);
-        TextView old = text("Nick antigo: " + oldName, compact ? 12 : 13, Color.argb(210,255,255,255), false); old.setMaxLines(1); old.setEllipsize(TextUtils.TruncateAt.END); texts.addView(old);
-        if (!changed.isEmpty() && !"—".equals(changed)) texts.addView(text("Alterado em: " + changed, compact ? 11 : 12, muted, false));
+        if (previous != null && !oldName.isEmpty()) {
+            TextView old = text(t("old_nick") + ": " + oldName, compact ? 12 : 13, Color.argb(210,255,255,255), false); old.setMaxLines(1); old.setEllipsize(TextUtils.TruncateAt.END); texts.addView(old);
+            if (!changed.isEmpty() && !"—".equals(changed)) texts.addView(text(t("changed_at") + ": " + changed, compact ? 11 : 12, muted, false));
+        }
         TextView arrow = text("›", compact ? 24 : 28, Color.WHITE, true); row.addView(arrow, new LinearLayout.LayoutParams(dp(26), -1));
         row.setOnClickListener(v -> { suggestionsBox.setVisibility(View.GONE); searchInput.setText(name); searchInput.setSelection(searchInput.getText().length()); search(); });
         return row;
@@ -2672,10 +2736,10 @@ public class MainActivity extends Activity {
         TextView title = habboText(t("no_profile_found"), 22, true); title.setGravity(Gravity.CENTER); c.addView(title, lp(-1,-2,0,0,0,8));
         TextView body = text(tr("not_found_body", nick), 14, muted, false); body.setGravity(Gravity.CENTER); body.setLineSpacing(dp(2),1f); c.addView(body, lp(-1,-2,0,0,0,14));
         if (suggestions != null && !suggestions.isEmpty()) {
-            TextView st = habboText("Esse nick parece ter sido usado antes por:", 17, true); c.addView(st, lp(-1,-2,0,0,0,10));
+            TextView st = habboText(t("old_nick_suggestions_title"), 17, true); c.addView(st, lp(-1,-2,0,0,0,10));
             for (JSONObject user : suggestions) c.addView(suggestionRow(nick, user, false));
         } else {
-            c.addView(centerNote("Também não encontrei sugestões de contas atuais que já usaram esse nick."));
+            c.addView(centerNote(t("no_old_nick_suggestions")));
         }
     }
 
@@ -2869,40 +2933,6 @@ private int loadingProgressFor(String message) {
         }).start();
     }
 
-
-    private String onlineHintKey(String hotelKey, String nick) {
-        String h = normalizeHotelKey(hotelKey);
-        String n = normalizeNickKey(nick);
-        if (h.isEmpty() || n.isEmpty()) return "";
-        return h + "|" + n;
-    }
-
-    private void rememberOnlineProfile(String nick) {
-        String key = onlineHintKey(currentHotelKey, nick);
-        if (!key.isEmpty()) {
-            knownOnlineProfiles.put(key, System.currentTimeMillis());
-            cleanupExpiredOnlineHints();
-        }
-    }
-
-    private boolean hasOnlineHint(String nick) {
-        cleanupExpiredOnlineHints();
-        String key = onlineHintKey(currentHotelKey, nick);
-        if (key.isEmpty()) return false;
-        Long seenAt = knownOnlineProfiles.get(key);
-        return seenAt != null && (System.currentTimeMillis() - seenAt) <= ONLINE_HINT_TTL_MS;
-    }
-
-    private void cleanupExpiredOnlineHints() {
-        if (knownOnlineProfiles.isEmpty()) return;
-        long now = System.currentTimeMillis();
-        Iterator<Map.Entry<String, Long>> it = knownOnlineProfiles.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, Long> entry = it.next();
-            Long seenAt = entry.getValue();
-            if (seenAt == null || now - seenAt > ONLINE_HINT_TTL_MS) it.remove();
-        }
-    }
 
     private String habbodexProfileByNameUrl(String name) {
         return HABBODEX + "/habboinfo/" + enc(habbodexHotelCode(currentHotelKey)) + "/habbo?name=" + enc(name);
@@ -3672,6 +3702,12 @@ private int loadingProgressFor(String message) {
                 case "obtained": return "Obtained";
                 case "achievements": return "Achievements";
                 case "total_owners": return "Owners";
+                case "suggestions": return "Suggestions";
+                case "loading_suggestions": return "Loading suggestions...";
+                case "old_nick": return "Old nick";
+                case "changed_at": return "Changed on";
+                case "old_nick_suggestions_title": return "This nickname seems to have been used before by:";
+                case "no_old_nick_suggestions": return "I also couldn't find current accounts that used this nickname.";
             }
         }
         else if ("es".equals(lang)) {
@@ -3777,6 +3813,12 @@ private int loadingProgressFor(String message) {
                 case "obtained": return "Obtenido";
                 case "achievements": return "Logros";
                 case "total_owners": return "Propietarios";
+                case "suggestions": return "Sugerencias";
+                case "loading_suggestions": return "Cargando sugerencias...";
+                case "old_nick": return "Nick antiguo";
+                case "changed_at": return "Cambiado el";
+                case "old_nick_suggestions_title": return "Este nick parece haber sido usado antes por:";
+                case "no_old_nick_suggestions": return "Tampoco encontré cuentas actuales que hayan usado este nick.";
             }
         }
         else if ("de".equals(lang)) {
@@ -3882,6 +3924,12 @@ private int loadingProgressFor(String message) {
                 case "obtained": return "Erhalten";
                 case "achievements": return "Erfolge";
                 case "total_owners": return "Besitzer";
+                case "suggestions": return "Vorschläge";
+                case "loading_suggestions": return "Vorschläge werden geladen...";
+                case "old_nick": return "Alter Nick";
+                case "changed_at": return "Geändert am";
+                case "old_nick_suggestions_title": return "Dieser Nickname wurde offenbar früher verwendet von:";
+                case "no_old_nick_suggestions": return "Ich konnte auch keine aktuellen Konten finden, die diesen Nickname verwendet haben.";
             }
         }
         else if ("fr".equals(lang)) {
@@ -3987,6 +4035,12 @@ private int loadingProgressFor(String message) {
                 case "obtained": return "Obtenu";
                 case "achievements": return "Succès";
                 case "total_owners": return "Propriétaires";
+                case "suggestions": return "Suggestions";
+                case "loading_suggestions": return "Chargement des suggestions...";
+                case "old_nick": return "Ancien pseudo";
+                case "changed_at": return "Modifié le";
+                case "old_nick_suggestions_title": return "Ce pseudo semble avoir été utilisé auparavant par :";
+                case "no_old_nick_suggestions": return "Je n'ai pas non plus trouvé de comptes actuels ayant utilisé ce pseudo.";
             }
         }
         else if ("fi".equals(lang)) {
@@ -4092,6 +4146,12 @@ private int loadingProgressFor(String message) {
                 case "obtained": return "Saatu";
                 case "achievements": return "Saavutukset";
                 case "total_owners": return "Omistajat";
+                case "suggestions": return "Ehdotukset";
+                case "loading_suggestions": return "Ladataan ehdotuksia...";
+                case "old_nick": return "Vanha nimi";
+                case "changed_at": return "Muutettu";
+                case "old_nick_suggestions_title": return "Tätä nimimerkkiä näyttää käyttäneen aiemmin:";
+                case "no_old_nick_suggestions": return "En myöskään löytänyt nykyisiä tilejä, jotka olisivat käyttäneet tätä nimimerkkiä.";
             }
         }
         else if ("it".equals(lang)) {
@@ -4197,6 +4257,12 @@ private int loadingProgressFor(String message) {
                 case "obtained": return "Ottenuto";
                 case "achievements": return "Risultati";
                 case "total_owners": return "Proprietari";
+                case "suggestions": return "Suggerimenti";
+                case "loading_suggestions": return "Caricamento suggerimenti...";
+                case "old_nick": return "Nick precedente";
+                case "changed_at": return "Modificato il";
+                case "old_nick_suggestions_title": return "Questo nick sembra essere stato usato prima da:";
+                case "no_old_nick_suggestions": return "Non ho trovato altri account attuali che abbiano usato questo nick.";
             }
         }
         else if ("nl".equals(lang)) {
@@ -4302,6 +4368,12 @@ private int loadingProgressFor(String message) {
                 case "obtained": return "Verkregen";
                 case "achievements": return "Prestaties";
                 case "total_owners": return "Eigenaren";
+                case "suggestions": return "Suggesties";
+                case "loading_suggestions": return "Suggesties laden...";
+                case "old_nick": return "Oude nick";
+                case "changed_at": return "Gewijzigd op";
+                case "old_nick_suggestions_title": return "Deze nick lijkt eerder gebruikt te zijn door:";
+                case "no_old_nick_suggestions": return "Ik kon ook geen huidige accounts vinden die deze nick hebben gebruikt.";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4407,6 +4479,12 @@ private int loadingProgressFor(String message) {
                 case "obtained": return "Alındı";
                 case "achievements": return "Başarılar";
                 case "total_owners": return "Sahip olanlar";
+                case "suggestions": return "Öneriler";
+                case "loading_suggestions": return "Öneriler yükleniyor...";
+                case "old_nick": return "Eski nick";
+                case "changed_at": return "Değiştirilme";
+                case "old_nick_suggestions_title": return "Bu nick daha önce şu kişi tarafından kullanılmış görünüyor:";
+                case "no_old_nick_suggestions": return "Bu nicki kullanmış güncel hesap da bulamadım.";
             }
         }
         switch (key) {
@@ -4511,6 +4589,12 @@ private int loadingProgressFor(String message) {
             case "obtained": return "Obtido";
             case "achievements": return "Conquistas";
             case "total_owners": return "Possuem";
+            case "suggestions": return "Sugestões";
+            case "loading_suggestions": return "Carregando sugestões...";
+            case "old_nick": return "Nick antigo";
+            case "changed_at": return "Alterado em";
+            case "old_nick_suggestions_title": return "Esse nick parece ter sido usado antes por:";
+            case "no_old_nick_suggestions": return "Também não encontrei contas atuais que já usaram esse nick.";
         }
         return key;
     }
@@ -4846,7 +4930,7 @@ private int loadingProgressFor(String message) {
         cached.level = pickText(fresh.level, cached.level);
         cached.starGems = pickText(fresh.starGems, cached.starGems);
         cached.hotelKey = pickText(fresh.hotelKey, cached.hotelKey);
-        cached.online = cached.online || fresh.online;
+        cached.online = fresh.online;
         cached.privateProfile = fresh.privateProfile;
         cached.banned = fresh.banned;
 

@@ -99,5 +99,11 @@
   "no_badges_found": "Aucun badge trouvé.",
   "obtained": "Obtenu",
   "achievements": "Succès",
-  "total_owners": "Propriétaires"
+  "total_owners": "Propriétaires",
+  "suggestions": "Suggestions",
+  "loading_suggestions": "Chargement des suggestions...",
+  "old_nick": "Ancien pseudo",
+  "changed_at": "Modifié le",
+  "old_nick_suggestions_title": "Ce pseudo semble avoir été utilisé auparavant par :",
+  "no_old_nick_suggestions": "Je n'ai pas non plus trouvé de comptes actuels ayant utilisé ce pseudo."
 }

@@ -99,5 +99,11 @@
   "no_badges_found": "Nenhum emblema encontrado.",
   "obtained": "Obtido",
   "achievements": "Conquistas",
-  "total_owners": "Possuem"
+  "total_owners": "Possuem",
+  "suggestions": "Sugestões",
+  "loading_suggestions": "Carregando sugestões...",
+  "old_nick": "Nick antigo",
+  "changed_at": "Alterado em",
+  "old_nick_suggestions_title": "Esse nick parece ter sido usado antes por:",
+  "no_old_nick_suggestions": "Também não encontrei contas atuais que já usaram esse nick."
 }

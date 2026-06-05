@@ -99,5 +99,11 @@
   "no_badges_found": "Nessun badge trovato.",
   "obtained": "Ottenuto",
   "achievements": "Risultati",
-  "total_owners": "Proprietari"
+  "total_owners": "Proprietari",
+  "suggestions": "Suggerimenti",
+  "loading_suggestions": "Caricamento suggerimenti...",
+  "old_nick": "Nick precedente",
+  "changed_at": "Modificato il",
+  "old_nick_suggestions_title": "Questo nick sembra essere stato usato prima da:",
+  "no_old_nick_suggestions": "Non ho trovato altri account attuali che abbiano usato questo nick."
 }
