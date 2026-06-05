@@ -5103,6 +5103,31 @@ private int loadingProgressFor(String message) {
             if ("groups".equals(type)) { c.drawCircle(cx,cy,m*.36f,p); c.drawCircle(cx,cy,m*.17f,p); Path chk=new Path(); chk.moveTo(cx-m*.10f,cy); chk.lineTo(cx-m*.02f,cy+m*.09f); chk.lineTo(cx+m*.15f,cy-m*.11f); c.drawPath(chk,p); return; }
             if ("photos".equals(type)) { RectF r=new RectF(w*.16f,h*.22f,w*.84f,h*.78f); c.drawRoundRect(r,m*.09f,m*.09f,p); c.drawCircle(w*.32f,h*.38f,m*.06f,p); c.drawLine(w*.22f,h*.68f,w*.43f,h*.52f,p); c.drawLine(w*.43f,h*.52f,w*.78f,h*.68f,p); return; }
             if ("star".equals(type)) { Path path=new Path(); for(int i=0;i<10;i++){ double a=-Math.PI/2+i*Math.PI/5; float rr=(i%2==0)?m*.40f:m*.17f; float x=cx+(float)Math.cos(a)*rr, y=cy+(float)Math.sin(a)*rr; if(i==0) path.moveTo(x,y); else path.lineTo(x,y);} path.close(); c.drawPath(path,p); return; }
+            if ("badge".equals(type)) {
+                p.setStyle(Paint.Style.FILL);
+                int petal = lightTheme ? Color.rgb(136, 57, 206) : Color.rgb(210, 112, 255);
+                int petal2 = lightTheme ? Color.rgb(180, 76, 230) : Color.rgb(238, 151, 255);
+                int center = Color.rgb(255, 214, 92);
+                p.setColor(petal);
+                for (int i=0;i<8;i++){
+                    double a = -Math.PI/2 + i*Math.PI/4;
+                    float px = cx + (float)Math.cos(a)*m*.22f;
+                    float py = cy + (float)Math.sin(a)*m*.22f;
+                    RectF petalOval = new RectF(px-m*.13f, py-m*.20f, px+m*.13f, py+m*.20f);
+                    c.save();
+                    c.rotate((float)Math.toDegrees(a)+90, px, py);
+                    p.setColor(i%2==0 ? petal : petal2);
+                    c.drawOval(petalOval, p);
+                    c.restore();
+                }
+                p.setColor(center);
+                c.drawCircle(cx, cy, m*.16f, p);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(Math.max(1f, m*.035f));
+                p.setColor(lightTheme ? Color.rgb(95, 42, 145) : Color.WHITE);
+                c.drawCircle(cx, cy, m*.16f, p);
+                return;
+            }
             if ("level".equals(type)) { p.setStyle(Paint.Style.FILL); Path path=new Path(); path.moveTo(cx,h*.16f); path.lineTo(w*.80f,h*.48f); path.lineTo(w*.62f,h*.48f); path.lineTo(w*.62f,h*.84f); path.lineTo(w*.38f,h*.84f); path.lineTo(w*.38f,h*.48f); path.lineTo(w*.20f,h*.48f); path.close(); c.drawPath(path,p); }
         }
     }
