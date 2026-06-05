@@ -78,6 +78,8 @@ public class MainActivity extends Activity {
     private boolean pullStartedAtTop = false;
     private final ArrayList<ProfileHistoryItem> openedProfilesHistory = new ArrayList<>();
     private String currentHotelKey = "br";
+    private final HashMap<String, Long> knownOnlineProfiles = new HashMap<>();
+    private static final long ONLINE_HINT_TTL_MS = 60L * 1000L;
 
     private InterstitialAd interstitialAd;
     private boolean interstitialLoading = false;
@@ -865,6 +867,7 @@ public class MainActivity extends Activity {
         if (r.uniqueId.isEmpty() && habboPublic != null) r.uniqueId = habboPublic.optString("uniqueId", "");
         r.name = firstText(base, "name", "username", "habboName");
         if (r.name.isEmpty()) r.name = nick;
+        r.online = r.online || hasOnlineHint(nick) || hasOnlineHint(r.name);
         r.figure = firstText(base, "figureString", "figure", "figure_string");
         if (r.figure.isEmpty() && habboPublic != null) r.figure = habboPublic.optString("figureString", "");
         if (r.figure.isEmpty()) r.figure = "hd-180-1";
@@ -2316,7 +2319,9 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(dp(48), dp(18), Gravity.TOP|Gravity.CENTER_HORIZONTAL);
             headWrap.addView(novo,np);
         }
-        if (optBoolAny(f, false, "online", "isOnline")) {
+        boolean friendOnline = optBoolAny(f, false, "online", "isOnline");
+        if (friendOnline) {
+            rememberOnlineProfile(n);
             IconView dot = new IconView(this, "dot");
             FrameLayout.LayoutParams dpv = new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.RIGHT|Gravity.TOP);
             dpv.topMargin=dp(8); dpv.rightMargin=dp(8);
@@ -2862,6 +2867,41 @@ private int loadingProgressFor(String message) {
         v.animate().translationY(-dp(7)).setDuration(900).withEndAction(() -> {
             if (v.getWindowToken() != null) v.animate().translationY(dp(5)).setDuration(900).withEndAction(() -> startFloating(v)).start();
         }).start();
+    }
+
+
+    private String onlineHintKey(String hotelKey, String nick) {
+        String h = normalizeHotelKey(hotelKey);
+        String n = normalizeNickKey(nick);
+        if (h.isEmpty() || n.isEmpty()) return "";
+        return h + "|" + n;
+    }
+
+    private void rememberOnlineProfile(String nick) {
+        String key = onlineHintKey(currentHotelKey, nick);
+        if (!key.isEmpty()) {
+            knownOnlineProfiles.put(key, System.currentTimeMillis());
+            cleanupExpiredOnlineHints();
+        }
+    }
+
+    private boolean hasOnlineHint(String nick) {
+        cleanupExpiredOnlineHints();
+        String key = onlineHintKey(currentHotelKey, nick);
+        if (key.isEmpty()) return false;
+        Long seenAt = knownOnlineProfiles.get(key);
+        return seenAt != null && (System.currentTimeMillis() - seenAt) <= ONLINE_HINT_TTL_MS;
+    }
+
+    private void cleanupExpiredOnlineHints() {
+        if (knownOnlineProfiles.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        Iterator<Map.Entry<String, Long>> it = knownOnlineProfiles.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, Long> entry = it.next();
+            Long seenAt = entry.getValue();
+            if (seenAt == null || now - seenAt > ONLINE_HINT_TTL_MS) it.remove();
+        }
     }
 
     private String habbodexProfileByNameUrl(String name) {
@@ -4806,7 +4846,7 @@ private int loadingProgressFor(String message) {
         cached.level = pickText(fresh.level, cached.level);
         cached.starGems = pickText(fresh.starGems, cached.starGems);
         cached.hotelKey = pickText(fresh.hotelKey, cached.hotelKey);
-        cached.online = fresh.online;
+        cached.online = cached.online || fresh.online;
         cached.privateProfile = fresh.privateProfile;
         cached.banned = fresh.banned;
 
@@ -5104,28 +5144,26 @@ private int loadingProgressFor(String message) {
             if ("photos".equals(type)) { RectF r=new RectF(w*.16f,h*.22f,w*.84f,h*.78f); c.drawRoundRect(r,m*.09f,m*.09f,p); c.drawCircle(w*.32f,h*.38f,m*.06f,p); c.drawLine(w*.22f,h*.68f,w*.43f,h*.52f,p); c.drawLine(w*.43f,h*.52f,w*.78f,h*.68f,p); return; }
             if ("star".equals(type)) { Path path=new Path(); for(int i=0;i<10;i++){ double a=-Math.PI/2+i*Math.PI/5; float rr=(i%2==0)?m*.40f:m*.17f; float x=cx+(float)Math.cos(a)*rr, y=cy+(float)Math.sin(a)*rr; if(i==0) path.moveTo(x,y); else path.lineTo(x,y);} path.close(); c.drawPath(path,p); return; }
             if ("badge".equals(type)) {
-                p.setStyle(Paint.Style.FILL);
-                int petal = lightTheme ? Color.rgb(136, 57, 206) : Color.rgb(210, 112, 255);
-                int petal2 = lightTheme ? Color.rgb(180, 76, 230) : Color.rgb(238, 151, 255);
-                int center = Color.rgb(255, 214, 92);
-                p.setColor(petal);
+                p.setShader(null);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(Math.max(2f, m*.075f));
+                p.setStrokeCap(Paint.Cap.ROUND);
+                p.setStrokeJoin(Paint.Join.ROUND);
+                p.setColor(lightTheme ? Color.rgb(33, 33, 33) : Color.WHITE);
+
                 for (int i=0;i<8;i++){
                     double a = -Math.PI/2 + i*Math.PI/4;
-                    float px = cx + (float)Math.cos(a)*m*.22f;
-                    float py = cy + (float)Math.sin(a)*m*.22f;
-                    RectF petalOval = new RectF(px-m*.13f, py-m*.20f, px+m*.13f, py+m*.20f);
+                    float px = cx + (float)Math.cos(a)*m*.20f;
+                    float py = cy + (float)Math.sin(a)*m*.20f;
+                    RectF petalOval = new RectF(px-m*.11f, py-m*.17f, px+m*.11f, py+m*.17f);
                     c.save();
                     c.rotate((float)Math.toDegrees(a)+90, px, py);
-                    p.setColor(i%2==0 ? petal : petal2);
                     c.drawOval(petalOval, p);
                     c.restore();
                 }
-                p.setColor(center);
-                c.drawCircle(cx, cy, m*.16f, p);
-                p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(Math.max(1f, m*.035f));
-                p.setColor(lightTheme ? Color.rgb(95, 42, 145) : Color.WHITE);
-                c.drawCircle(cx, cy, m*.16f, p);
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(lightTheme ? Color.rgb(33, 33, 33) : Color.WHITE);
+                c.drawCircle(cx, cy, m*.085f, p);
                 return;
             }
             if ("level".equals(type)) { p.setStyle(Paint.Style.FILL); Path path=new Path(); path.moveTo(cx,h*.16f); path.lineTo(w*.80f,h*.48f); path.lineTo(w*.62f,h*.48f); path.lineTo(w*.62f,h*.84f); path.lineTo(w*.38f,h*.84f); path.lineTo(w*.38f,h*.48f); path.lineTo(w*.20f,h*.48f); path.close(); c.drawPath(path,p); }
