@@ -510,10 +510,10 @@ public class MainActivity extends Activity {
         historyLp.leftMargin = dp(8);
         screen.addView(historyBtn, historyLp);
 
-        TextView settingsBtn = text("", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
+        TextView settingsBtn = text("⚙", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
         settingsBtn.setGravity(Gravity.CENTER);
         settingsBtn.setPadding(0, 0, 0, 0);
-        settingsBtn.setBackground(new SettingsGearDrawable());
+        settingsBtn.setBackgroundColor(Color.TRANSPARENT);
         settingsBtn.setOnClickListener(v -> showSettingsDialog());
         FrameLayout.LayoutParams settingsLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
         settingsLp.topMargin = dp(14);
@@ -584,7 +584,10 @@ public class MainActivity extends Activity {
         searchInput.setPadding(dp(16), 0, dp(16), 0);
         searchInput.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(28,255,255,255), dp(14), lightTheme ? Color.rgb(210,210,210) : Color.argb(35,255,255,255), 1));
         searchInput.setCursorVisible(false);
-        searchInput.setOnFocusChangeListener((v, hasFocus) -> searchInput.setCursorVisible(hasFocus));
+        searchInput.setOnFocusChangeListener((v, hasFocus) -> {
+            searchInput.setCursorVisible(hasFocus);
+            if (!hasFocus) setSuggestionsVisible(false);
+        });
         searchCard.addView(searchInput, lp(-1, dp(42), 0, 0, 0, 8));
 
         suggestionsScroll = new ScrollView(this);
@@ -592,6 +595,14 @@ public class MainActivity extends Activity {
         suggestionsScroll.setFillViewport(false);
         suggestionsScroll.setVerticalScrollBarEnabled(true);
         suggestionsScroll.setScrollbarFadingEnabled(false);
+        suggestionsScroll.setNestedScrollingEnabled(true);
+        suggestionsScroll.setOnTouchListener((v, event) -> {
+            v.getParent().requestDisallowInterceptTouchEvent(true);
+            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return false;
+        });
         tintScrollBar(suggestionsScroll);
 
         suggestionsBox = new LinearLayout(this);
@@ -620,8 +631,17 @@ public class MainActivity extends Activity {
         resultWrap.setOrientation(LinearLayout.VERTICAL);
         root.addView(resultWrap, lp(-1, -2, 0, 0, 0, 0));
         setContentView(screen);
-        searchBtn.setOnClickListener(v -> search());
-        searchInput.setOnEditorActionListener((v, actionId, event) -> { search(); return true; });
+        searchBtn.setOnClickListener(v -> {
+            setSuggestionsVisible(false);
+            clearSearchFocus();
+            search();
+        });
+        searchInput.setOnEditorActionListener((v, actionId, event) -> {
+            setSuggestionsVisible(false);
+            clearSearchFocus();
+            search();
+            return true;
+        });
         bindNickSuggestions();
         showStartState();
         showOpeningSplashOverlay();
@@ -2753,7 +2773,13 @@ public class MainActivity extends Activity {
             if (!changed.isEmpty() && !"—".equals(changed)) texts.addView(text(t("changed_at") + ": " + changed, compact ? 11 : 12, muted, false));
         }
         TextView arrow = text("›", compact ? 24 : 28, Color.WHITE, true); row.addView(arrow, new LinearLayout.LayoutParams(dp(26), -1));
-        row.setOnClickListener(v -> { setSuggestionsVisible(false); searchInput.setText(name); searchInput.setSelection(searchInput.getText().length()); search(); });
+        row.setOnClickListener(v -> {
+            setSuggestionsVisible(false);
+            searchInput.setText(name);
+            searchInput.setSelection(searchInput.getText().length());
+            clearSearchFocus();
+            search();
+        });
         return row;
     }
 
@@ -3076,7 +3102,16 @@ private int loadingProgressFor(String message) {
     private String enc(String s) { try { return URLEncoder.encode(s == null ? "" : s, "UTF-8"); } catch(Exception e){ return s; } }
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
     private void hideKeyboard(){ try{ ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(searchInput.getWindowToken(),0);}catch(Exception ignored){} }
-    private void clearSearchFocus(){ try { if (searchInput != null) { searchInput.clearFocus(); searchInput.setCursorVisible(false); hideKeyboard(); } } catch(Exception ignored) {} }
+    private void clearSearchFocus(){
+        try {
+            setSuggestionsVisible(false);
+            if (searchInput != null) {
+                searchInput.clearFocus();
+                searchInput.setCursorVisible(false);
+                hideKeyboard();
+            }
+        } catch(Exception ignored) {}
+    }
     private boolean isTouchInsideView(View view, MotionEvent event) {
         if (view == null || event == null) return false;
         int[] loc = new int[2];
@@ -5417,38 +5452,6 @@ private int loadingProgressFor(String message) {
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
 
-
-    public class SettingsGearDrawable extends Drawable {
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        @Override public void draw(Canvas c) {
-            Rect b = getBounds();
-            float w = b.width(), h = b.height(), cx = b.centerX(), cy = b.centerY(), m = Math.min(w, h);
-
-            p.setShader(null);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeCap(Paint.Cap.ROUND);
-            p.setStrokeJoin(Paint.Join.ROUND);
-            p.setStrokeWidth(Math.max(2f, m * .075f));
-            p.setColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
-
-            for (int i = 0; i < 8; i++) {
-                double a = i * Math.PI / 4.0;
-                float x1 = cx + (float)Math.cos(a) * m * .31f;
-                float y1 = cy + (float)Math.sin(a) * m * .31f;
-                float x2 = cx + (float)Math.cos(a) * m * .43f;
-                float y2 = cy + (float)Math.sin(a) * m * .43f;
-                c.drawLine(x1, y1, x2, y2, p);
-            }
-
-            c.drawCircle(cx, cy, m * .27f, p);
-
-            p.setStyle(Paint.Style.FILL);
-            c.drawCircle(cx, cy, m * .105f, p);
-        }
-        @Override public void setAlpha(int a){p.setAlpha(a);}
-        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
-        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
-    }
 
 
 }
