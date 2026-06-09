@@ -511,9 +511,9 @@ public class MainActivity extends Activity {
         historyBtn.setPadding(0, 0, 0, 0);
         historyBtn.setBackground(new HistoryClockDrawable());
         historyBtn.setOnClickListener(v -> showOpenedProfilesHistoryDialog());
-        FrameLayout.LayoutParams historyLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.LEFT);
-        historyLp.topMargin = dp(14);
-        historyLp.leftMargin = dp(8);
+        FrameLayout.LayoutParams historyLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.LEFT);
+        historyLp.topMargin = dp(15);
+        historyLp.leftMargin = dp(10);
         screen.addView(historyBtn, historyLp);
 
         TextView favoritesBtn = text("", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
@@ -521,9 +521,9 @@ public class MainActivity extends Activity {
         favoritesBtn.setPadding(0, 0, 0, 0);
         favoritesBtn.setBackground(new FavoriteStarDrawable(true));
         favoritesBtn.setOnClickListener(v -> showFavoriteProfilesDialog());
-        FrameLayout.LayoutParams favoritesLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.LEFT);
-        favoritesLp.topMargin = dp(60);
-        favoritesLp.leftMargin = dp(8);
+        FrameLayout.LayoutParams favoritesLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.LEFT);
+        favoritesLp.topMargin = dp(56);
+        favoritesLp.leftMargin = dp(10);
         screen.addView(favoritesBtn, favoritesLp);
 
         TextView settingsBtn = text("⚙", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
@@ -1580,7 +1580,7 @@ public class MainActivity extends Activity {
         });
         LinearLayout inner = new LinearLayout(this); inner.setOrientation(LinearLayout.VERTICAL);
         sv.addView(inner, new ScrollView.LayoutParams(-1, -2));
-        c.addView(sv, lp(-1, dp(Math.min(220, Math.max(120, 58 * Math.min(list.size(), 4)))), 0, 0, 0, 0));
+        c.addView(sv, lp(-1, dp(Math.min(220, Math.max(64, 68 * Math.min(list.size(), 4)))), 0, 0, 0, 0));
         for (int i=0; i<Math.min(list.size(), 40); i++) {
             JSONObject o = list.get(i);
             String n = firstText(o, "name");
@@ -1611,7 +1611,7 @@ public class MainActivity extends Activity {
         LinearLayout inner = new LinearLayout(this);
         inner.setOrientation(LinearLayout.VERTICAL);
         sv.addView(inner, new ScrollView.LayoutParams(-1, -2));
-        c.addView(sv, lp(-1, dp(Math.min(260, Math.max(130, 66 * Math.min(valid.size(), 4)))), 0, 0, 0, 0));
+        c.addView(sv, lp(-1, dp(Math.min(260, Math.max(74, 76 * Math.min(valid.size(), 4)))), 0, 0, 0, 0));
         for (int i=0; i<valid.size(); i++) {
             JSONObject o = valid.get(i);
             String m = firstText(o, "text");
@@ -2488,18 +2488,21 @@ public class MainActivity extends Activity {
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-        c.addView(controls, lp(-1, dp(50), 0, 0, 0, 10));
+        c.addView(controls, lp(-1, dp(46), 0, 0, 0, 10));
 
-        final boolean[] showAchievements = {false};
+        final boolean[] hideAchievementBadges = {true};
         final int[] page = {1};
 
-        TextView achievements = habboText(t("achievements"), 16, true);
-        achievements.setGravity(Gravity.CENTER);
-        achievements.setTextColor(Color.WHITE);
-        achievements.setPadding(dp(14), 0, dp(14), 0);
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-2, dp(42));
-        ap.rightMargin = dp(8);
-        controls.addView(achievements, ap);
+        TextView hideLabel = text(t("hide_badges"), 15, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
+        hideLabel.setGravity(Gravity.CENTER_VERTICAL);
+        controls.addView(hideLabel, new LinearLayout.LayoutParams(0, dp(42), 1));
+
+        TextView hideToggle = text("", 14, Color.WHITE, true);
+        hideToggle.setGravity(Gravity.CENTER);
+        hideToggle.setPadding(0, 0, 0, 0);
+        LinearLayout.LayoutParams toggleLp = new LinearLayout.LayoutParams(dp(58), dp(32));
+        toggleLp.leftMargin = dp(10);
+        controls.addView(hideToggle, toggleLp);
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -2509,23 +2512,52 @@ public class MainActivity extends Activity {
         render[0] = () -> {
             content.removeAllViews();
 
-            achievements.setBackground(showAchievements[0]
-                    ? round(Color.rgb(39, 174, 96), dp(14), Color.argb(65,255,255,255), 1)
-                    : round(Color.rgb(207, 65, 65), dp(14), Color.argb(65,255,255,255), 1));
+            hideToggle.setText(hideAchievementBadges[0] ? "ON" : "OFF");
+            hideToggle.setBackground(hideAchievementBadges[0]
+                    ? round(Color.rgb(39, 174, 96), dp(999), Color.argb(65,255,255,255), 1)
+                    : round(lightTheme ? Color.rgb(225,225,225) : Color.rgb(50,50,58), dp(999), lightTheme ? Color.rgb(205,205,205) : Color.argb(65,255,255,255), 1));
+            hideToggle.setTextColor(hideAchievementBadges[0] || !lightTheme ? Color.WHITE : Color.rgb(60,60,60));
 
-            ArrayList<JSONObject> data = showAchievements[0] ? withAchievements : normal;
+            ArrayList<JSONObject> data = hideAchievementBadges[0] ? normal : withAchievements;
             if (data == null) data = new ArrayList<>();
             renderBadgePage(content, data, page[0], 24);
             renderPager(content, data.size(), 24, page, render[0]);
         };
 
-        achievements.setOnClickListener(v -> {
-            showAchievements[0] = !showAchievements[0];
+        View.OnClickListener toggleAction = v -> {
+            hideAchievementBadges[0] = !hideAchievementBadges[0];
             page[0] = 1;
             render[0].run();
-        });
+        };
+        hideToggle.setOnClickListener(toggleAction);
+        hideLabel.setOnClickListener(toggleAction);
 
         render[0].run();
+    }
+
+
+    private boolean isTodayCreationTime(String raw) {
+        if (raw == null) return false;
+        String s = raw.trim();
+        if (s.isEmpty()) return false;
+        String today = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date());
+        if (s.length() >= 10 && s.substring(0, 10).equals(today)) return true;
+
+        String[] patterns = new String[]{
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd"
+        };
+        for (String pattern : patterns) {
+            try {
+                SimpleDateFormat fmt = new SimpleDateFormat(pattern, Locale.ROOT);
+                if (pattern.endsWith("'Z'")) fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+                Date d = fmt.parse(s);
+                if (d != null && new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(d).equals(today)) return true;
+            } catch(Exception ignored) {}
+        }
+        return false;
     }
 
     private void renderBadgePage(LinearLayout content, ArrayList<JSONObject> list, int page, int per) {
@@ -2560,6 +2592,17 @@ public class MainActivity extends Activity {
             img.setPadding(dp(8), dp(8), dp(8), dp(8));
             cell.addView(img, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
             if (!code.isEmpty()) loadImage(img, badgeImageUrl(code));
+
+            if (isTodayCreationTime(firstText(badgeObj, "creationTime", "createdAt", "date"))) {
+                TextView newBadge = text(t("new"), 9, Color.WHITE, true);
+                newBadge.setGravity(Gravity.CENTER);
+                newBadge.setPadding(dp(5), 0, dp(5), 0);
+                newBadge.setBackground(round(Color.rgb(39, 174, 96), dp(999), Color.argb(95,255,255,255), 1));
+                FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(-2, dp(18), Gravity.TOP | Gravity.RIGHT);
+                nlp.topMargin = dp(2);
+                nlp.rightMargin = dp(2);
+                cell.addView(newBadge, nlp);
+            }
 
             cell.setOnClickListener(v -> showBadgeDialog(badgeObj));
 
@@ -3865,6 +3908,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "No favorite profiles yet.";
                 case "favorite_added": return "Added to favorites.";
                 case "favorite_removed": return "Removed from favorites.";
+                case "hide_badges": return "Hide badges";
             }
         }
         else if ("es".equals(lang)) {
@@ -3979,6 +4023,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Aún no hay perfiles favoritos.";
                 case "favorite_added": return "Añadido a favoritos.";
                 case "favorite_removed": return "Eliminado de favoritos.";
+                case "hide_badges": return "Ocultar emblemas";
             }
         }
         else if ("de".equals(lang)) {
@@ -4093,6 +4138,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Noch keine favorisierten Profile.";
                 case "favorite_added": return "Zu Favoriten hinzugefügt.";
                 case "favorite_removed": return "Aus Favoriten entfernt.";
+                case "hide_badges": return "Abzeichen ausblenden";
             }
         }
         else if ("fr".equals(lang)) {
@@ -4207,6 +4253,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Aucun profil favori pour le moment.";
                 case "favorite_added": return "Ajouté aux favoris.";
                 case "favorite_removed": return "Retiré des favoris.";
+                case "hide_badges": return "Masquer les badges";
             }
         }
         else if ("fi".equals(lang)) {
@@ -4321,6 +4368,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Ei vielä suosikkiprofiileja.";
                 case "favorite_added": return "Lisätty suosikkeihin.";
                 case "favorite_removed": return "Poistettu suosikeista.";
+                case "hide_badges": return "Piilota merkit";
             }
         }
         else if ("it".equals(lang)) {
@@ -4435,6 +4483,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Nessun profilo preferito ancora.";
                 case "favorite_added": return "Aggiunto ai preferiti.";
                 case "favorite_removed": return "Rimosso dai preferiti.";
+                case "hide_badges": return "Nascondi distintivi";
             }
         }
         else if ("nl".equals(lang)) {
@@ -4549,6 +4598,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Nog geen favoriete profielen.";
                 case "favorite_added": return "Toegevoegd aan favorieten.";
                 case "favorite_removed": return "Verwijderd uit favorieten.";
+                case "hide_badges": return "Badges verbergen";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4663,6 +4713,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Henüz favori profil yok.";
                 case "favorite_added": return "Favorilere eklendi.";
                 case "favorite_removed": return "Favorilerden kaldırıldı.";
+                case "hide_badges": return "Rozetleri gizle";
             }
         }
         switch (key) {
@@ -4776,6 +4827,7 @@ private int loadingProgressFor(String message) {
             case "no_favorites": return "Nenhum perfil favoritado ainda.";
             case "favorite_added": return "Adicionado aos favoritos.";
             case "favorite_removed": return "Removido dos favoritos.";
+            case "hide_badges": return "Ocultar emblemas";
         }
         return key;
     }
@@ -5443,7 +5495,7 @@ private int loadingProgressFor(String message) {
             star.close();
             p.setShader(null);
             p.setStyle(Paint.Style.FILL);
-            p.setColor(active ? Color.rgb(255, 210, 70) : (lightTheme ? Color.argb(44,33,33,33) : Color.argb(42,255,255,255)));
+            p.setColor(active ? (lightTheme ? Color.rgb(33,33,33) : Color.WHITE) : (lightTheme ? Color.argb(44,33,33,33) : Color.argb(42,255,255,255)));
             c.drawPath(star, p);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(Math.max(2f, m*.055f));
