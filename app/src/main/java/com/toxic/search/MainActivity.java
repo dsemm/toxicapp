@@ -2349,7 +2349,7 @@ public class MainActivity extends Activity {
         render[0].run();
     }
 
-    private int tabInactiveTextColor() { return lightTheme ? Color.rgb(70,70,70) : tabInactiveTextColor(); }
+    private int tabInactiveTextColor() { return lightTheme ? Color.rgb(70,70,70) : Color.argb(150,255,255,255); }
 
     private TextView tabButton(String s, boolean active) {
         TextView v = habboText(s, 16, true); v.setTextColor(active ? Color.WHITE : tabInactiveTextColor()); v.setGravity(Gravity.CENTER); v.setPadding(dp(13),0,dp(13),0); v.setBackground(tabBg(active));
