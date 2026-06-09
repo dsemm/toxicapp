@@ -5575,79 +5575,91 @@ private int loadingProgressFor(String message) {
         boolean active;
         TrashTabDrawable(boolean active) { this.active = active; }
 
+        private float sx(float x, float left, float size) { return left + (x / 16f) * size; }
+        private float sy(float y, float top, float size) { return top + (y / 16f) * size; }
+
         @Override public void draw(Canvas c) {
             Rect b = getBounds();
-            float w=b.width(), h=b.height(), x=b.left, y=b.top, m=Math.min(w,h);
-            RectF bg = new RectF(x+m*.04f, y+m*.06f, x+w-m*.04f, y+h-m*.06f);
+            float w = b.width(), h = b.height();
+            float size = Math.min(w, h) * .64f;
+            float left = b.left + (w - size) / 2f;
+            float top = b.top + (h - size) / 2f;
 
             p.setShader(null);
-            p.setStyle(Paint.Style.FILL);
-            if (active) p.setColor(Color.rgb(190, 48, 70));
-            else p.setColor(lightTheme ? Color.rgb(245,245,245) : Color.argb(18,255,255,255));
-            c.drawRoundRect(bg, dp(13), dp(13), p);
-
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(1));
-            p.setColor(active ? Color.argb(85,255,255,255) : (lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255)));
-            c.drawRoundRect(bg, dp(13), dp(13), p);
-
             p.setStrokeCap(Paint.Cap.ROUND);
             p.setStrokeJoin(Paint.Join.ROUND);
-            p.setStrokeWidth(Math.max(2f, m*.055f));
-            p.setColor(active ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.WHITE));
+            p.setStrokeWidth(Math.max(1.8f, size * .075f));
+            p.setColor(active ? Color.rgb(210, 54, 77) : (lightTheme ? Color.rgb(33,33,33) : Color.WHITE));
 
-            float cx = b.centerX();
-            float top = y + h*.36f;
-            float left = cx - m*.13f;
-            float right = cx + m*.13f;
-            float bottom = y + h*.66f;
+            // Tampa superior, seguindo o SVG Bootstrap bi-trash anexado.
+            RectF lid = new RectF(sx(1.5f, left, size), sy(2f, top, size), sx(14.5f, left, size), sy(4f, top, size));
+            c.drawRoundRect(lid, size * .06f, size * .06f, p);
+            c.drawLine(sx(2.5f, left, size), sy(3f, top, size), sx(13.5f, left, size), sy(3f, top, size), p);
 
-            c.drawLine(left-m*.04f, top-m*.05f, right+m*.04f, top-m*.05f, p);
-            c.drawLine(cx-m*.065f, top-m*.12f, cx+m*.065f, top-m*.12f, p);
-            c.drawLine(cx-m*.065f, top-m*.12f, cx-m*.035f, top-m*.05f, p);
-            c.drawLine(cx+m*.065f, top-m*.12f, cx+m*.035f, top-m*.05f, p);
+            // Alça da tampa.
+            Path handle = new Path();
+            handle.moveTo(sx(6f, left, size), sy(2f, top, size));
+            handle.lineTo(sx(6f, left, size), sy(1.3f, top, size));
+            handle.quadTo(sx(6f, left, size), sy(.7f, top, size), sx(6.7f, left, size), sy(.7f, top, size));
+            handle.lineTo(sx(9.3f, left, size), sy(.7f, top, size));
+            handle.quadTo(sx(10f, left, size), sy(.7f, top, size), sx(10f, left, size), sy(1.3f, top, size));
+            handle.lineTo(sx(10f, left, size), sy(2f, top, size));
+            c.drawPath(handle, p);
 
-            RectF body = new RectF(left, top, right, bottom);
-            c.drawRoundRect(body, m*.035f, m*.035f, p);
-            c.drawLine(cx-m*.055f, top+m*.08f, cx-m*.055f, bottom-m*.06f, p);
-            c.drawLine(cx, top+m*.08f, cx, bottom-m*.06f, p);
-            c.drawLine(cx+m*.055f, top+m*.08f, cx+m*.055f, bottom-m*.06f, p);
+            // Corpo.
+            RectF body = new RectF(sx(3.15f, left, size), sy(4f, top, size), sx(12.85f, left, size), sy(15f, top, size));
+            c.drawRoundRect(body, size * .10f, size * .10f, p);
+
+            // Linhas internas.
+            c.drawLine(sx(5.5f, left, size), sy(5.7f, top, size), sx(5.5f, left, size), sy(12.4f, top, size), p);
+            c.drawLine(sx(8f, left, size), sy(5.7f, top, size), sx(8f, left, size), sy(12.4f, top, size), p);
+            c.drawLine(sx(10.5f, left, size), sy(5.7f, top, size), sx(10.5f, left, size), sy(12.4f, top, size), p);
         }
+
         @Override public void setAlpha(int a){p.setAlpha(a);}
         @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
+
 
     public class FavoriteStarDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         boolean active;
         FavoriteStarDrawable(boolean active) { this.active = active; }
+
         @Override public void draw(Canvas c) {
             Rect b = getBounds();
             float cx = b.centerX(), cy = b.centerY(), m = Math.min(b.width(), b.height());
-            Path star = new Path();
-            for (int i=0;i<10;i++) {
-                double a = -Math.PI/2 + i*Math.PI/5;
-                float rr = (i % 2 == 0) ? m*.34f : m*.15f;
-                float x = cx + (float)Math.cos(a)*rr;
-                float y = cy + (float)Math.sin(a)*rr;
-                if (i == 0) star.moveTo(x,y); else star.lineTo(x,y);
-            }
-            star.close();
+
+            Path heart = new Path();
+            heart.moveTo(cx, cy + m * .30f);
+            heart.cubicTo(cx - m*.42f, cy + m*.02f, cx - m*.38f, cy - m*.28f, cx - m*.17f, cy - m*.30f);
+            heart.cubicTo(cx - m*.05f, cy - m*.31f, cx, cy - m*.22f, cx, cy - m*.16f);
+            heart.cubicTo(cx, cy - m*.22f, cx + m*.05f, cy - m*.31f, cx + m*.17f, cy - m*.30f);
+            heart.cubicTo(cx + m*.38f, cy - m*.28f, cx + m*.42f, cy + m*.02f, cx, cy + m*.30f);
+            heart.close();
+
+            int iconColor = lightTheme ? Color.rgb(33,33,33) : Color.WHITE;
+
             p.setShader(null);
             p.setStyle(Paint.Style.FILL);
-            p.setColor(active ? (lightTheme ? Color.rgb(33,33,33) : Color.WHITE) : (lightTheme ? Color.argb(44,33,33,33) : Color.argb(42,255,255,255)));
-            c.drawPath(star, p);
+            p.setColor(active ? iconColor : (lightTheme ? Color.argb(44,33,33,33) : Color.argb(42,255,255,255)));
+            c.drawPath(heart, p);
+
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(Math.max(2f, m*.055f));
             p.setStrokeJoin(Paint.Join.ROUND);
-            p.setColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
-            c.drawPath(star, p);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(iconColor);
+            c.drawPath(heart, p);
         }
+
         @Override public void setAlpha(int a){p.setAlpha(a);}
         @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
+
 
     public class RemoveXDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
