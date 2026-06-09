@@ -512,7 +512,7 @@ public class MainActivity extends Activity {
         historyBtn.setBackground(new HistoryClockDrawable());
         historyBtn.setOnClickListener(v -> showOpenedProfilesHistoryDialog());
         FrameLayout.LayoutParams historyLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.LEFT);
-        historyLp.topMargin = dp(15);
+        historyLp.topMargin = dp(14);
         historyLp.leftMargin = dp(10);
         screen.addView(historyBtn, historyLp);
 
@@ -522,18 +522,18 @@ public class MainActivity extends Activity {
         favoritesBtn.setBackground(new FavoriteStarDrawable(true));
         favoritesBtn.setOnClickListener(v -> showFavoriteProfilesDialog());
         FrameLayout.LayoutParams favoritesLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.LEFT);
-        favoritesLp.topMargin = dp(56);
+        favoritesLp.topMargin = dp(60);
         favoritesLp.leftMargin = dp(10);
         screen.addView(favoritesBtn, favoritesLp);
 
-        TextView settingsBtn = text("⚙", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
+        TextView settingsBtn = text("⚙", 20, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
         settingsBtn.setGravity(Gravity.CENTER);
         settingsBtn.setPadding(0, 0, 0, 0);
         settingsBtn.setBackgroundColor(Color.TRANSPARENT);
         settingsBtn.setOnClickListener(v -> showSettingsDialog());
-        FrameLayout.LayoutParams settingsLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
+        FrameLayout.LayoutParams settingsLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.RIGHT);
         settingsLp.topMargin = dp(14);
-        settingsLp.rightMargin = dp(8);
+        settingsLp.rightMargin = dp(10);
         screen.addView(settingsBtn, settingsLp);
 
         rewardAdBtn = text("", 22, Color.WHITE, true);
@@ -542,9 +542,9 @@ public class MainActivity extends Activity {
         rewardAdBtn.setIncludeFontPadding(false);
         rewardAdBtn.setBackground(new RewardVideoDrawable());
         rewardAdBtn.setOnClickListener(v -> showRewardedAdDialog());
-        FrameLayout.LayoutParams rewardLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
+        FrameLayout.LayoutParams rewardLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.RIGHT);
         rewardLp.topMargin = dp(60);
-        rewardLp.rightMargin = dp(8);
+        rewardLp.rightMargin = dp(10);
         screen.addView(rewardAdBtn, rewardLp);
 
         rewardAdTimeLabel = text("", 9, lightTheme ? Color.rgb(45,45,45) : Color.WHITE, true);
@@ -553,7 +553,7 @@ public class MainActivity extends Activity {
         rewardAdTimeLabel.setSingleLine(true);
         rewardAdTimeLabel.setVisibility(View.GONE);
         FrameLayout.LayoutParams rewardTimeLp = new FrameLayout.LayoutParams(dp(58), dp(16), Gravity.TOP | Gravity.RIGHT);
-        rewardTimeLp.topMargin = dp(102);
+        rewardTimeLp.topMargin = dp(100);
         rewardTimeLp.rightMargin = dp(0);
         screen.addView(rewardAdTimeLabel, rewardTimeLp);
 
@@ -2337,7 +2337,7 @@ public class MainActivity extends Activity {
         render[0] = () -> {
             content.removeAllViews();
             btFriends.setBackground(showingRemoved[0] ? tabBg(false) : tabBg(true));
-            btFriends.setTextColor(showingRemoved[0] ? Color.argb(150,255,255,255) : Color.WHITE);
+            btFriends.setTextColor(showingRemoved[0] ? tabInactiveTextColor() : Color.WHITE);
             btRemoved.setBackground(new TrashTabDrawable(showingRemoved[0]));
             btRemoved.setText("");
             ArrayList<JSONObject> data = showingRemoved[0] ? removedList : friendsList;
@@ -2349,8 +2349,10 @@ public class MainActivity extends Activity {
         render[0].run();
     }
 
+    private int tabInactiveTextColor() { return lightTheme ? Color.rgb(70,70,70) : tabInactiveTextColor(); }
+
     private TextView tabButton(String s, boolean active) {
-        TextView v = habboText(s, 16, true); v.setTextColor(active ? Color.WHITE : Color.argb(150,255,255,255)); v.setGravity(Gravity.CENTER); v.setPadding(dp(13),0,dp(13),0); v.setBackground(tabBg(active));
+        TextView v = habboText(s, 16, true); v.setTextColor(active ? Color.WHITE : tabInactiveTextColor()); v.setGravity(Gravity.CENTER); v.setPadding(dp(13),0,dp(13),0); v.setBackground(tabBg(active));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, dp(44)); p.rightMargin = dp(8); v.setLayoutParams(p); return v;
     }
 
@@ -2365,7 +2367,7 @@ public class MainActivity extends Activity {
         return v;
     }
 
-    private Drawable tabBg(boolean active) { return active ? grad(dp(13), purple2, Color.rgb(166, 42, 235)) : round(Color.argb(12,255,255,255), dp(13), Color.argb(28,255,255,255), 1); }
+    private Drawable tabBg(boolean active) { return active ? grad(dp(13), purple2, Color.rgb(166, 42, 235)) : round(lightTheme ? Color.rgb(244,244,246) : Color.argb(12,255,255,255), dp(13), lightTheme ? Color.rgb(210,210,214) : Color.argb(28,255,255,255), 1); }
 
     private void renderFriendsPage(LinearLayout content, ArrayList<JSONObject> data, int page, int per, boolean removed) {
         if (data.isEmpty()) { content.addView(centerNote(removed ? t("no_removed_friend_found") : t("no_friend_found"))); return; }
@@ -2470,7 +2472,7 @@ public class MainActivity extends Activity {
         render[0] = () -> {
             content.removeAllViews();
             btRooms.setBackground(old[0] ? tabBg(false) : tabBg(true));
-            btRooms.setTextColor(old[0] ? Color.argb(150,255,255,255) : Color.WHITE);
+            btRooms.setTextColor(old[0] ? tabInactiveTextColor() : Color.WHITE);
             btOld.setBackground(new TrashTabDrawable(old[0]));
             btOld.setText("");
             ArrayList<JSONObject> data = old[0] ? oldRooms : rooms;
@@ -2626,7 +2628,7 @@ public class MainActivity extends Activity {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setGravity(Gravity.CENTER);
-                content.addView(row, lp(-1, dp(82), 0, 0, 0, 8));
+                content.addView(row, lp(-1, dp(60), 0, 0, 0, 8));
             }
 
             JSONObject badgeObj = list.get(i);
@@ -2639,16 +2641,16 @@ public class MainActivity extends Activity {
 
             ImageView img = new ImageView(this);
             img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            img.setPadding(dp(8), dp(8), dp(8), dp(8));
-            cell.addView(img, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+            img.setPadding(dp(2), dp(2), dp(2), dp(2));
+            cell.addView(img, new FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER));
             if (!code.isEmpty()) loadImage(img, badgeImageUrl(code));
 
             if (isTodayCreationTime(firstText(badgeObj, "creationTime", "createdAt", "date"))) {
-                TextView newBadge = text(newBadgeLabel(), 9, Color.WHITE, true);
+                TextView newBadge = text(newBadgeLabel(), 8, Color.WHITE, true);
                 newBadge.setGravity(Gravity.CENTER);
                 newBadge.setPadding(dp(5), 0, dp(5), 0);
                 newBadge.setBackground(round(Color.rgb(39, 174, 96), dp(999), Color.argb(95,255,255,255), 1));
-                FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(-2, dp(18), Gravity.TOP | Gravity.RIGHT);
+                FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(-2, dp(16), Gravity.TOP | Gravity.RIGHT);
                 nlp.topMargin = dp(2);
                 nlp.rightMargin = dp(2);
                 cell.addView(newBadge, nlp);
@@ -2656,7 +2658,7 @@ public class MainActivity extends Activity {
 
             cell.setOnClickListener(v -> showBadgeDialog(badgeObj));
 
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(76), 1);
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(54), 1);
             cp.leftMargin = dp(2);
             cp.rightMargin = dp(2);
             if (row != null) row.addView(cell, cp);
