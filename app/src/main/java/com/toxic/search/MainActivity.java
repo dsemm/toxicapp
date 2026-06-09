@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
     private ScrollView suggestionsScroll;
     private int suggestionRequestId = 0;
     private boolean suppressSuggestions = false;
+    private boolean programmaticSearchTextChange = false;
     private Handler uiHandler = new Handler(Looper.getMainLooper());
     private int avatarDirection = 2;
     private ImageView currentAvatarImage;
@@ -782,10 +783,18 @@ public class MainActivity extends Activity {
         suppressSuggestions = true;
         suggestionRequestId++;
         setSuggestionsVisible(false);
-        setSearchTextProgrammatically(value == null ? "" : value);
+        if (searchInput != null) {
+            programmaticSearchTextChange = true;
+            searchInput.setText(value == null ? "" : value);
+            searchInput.setSelection(searchInput.getText().length());
+            programmaticSearchTextChange = false;
+        }
     }
 
     private void search() {
+        suppressSuggestions = true;
+        suggestionRequestId++;
+        setSuggestionsVisible(false);
         final String nick = searchInput.getText().toString().trim();
         final String nickKey = normalizeNickKey(nick);
         if (nickKey.isEmpty()) { hidePullRefreshIndicator(); toast(t("type_nick_toast")); return; }
@@ -2217,7 +2226,7 @@ public class MainActivity extends Activity {
         if (nickToOpen != null && !nickToOpen.trim().isEmpty()) {
             final String nick = nickToOpen.trim();
             row.setOnClickListener(v -> {
-                searchInput.setText(nick);
+                setSearchTextProgrammatically(nick);
                 search();
             });
         }
@@ -2247,7 +2256,7 @@ public class MainActivity extends Activity {
 
         row.setOnClickListener(v -> {
             if (dialogToClose != null) dialogToClose.dismiss();
-            searchInput.setText(nick);
+            setSearchTextProgrammatically(nick);
             search();
         });
 
@@ -2649,7 +2658,7 @@ public class MainActivity extends Activity {
         searchInput.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (searchInput != null && searchInput.hasFocus()) suppressSuggestions = false;
+                if (!programmaticSearchTextChange && searchInput != null && searchInput.hasFocus()) suppressSuggestions = false;
                 scheduleSuggestions(String.valueOf(s));
             }
             public void afterTextChanged(Editable e) {}
@@ -5024,11 +5033,8 @@ private int loadingProgressFor(String message) {
             }
             activeRenderedProfile = previous;
             currentLoadedNick = normalizeNickKey(previous.name);
-            if (searchInput != null) {
-                searchInput.setText(previous.name == null ? "" : previous.name);
-                searchInput.setSelection(searchInput.getText().length());
-                clearSearchFocus();
-            }
+            setSearchTextProgrammatically(previous.name == null ? "" : previous.name);
+            clearSearchFocus();
             statusText.setText("");
             renderProfile(previous);
             return;
