@@ -5,6 +5,7 @@ import android.os.*;
 import android.graphics.*;
 import android.graphics.drawable.*;
 import android.content.*;
+import android.content.res.ColorStateList;
 import android.net.*;
 import android.text.*;
 import android.view.*;
@@ -40,6 +41,7 @@ public class MainActivity extends Activity {
     private LinearLayout suggestionsBox;
     private ScrollView suggestionsScroll;
     private int suggestionRequestId = 0;
+    private boolean suppressSuggestions = false;
     private Handler uiHandler = new Handler(Looper.getMainLooper());
     private int avatarDirection = 2;
     private ImageView currentAvatarImage;
@@ -68,6 +70,7 @@ public class MainActivity extends Activity {
     private static final String PREF_MAX_CACHE_MB = "max_cache_mb";
     private static final String PREF_HOTEL = "hotel";
     private static final String PREF_OPENED_HISTORY = "opened_profiles_history";
+    private static final String PREF_FAVORITES = "favorite_profiles";
     private static final String PREF_TUTORIAL_SHOWN = "tutorial_shown";
     private static final long PROFILE_REFRESH_COOLDOWN_MS = 60L * 1000L;
     private ScrollView mainScroll;
@@ -78,6 +81,7 @@ public class MainActivity extends Activity {
     private float pullStartY = 0f;
     private boolean pullStartedAtTop = false;
     private final ArrayList<ProfileHistoryItem> openedProfilesHistory = new ArrayList<>();
+    private final ArrayList<ProfileHistoryItem> favoriteProfiles = new ArrayList<>();
     private String currentHotelKey = "br";
 
     private InterstitialAd interstitialAd;
@@ -151,6 +155,7 @@ public class MainActivity extends Activity {
             getWindow().getDecorView().setSystemUiVisibility(flags);
         }
         loadOpenedProfilesHistory();
+        loadFavoriteProfiles();
         adFreeUntilMs = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(PREF_AD_FREE_UNTIL_MS, 0L);
         buildUi();
         MobileAds.initialize(this, initializationStatus -> {});
@@ -510,6 +515,16 @@ public class MainActivity extends Activity {
         historyLp.leftMargin = dp(8);
         screen.addView(historyBtn, historyLp);
 
+        TextView favoritesBtn = text("", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
+        favoritesBtn.setGravity(Gravity.CENTER);
+        favoritesBtn.setPadding(0, 0, 0, 0);
+        favoritesBtn.setBackground(new FavoriteStarDrawable(true));
+        favoritesBtn.setOnClickListener(v -> showFavoriteProfilesDialog());
+        FrameLayout.LayoutParams favoritesLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.LEFT);
+        favoritesLp.topMargin = dp(60);
+        favoritesLp.leftMargin = dp(8);
+        screen.addView(favoritesBtn, favoritesLp);
+
         TextView settingsBtn = text("⚙", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
         settingsBtn.setGravity(Gravity.CENTER);
         settingsBtn.setPadding(0, 0, 0, 0);
@@ -597,10 +612,8 @@ public class MainActivity extends Activity {
         suggestionsScroll.setScrollbarFadingEnabled(false);
         suggestionsScroll.setNestedScrollingEnabled(true);
         suggestionsScroll.setOnTouchListener((v, event) -> {
-            v.getParent().requestDisallowInterceptTouchEvent(true);
-            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                v.getParent().requestDisallowInterceptTouchEvent(false);
-            }
+            requestDisallowParents(v, true);
+            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) requestDisallowParents(v, false);
             return false;
         });
         tintScrollBar(suggestionsScroll);
@@ -673,7 +686,7 @@ public class MainActivity extends Activity {
         disclaimerWrap.setOrientation(LinearLayout.VERTICAL);
         disclaimerWrap.setGravity(Gravity.CENTER_HORIZONTAL);
         FrameLayout.LayoutParams disclaimerLp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        disclaimerLp.bottomMargin = dp(24);
+        disclaimerLp.bottomMargin = dp(10);
         splash.addView(disclaimerWrap, disclaimerLp);
 
         TextView disclaimer1 = text(t("disclaimer1"), 12, Color.argb(210,255,255,255), false);
@@ -682,11 +695,6 @@ public class MainActivity extends Activity {
         disclaimer1.setPadding(dp(26), dp(4), dp(26), 0);
         disclaimerWrap.addView(disclaimer1, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView disclaimer2 = text(t("disclaimer2"), 12, Color.argb(188,255,255,255), false);
-        disclaimer2.setGravity(Gravity.CENTER);
-        disclaimer2.setLineSpacing(dp(2), 1f);
-        disclaimer2.setPadding(dp(26), dp(2), dp(26), 0);
-        disclaimerWrap.addView(disclaimer2, new LinearLayout.LayoutParams(-1, -2));
 
         screen.addView(splash, new FrameLayout.LayoutParams(-1, -1));
         splash.bringToFront();
@@ -768,6 +776,13 @@ public class MainActivity extends Activity {
         resultWrap.removeAllViews();
         LinearLayout c = sectionCard(t("ready_search"), 0, false);
         c.addView(centerNote(t("start_note")));
+    }
+
+    private void setSearchTextProgrammatically(String value) {
+        suppressSuggestions = true;
+        suggestionRequestId++;
+        setSuggestionsVisible(false);
+        setSearchTextProgrammatically(value == null ? "" : value);
     }
 
     private void search() {
@@ -1360,6 +1375,19 @@ public class MainActivity extends Activity {
         avatar.setPadding(dp(20), dp(10), dp(20), dp(84));
         avatarFrame.addView(avatar, new FrameLayout.LayoutParams(-1, -1));
         currentAvatarImage = avatar;
+
+        TextView favoriteStar = text("", 22, Color.WHITE, true);
+        favoriteStar.setGravity(Gravity.CENTER);
+        favoriteStar.setPadding(0, 0, 0, 0);
+        favoriteStar.setBackground(new FavoriteStarDrawable(isFavoriteProfile(r)));
+        FrameLayout.LayoutParams favoriteStarLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
+        favoriteStarLp.topMargin = dp(10);
+        favoriteStarLp.rightMargin = dp(10);
+        avatarFrame.addView(favoriteStar, favoriteStarLp);
+        favoriteStar.setOnClickListener(v -> {
+            toggleFavoriteProfile(r);
+            favoriteStar.setBackground(new FavoriteStarDrawable(isFavoriteProfile(r)));
+        });
         currentProfileFigure = r.figure;
         avatarDirection = 2;
         updateProfileAvatar();
@@ -2104,7 +2132,7 @@ public class MainActivity extends Activity {
             LinearLayout ownerCard = photoInfoCard(t("owner"), ownerName, ownerFigure, ownerName);
             ownerCard.setOnClickListener(v -> {
                 dialog.dismiss();
-                searchInput.setText(ownerName);
+                setSearchTextProgrammatically(ownerName);
                 search();
             });
             infoGrid.addView(ownerCard);
@@ -2363,7 +2391,7 @@ public class MainActivity extends Activity {
         card.addView(d, lp(-1,-2,0,0,0,0));
 
         final String fname = n;
-        card.setOnClickListener(v -> { searchInput.setText(fname); search(); });
+        card.setOnClickListener(v -> { setSearchTextProgrammatically(fname); search(); });
         return card;
     }
 
@@ -2600,10 +2628,30 @@ public class MainActivity extends Activity {
         if (suggestionsBox != null) suggestionsBox.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
+    private void setSuggestionsHeight(int desiredDp) {
+        if (suggestionsScroll == null) return;
+        ViewGroup.LayoutParams raw = suggestionsScroll.getLayoutParams();
+        if (raw != null) {
+            raw.height = dp(Math.max(52, Math.min(230, desiredDp)));
+            suggestionsScroll.setLayoutParams(raw);
+        }
+    }
+
+    private void requestDisallowParents(View v, boolean disallow) {
+        ViewParent p = v == null ? null : v.getParent();
+        while (p != null) {
+            p.requestDisallowInterceptTouchEvent(disallow);
+            p = p.getParent();
+        }
+    }
+
     private void bindNickSuggestions() {
         searchInput.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void onTextChanged(CharSequence s, int start, int before, int count) { scheduleSuggestions(String.valueOf(s)); }
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (searchInput != null && searchInput.hasFocus()) suppressSuggestions = false;
+                scheduleSuggestions(String.valueOf(s));
+            }
             public void afterTextChanged(Editable e) {}
         });
     }
@@ -2614,6 +2662,8 @@ public class MainActivity extends Activity {
         final int requestId = suggestionRequestId;
         suggestionsBox.removeAllViews();
         setSuggestionsVisible(false);
+
+        if (suppressSuggestions || searchInProgress || searchInput == null || !searchInput.hasFocus()) return;
         if (q.length() < 2) return;
 
         showSuggestionsLoading();
@@ -2621,7 +2671,7 @@ public class MainActivity extends Activity {
         executor.execute(() -> {
             ArrayList<JSONObject> suggestions = fetchLiveNickSuggestions(q);
             runOnUiThread(() -> {
-                if (requestId == suggestionRequestId) renderLiveSuggestions(q, suggestions);
+                if (requestId == suggestionRequestId && !suppressSuggestions && !searchInProgress && searchInput != null && searchInput.hasFocus()) renderLiveSuggestions(q, suggestions);
             });
         });
     }
@@ -2638,6 +2688,7 @@ public class MainActivity extends Activity {
 
         ProgressBar pb = new ProgressBar(this);
         pb.setIndeterminate(true);
+        if (Build.VERSION.SDK_INT >= 21) pb.setIndeterminateTintList(ColorStateList.valueOf(purple));
         row.addView(pb, new LinearLayout.LayoutParams(dp(28), dp(28)));
 
         TextView tv = text(t("loading_suggestions"), 13, lightTheme ? Color.rgb(70,70,70) : Color.argb(220,255,255,255), true);
@@ -2646,6 +2697,7 @@ public class MainActivity extends Activity {
         row.addView(tv, tp);
 
         suggestionsBox.addView(row, lp(-1, -2, 0, 0, 0, 8));
+        setSuggestionsHeight(58);
     }
 
     private void renderLiveSuggestions(String query, ArrayList<JSONObject> list) {
@@ -2654,7 +2706,9 @@ public class MainActivity extends Activity {
         setSuggestionsVisible(true);
         TextView title = text(t("suggestions"), 12, Color.argb(210,255,255,255), true);
         suggestionsBox.addView(title, lp(-1, -2, 2, 2, 2, 6));
-        for (int i=0; i<Math.min(list.size(), 6); i++) suggestionsBox.addView(suggestionRow(query, list.get(i), true));
+        int count = Math.min(list.size(), 8);
+        for (int i=0; i<count; i++) suggestionsBox.addView(suggestionRow(query, list.get(i), true));
+        setSuggestionsHeight(34 + (count * 76));
     }
 
     private ArrayList<JSONObject> fetchPreviousNickSuggestions(String query) {
@@ -2774,9 +2828,7 @@ public class MainActivity extends Activity {
         }
         TextView arrow = text("›", compact ? 24 : 28, Color.WHITE, true); row.addView(arrow, new LinearLayout.LayoutParams(dp(26), -1));
         row.setOnClickListener(v -> {
-            setSuggestionsVisible(false);
-            searchInput.setText(name);
-            searchInput.setSelection(searchInput.getText().length());
+            setSearchTextProgrammatically(name);
             clearSearchFocus();
             search();
         });
@@ -2817,6 +2869,7 @@ public class MainActivity extends Activity {
 
     private void showError(String msg) { resultWrap.removeAllViews(); LinearLayout c = sectionCard("Erro", 0, false); TextView t = text(msg, 15, Color.WHITE, true); t.setGravity(Gravity.CENTER); c.addView(t); }
     private void setLoading(boolean loading, String message) {
+        if (loading) { suppressSuggestions = true; suggestionRequestId++; setSuggestionsVisible(false); }
         searchBtn.setEnabled(!loading);
         searchBtn.setText(loading ? t("searching_profile") : t("search_button"));
         progress.setVisibility(View.GONE);
@@ -3586,10 +3639,7 @@ private int loadingProgressFor(String message) {
             }
         }
 
-        if (searchInput != null) {
-            searchInput.setText(nick.trim());
-            searchInput.setSelection(searchInput.getText().length());
-        }
+        setSearchTextProgrammatically(nick.trim());
         if (fromPull) showPullRefreshIndicator();
         search();
     }
@@ -3721,7 +3771,6 @@ private int loadingProgressFor(String message) {
                 case "video_loading": return "The video is still loading. Try again in a few seconds.";
                 case "adfree_granted": return "30 ad-free minutes unlocked.";
                 case "disclaimer1": return "This application is not affiliated with, endorsed, sponsored, or specifically approved by Sulake Corporation Oy or its affiliates.";
-                case "disclaimer2": return "It is only a public data lookup tool.";
                 case "private": return "Private";
                 case "banned": return "Banned";
                 case "status": return "Status";
@@ -3803,6 +3852,10 @@ private int loadingProgressFor(String message) {
                 case "changed_at": return "Changed on";
                 case "old_nick_suggestions_title": return "This nickname seems to have been used before by:";
                 case "no_old_nick_suggestions": return "I also couldn't find current accounts that used this nickname.";
+                case "favorites": return "Favorites";
+                case "no_favorites": return "No favorite profiles yet.";
+                case "favorite_added": return "Added to favorites.";
+                case "favorite_removed": return "Removed from favorites.";
             }
         }
         else if ("es".equals(lang)) {
@@ -3887,7 +3940,6 @@ private int loadingProgressFor(String message) {
                 case "video_loading": return "El vídeo todavía se está cargando. Inténtalo de nuevo en unos segundos.";
                 case "adfree_granted": return "Se liberaron 30 minutos sin anuncios.";
                 case "disclaimer1": return "Esta aplicación no está afiliada, respaldada, patrocinada ni específicamente aprobada por Sulake Corporation Oy o sus afiliadas.";
-                case "disclaimer2": return "Solo es una herramienta de consulta de datos públicos.";
                 case "error_search_profile": return "Error al buscar el perfil.";
                 case "no_profile_found": return "No se encontró ningún perfil";
                 case "generic_loading": return "Cargando...";
@@ -3914,6 +3966,10 @@ private int loadingProgressFor(String message) {
                 case "changed_at": return "Cambiado el";
                 case "old_nick_suggestions_title": return "Este nick parece haber sido usado antes por:";
                 case "no_old_nick_suggestions": return "Tampoco encontré cuentas actuales que hayan usado este nick.";
+                case "favorites": return "Favoritos";
+                case "no_favorites": return "Aún no hay perfiles favoritos.";
+                case "favorite_added": return "Añadido a favoritos.";
+                case "favorite_removed": return "Eliminado de favoritos.";
             }
         }
         else if ("de".equals(lang)) {
@@ -3998,7 +4054,6 @@ private int loadingProgressFor(String message) {
                 case "video_loading": return "Das Video wird noch geladen. Versuche es in einigen Sekunden erneut.";
                 case "adfree_granted": return "30 Minuten ohne Werbung freigeschaltet.";
                 case "disclaimer1": return "Diese Anwendung ist weder mit Sulake Corporation Oy oder ihren verbundenen Unternehmen verbunden noch von ihnen unterstützt, gesponsert oder ausdrücklich genehmigt.";
-                case "disclaimer2": return "Sie ist nur ein Tool zur Abfrage öffentlicher Daten.";
                 case "error_search_profile": return "Fehler bei der Profilsuche.";
                 case "no_profile_found": return "Kein Profil gefunden";
                 case "generic_loading": return "Wird geladen...";
@@ -4025,6 +4080,10 @@ private int loadingProgressFor(String message) {
                 case "changed_at": return "Geändert am";
                 case "old_nick_suggestions_title": return "Dieser Nickname wurde offenbar früher verwendet von:";
                 case "no_old_nick_suggestions": return "Ich konnte auch keine aktuellen Konten finden, die diesen Nickname verwendet haben.";
+                case "favorites": return "Favoriten";
+                case "no_favorites": return "Noch keine favorisierten Profile.";
+                case "favorite_added": return "Zu Favoriten hinzugefügt.";
+                case "favorite_removed": return "Aus Favoriten entfernt.";
             }
         }
         else if ("fr".equals(lang)) {
@@ -4109,7 +4168,6 @@ private int loadingProgressFor(String message) {
                 case "video_loading": return "La vidéo est encore en cours de chargement. Réessayez dans quelques secondes.";
                 case "adfree_granted": return "30 minutes sans publicité débloquées.";
                 case "disclaimer1": return "Cette application n'est ni affiliée, ni approuvée, ni sponsorisée, ni spécifiquement autorisée par Sulake Corporation Oy ou ses sociétés affiliées.";
-                case "disclaimer2": return "Il s'agit uniquement d'un outil de consultation de données publiques.";
                 case "error_search_profile": return "Échec de la recherche du profil.";
                 case "no_profile_found": return "Aucun profil trouvé";
                 case "generic_loading": return "Chargement...";
@@ -4136,6 +4194,10 @@ private int loadingProgressFor(String message) {
                 case "changed_at": return "Modifié le";
                 case "old_nick_suggestions_title": return "Ce pseudo semble avoir été utilisé auparavant par :";
                 case "no_old_nick_suggestions": return "Je n'ai pas non plus trouvé de comptes actuels ayant utilisé ce pseudo.";
+                case "favorites": return "Favoris";
+                case "no_favorites": return "Aucun profil favori pour le moment.";
+                case "favorite_added": return "Ajouté aux favoris.";
+                case "favorite_removed": return "Retiré des favoris.";
             }
         }
         else if ("fi".equals(lang)) {
@@ -4220,7 +4282,6 @@ private int loadingProgressFor(String message) {
                 case "video_loading": return "Video latautuu vielä. Yritä uudelleen muutaman sekunnin kuluttua.";
                 case "adfree_granted": return "30 minuuttia ilman mainoksia avattu.";
                 case "disclaimer1": return "Tämä sovellus ei ole Sulake Corporation Oy:n tai sen tytäryhtiöiden kanssa sidoksissa eikä niiden hyväksymä, sponsoroima tai erityisesti hyväksymä.";
-                case "disclaimer2": return "Se on vain julkisten tietojen hakutyökalu.";
                 case "error_search_profile": return "Profiilin haku epäonnistui.";
                 case "no_profile_found": return "Profiilia ei löytynyt";
                 case "generic_loading": return "Ladataan...";
@@ -4247,6 +4308,10 @@ private int loadingProgressFor(String message) {
                 case "changed_at": return "Muutettu";
                 case "old_nick_suggestions_title": return "Tätä nimimerkkiä näyttää käyttäneen aiemmin:";
                 case "no_old_nick_suggestions": return "En myöskään löytänyt nykyisiä tilejä, jotka olisivat käyttäneet tätä nimimerkkiä.";
+                case "favorites": return "Suosikit";
+                case "no_favorites": return "Ei vielä suosikkiprofiileja.";
+                case "favorite_added": return "Lisätty suosikkeihin.";
+                case "favorite_removed": return "Poistettu suosikeista.";
             }
         }
         else if ("it".equals(lang)) {
@@ -4331,7 +4396,6 @@ private int loadingProgressFor(String message) {
                 case "video_loading": return "Il video si sta ancora caricando. Riprova tra qualche secondo.";
                 case "adfree_granted": return "30 minuti senza annunci sbloccati.";
                 case "disclaimer1": return "Questa applicazione non è affiliata, approvata, sponsorizzata o specificamente approvata da Sulake Corporation Oy o dalle sue affiliate.";
-                case "disclaimer2": return "È solo uno strumento di consultazione di dati pubblici.";
                 case "error_search_profile": return "Errore durante la ricerca del profilo.";
                 case "no_profile_found": return "Nessun profilo trovato";
                 case "generic_loading": return "Caricamento...";
@@ -4358,6 +4422,10 @@ private int loadingProgressFor(String message) {
                 case "changed_at": return "Modificato il";
                 case "old_nick_suggestions_title": return "Questo nick sembra essere stato usato prima da:";
                 case "no_old_nick_suggestions": return "Non ho trovato altri account attuali che abbiano usato questo nick.";
+                case "favorites": return "Preferiti";
+                case "no_favorites": return "Nessun profilo preferito ancora.";
+                case "favorite_added": return "Aggiunto ai preferiti.";
+                case "favorite_removed": return "Rimosso dai preferiti.";
             }
         }
         else if ("nl".equals(lang)) {
@@ -4442,7 +4510,6 @@ private int loadingProgressFor(String message) {
                 case "video_loading": return "De video wordt nog geladen. Probeer het over een paar seconden opnieuw.";
                 case "adfree_granted": return "30 minuten zonder advertenties ontgrendeld.";
                 case "disclaimer1": return "Deze applicatie is niet verbonden met, onderschreven door, gesponsord door of specifiek goedgekeurd door Sulake Corporation Oy of haar gelieerde ondernemingen.";
-                case "disclaimer2": return "Het is slechts een hulpmiddel voor het raadplegen van openbare gegevens.";
                 case "error_search_profile": return "Profiel zoeken mislukt.";
                 case "no_profile_found": return "Geen profiel gevonden";
                 case "generic_loading": return "Laden...";
@@ -4469,6 +4536,10 @@ private int loadingProgressFor(String message) {
                 case "changed_at": return "Gewijzigd op";
                 case "old_nick_suggestions_title": return "Deze nick lijkt eerder gebruikt te zijn door:";
                 case "no_old_nick_suggestions": return "Ik kon ook geen huidige accounts vinden die deze nick hebben gebruikt.";
+                case "favorites": return "Favorieten";
+                case "no_favorites": return "Nog geen favoriete profielen.";
+                case "favorite_added": return "Toegevoegd aan favorieten.";
+                case "favorite_removed": return "Verwijderd uit favorieten.";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4553,7 +4624,6 @@ private int loadingProgressFor(String message) {
                 case "video_loading": return "Video hâlâ yükleniyor. Birkaç saniye sonra tekrar deneyin.";
                 case "adfree_granted": return "30 dakika reklamsız kullanım açıldı.";
                 case "disclaimer1": return "Bu uygulama Sulake Corporation Oy veya bağlı kuruluşlarıyla ilişkili değildir; onlar tarafından onaylanmaz, desteklenmez veya özellikle onaylanmış değildir.";
-                case "disclaimer2": return "Yalnızca herkese açık verileri sorgulamak için kullanılan bir araçtır.";
                 case "error_search_profile": return "Profil aranamadı.";
                 case "no_profile_found": return "Profil bulunamadı";
                 case "generic_loading": return "Yükleniyor...";
@@ -4580,6 +4650,10 @@ private int loadingProgressFor(String message) {
                 case "changed_at": return "Değiştirilme";
                 case "old_nick_suggestions_title": return "Bu nick daha önce şu kişi tarafından kullanılmış görünüyor:";
                 case "no_old_nick_suggestions": return "Bu nicki kullanmış güncel hesap da bulamadım.";
+                case "favorites": return "Favoriler";
+                case "no_favorites": return "Henüz favori profil yok.";
+                case "favorite_added": return "Favorilere eklendi.";
+                case "favorite_removed": return "Favorilerden kaldırıldı.";
             }
         }
         switch (key) {
@@ -4608,7 +4682,6 @@ private int loadingProgressFor(String message) {
             case "video_loading": return "O vídeo ainda está carregando. Tente novamente em alguns segundos.";
             case "adfree_granted": return "30 minutos sem anúncios liberados.";
             case "disclaimer1": return "Este aplicativo não é afiliado, endossado, patrocinado ou especificamente aprovado pela Sulake Corporation Oy ou suas afiliadas.";
-            case "disclaimer2": return "Ele é apenas uma ferramenta de consulta de dados públicos.";
             case "private": return "Privado";
             case "banned": return "Banido";
             case "status": return "Status";
@@ -4690,6 +4763,10 @@ private int loadingProgressFor(String message) {
             case "changed_at": return "Alterado em";
             case "old_nick_suggestions_title": return "Esse nick parece ter sido usado antes por:";
             case "no_old_nick_suggestions": return "Também não encontrei contas atuais que já usaram esse nick.";
+            case "favorites": return "Favoritos";
+            case "no_favorites": return "Nenhum perfil favoritado ainda.";
+            case "favorite_added": return "Adicionado aos favoritos.";
+            case "favorite_removed": return "Removido dos favoritos.";
         }
         return key;
     }
@@ -4817,52 +4894,27 @@ private int loadingProgressFor(String message) {
     }
 
     private LinearLayout openedProfileHistoryRow(ProfileHistoryItem item, Dialog dialog) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(12), dp(9), dp(12), dp(9));
-        row.setBackground(round(lightTheme ? Color.rgb(245,245,245) : Color.argb(22,255,255,255), dp(16), lightTheme ? Color.rgb(224,224,224) : Color.argb(28,255,255,255), 1));
-        row.setLayoutParams(lp(-1, dp(72), 0, 0, 0, 9));
+        LinearLayout row = profileListRowBase(item);
 
-        ImageView head = new ImageView(this);
-        head.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        row.addView(head, new LinearLayout.LayoutParams(dp(54), dp(58)));
-        loadImage(head, avatarHeadByNameForHotel(item.nick, item.hotelKey));
-
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
-        tp.leftMargin = dp(12);
-        row.addView(texts, tp);
-        TextView name = habboText(item.nick, 16, true);
-        name.setMaxLines(1);
-        name.setEllipsize(TextUtils.TruncateAt.END);
-        texts.addView(name);
-        LinearLayout hotelLine = new LinearLayout(this);
-        hotelLine.setOrientation(LinearLayout.HORIZONTAL);
-        hotelLine.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView smallFlag = new ImageView(this);
-        smallFlag.setImageDrawable(new HotelFlagDrawable(item.hotelKey));
-        LinearLayout.LayoutParams sfp = new LinearLayout.LayoutParams(dp(18), dp(12));
-        sfp.rightMargin = dp(5);
-        hotelLine.addView(smallFlag, sfp);
-        hotelLine.addView(text(hotelLabel(item.hotelKey), 12, themeMutedColor(), false));
-        texts.addView(hotelLine);
-
-        row.setOnClickListener(v -> {
-            if (dialog != null) dialog.dismiss();
-            currentHotelKey = normalizeHotelKey(item.hotelKey);
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
-            currentLoadedNick = "";
-            activeSearchToken++;
-            searchInProgress = false;
-            rebuildUiPreservingProfile();
-            if (searchInput != null) {
-                searchInput.setText(item.nick);
-                searchInput.setSelection(searchInput.getText().length());
+        TextView remove = text("", 18, Color.WHITE, true);
+        remove.setGravity(Gravity.CENTER);
+        remove.setBackground(new RemoveXDrawable());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(38), dp(38));
+        rp.leftMargin = dp(6);
+        row.addView(remove, rp);
+        remove.setOnClickListener(v -> {
+            for (int i = openedProfilesHistory.size() - 1; i >= 0; i--) {
+                ProfileHistoryItem h = openedProfilesHistory.get(i);
+                if ((h.hotelKey + ":" + normalizeNickKey(h.nick)).equals(item.hotelKey + ":" + normalizeNickKey(item.nick))) openedProfilesHistory.remove(i);
             }
-            search();
+            saveOpenedProfilesHistory();
+            if (dialog != null) {
+                dialog.dismiss();
+                showOpenedProfilesHistoryDialog();
+            }
         });
+
+        row.setOnClickListener(v -> openProfileListItem(item, dialog));
         return row;
     }
 
@@ -5082,6 +5134,183 @@ private int loadingProgressFor(String message) {
 
 
 
+
+    private void loadFavoriteProfiles() {
+        favoriteProfiles.clear();
+        String raw = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_FAVORITES, "");
+        if (raw == null || raw.trim().isEmpty()) return;
+        try {
+            JSONArray arr = new JSONArray(raw);
+            for (int i = 0; i < arr.length() && favoriteProfiles.size() < 100; i++) {
+                JSONObject o = arr.optJSONObject(i);
+                if (o == null) continue;
+                String nick = o.optString("nick", "").trim();
+                if (nick.isEmpty()) continue;
+                String hotel = normalizeHotelKey(o.optString("hotel", "br"));
+                if (hotel.isEmpty()) hotel = "br";
+                favoriteProfiles.add(new ProfileHistoryItem(nick, o.optString("figure", ""), hotel));
+            }
+        } catch(Exception ignored) {}
+    }
+
+    private void saveFavoriteProfiles() {
+        JSONArray arr = new JSONArray();
+        try {
+            for (ProfileHistoryItem item : favoriteProfiles) {
+                JSONObject o = new JSONObject();
+                o.put("nick", item.nick);
+                o.put("figure", item.figure);
+                String hotel = normalizeHotelKey(item.hotelKey);
+                o.put("hotel", hotel.isEmpty() ? "br" : hotel);
+                arr.put(o);
+            }
+        } catch(Exception ignored) {}
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_FAVORITES, arr.toString()).apply();
+    }
+
+    private String favoriteKey(String hotelKey, String nick) { return normalizeHotelKey(hotelKey) + ":" + normalizeNickKey(nick); }
+
+    private boolean isFavoriteProfile(ProfileResult r) {
+        if (r == null) return false;
+        String hotel = normalizeHotelKey(r.hotelKey);
+        if (hotel.isEmpty()) hotel = currentHotelKey;
+        String nick = r.name == null || r.name.trim().isEmpty() ? r.searchedNick : r.name;
+        String key = favoriteKey(hotel, nick);
+        for (ProfileHistoryItem item : favoriteProfiles) if (favoriteKey(item.hotelKey, item.nick).equals(key)) return true;
+        return false;
+    }
+
+    private void toggleFavoriteProfile(ProfileResult r) {
+        if (r == null) return;
+        String hotel = normalizeHotelKey(r.hotelKey);
+        if (hotel.isEmpty()) hotel = currentHotelKey;
+        String nick = r.name == null || r.name.trim().isEmpty() ? r.searchedNick : r.name;
+        if (nick == null || nick.trim().isEmpty()) return;
+        String key = favoriteKey(hotel, nick);
+        for (int i = favoriteProfiles.size() - 1; i >= 0; i--) {
+            ProfileHistoryItem item = favoriteProfiles.get(i);
+            if (favoriteKey(item.hotelKey, item.nick).equals(key)) {
+                favoriteProfiles.remove(i);
+                saveFavoriteProfiles();
+                toast(t("favorite_removed"));
+                return;
+            }
+        }
+        favoriteProfiles.add(0, new ProfileHistoryItem(nick.trim(), r.figure, hotel));
+        while (favoriteProfiles.size() > 100) favoriteProfiles.remove(favoriteProfiles.size() - 1);
+        saveFavoriteProfiles();
+        toast(t("favorite_added"));
+    }
+
+    private void showFavoriteProfilesDialog() {
+        final Dialog dialog = new Dialog(this);
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(16), dp(16), dp(16), dp(16));
+        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
+        dialog.setContentView(wrap);
+
+        TextView title = habboText(t("favorites"), 22, true);
+        title.setGravity(Gravity.CENTER);
+        wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
+
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(true);
+        sv.setScrollbarFadingEnabled(false);
+        tintScrollBar(sv);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(list, new ScrollView.LayoutParams(-1, -2));
+        wrap.addView(sv, lp(-1, dp(380), 0, 0, 0, 12));
+
+        Runnable[] render = new Runnable[1];
+        render[0] = () -> {
+            list.removeAllViews();
+            if (favoriteProfiles.isEmpty()) {
+                list.addView(centerNote(t("no_favorites")));
+                return;
+            }
+            for (ProfileHistoryItem item : new ArrayList<>(favoriteProfiles)) list.addView(favoriteProfileRow(item, dialog, render[0]));
+        };
+        render[0].run();
+
+        dialog.show();
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(w.getAttributes());
+            params.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(430));
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            w.setAttributes(params);
+        }
+    }
+
+    private LinearLayout favoriteProfileRow(ProfileHistoryItem item, Dialog dialog, Runnable refresh) {
+        LinearLayout row = profileListRowBase(item);
+        TextView remove = text("", 18, Color.WHITE, true);
+        remove.setGravity(Gravity.CENTER);
+        remove.setBackground(new RemoveXDrawable());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(38), dp(38));
+        rp.leftMargin = dp(6);
+        row.addView(remove, rp);
+        remove.setOnClickListener(v -> {
+            for (int i = favoriteProfiles.size() - 1; i >= 0; i--) {
+                ProfileHistoryItem f = favoriteProfiles.get(i);
+                if (favoriteKey(f.hotelKey, f.nick).equals(favoriteKey(item.hotelKey, item.nick))) favoriteProfiles.remove(i);
+            }
+            saveFavoriteProfiles();
+            if (refresh != null) refresh.run();
+        });
+        row.setOnClickListener(v -> openProfileListItem(item, dialog));
+        return row;
+    }
+
+    private void openProfileListItem(ProfileHistoryItem item, Dialog dialog) {
+        if (dialog != null) dialog.dismiss();
+        currentHotelKey = normalizeHotelKey(item.hotelKey);
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
+        currentLoadedNick = "";
+        activeSearchToken++;
+        searchInProgress = false;
+        rebuildUiPreservingProfile();
+        setSearchTextProgrammatically(item.nick);
+        search();
+    }
+
+    private LinearLayout profileListRowBase(ProfileHistoryItem item) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(10), dp(8), dp(10), dp(8));
+        row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(16), lightTheme ? Color.rgb(218,218,218) : Color.argb(30,255,255,255), 1));
+        row.setLayoutParams(lp(-1, dp(72), 0, 0, 0, 8));
+
+        ImageView head = new ImageView(this);
+        head.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        row.addView(head, new LinearLayout.LayoutParams(dp(54), dp(56)));
+        if (!item.figure.isEmpty()) loadImage(head, avatarHead(item.figure));
+        else loadImage(head, avatarHeadByNameForHotel(item.nick, item.hotelKey));
+
+        LinearLayout mid = new LinearLayout(this);
+        mid.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -2, 1);
+        mp.leftMargin = dp(10);
+        row.addView(mid, mp);
+        TextView name = habboText(item.nick, 16, true);
+        name.setMaxLines(1);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        mid.addView(name);
+
+        LinearLayout hotelLine = new LinearLayout(this);
+        hotelLine.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView flag = new ImageView(this);
+        flag.setImageDrawable(new HotelFlagDrawable(item.hotelKey));
+        hotelLine.addView(flag, new LinearLayout.LayoutParams(dp(24), dp(16)));
+        mid.addView(hotelLine, new LinearLayout.LayoutParams(-1, -2));
+        return row;
+    }
+
     private static class ProfileHistoryItem {
         final String nick;
         final String figure;
@@ -5187,6 +5416,60 @@ private int loadingProgressFor(String message) {
         @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
         @Override public void setColorFilter(android.graphics.ColorFilter cf) { p.setColorFilter(cf); }
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
+
+    public class FavoriteStarDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        boolean active;
+        FavoriteStarDrawable(boolean active) { this.active = active; }
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float cx = b.centerX(), cy = b.centerY(), m = Math.min(b.width(), b.height());
+            Path star = new Path();
+            for (int i=0;i<10;i++) {
+                double a = -Math.PI/2 + i*Math.PI/5;
+                float rr = (i % 2 == 0) ? m*.34f : m*.15f;
+                float x = cx + (float)Math.cos(a)*rr;
+                float y = cy + (float)Math.sin(a)*rr;
+                if (i == 0) star.moveTo(x,y); else star.lineTo(x,y);
+            }
+            star.close();
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(active ? Color.rgb(255, 210, 70) : (lightTheme ? Color.argb(44,33,33,33) : Color.argb(42,255,255,255)));
+            c.drawPath(star, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(2f, m*.055f));
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
+            c.drawPath(star, p);
+        }
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
+
+    public class RemoveXDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float w=b.width(), h=b.height(), x=b.left, y=b.top, m=Math.min(w,h);
+            RectF bg = new RectF(x+m*.10f, y+m*.10f, x+w-m*.10f, y+h-m*.10f);
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.rgb(190, 48, 70));
+            c.drawRoundRect(bg, m*.22f, m*.22f, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeWidth(Math.max(2f, m*.075f));
+            p.setColor(Color.WHITE);
+            c.drawLine(x+w*.35f, y+h*.35f, x+w*.65f, y+h*.65f, p);
+            c.drawLine(x+w*.65f, y+h*.35f, x+w*.35f, y+h*.65f, p);
+        }
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
 
     public class HistoryClockDrawable extends Drawable {
