@@ -3330,15 +3330,15 @@ private int loadingProgressFor(String message) {
         if (d == null) return "";
         long diff = Math.max(0L, System.currentTimeMillis() - d.getTime()) / 1000L;
         long value;
-        String unit;
-        if (diff < 60) { value = Math.max(1, diff); unit = value == 1 ? "segundo" : "segundos"; }
-        else if (diff < 3600) { value = diff / 60; unit = value == 1 ? "minuto" : "minutos"; }
-        else if (diff < 86400) { value = diff / 3600; unit = value == 1 ? "hora" : "horas"; }
-        else if (diff < 604800) { value = diff / 86400; unit = value == 1 ? "dia" : "dias"; }
-        else if (diff < 2629800) { value = diff / 604800; unit = value == 1 ? "semana" : "semanas"; }
-        else if (diff < 31557600) { value = diff / 2629800; unit = value == 1 ? "mês" : "meses"; }
-        else { value = diff / 31557600; unit = value == 1 ? "ano" : "anos"; }
-        return "há " + value + " " + unit;
+        String unitKey;
+        if (diff < 60) { value = Math.max(1, diff); unitKey = value == 1 ? "ago_second" : "ago_seconds"; }
+        else if (diff < 3600) { value = diff / 60; unitKey = value == 1 ? "ago_minute" : "ago_minutes"; }
+        else if (diff < 86400) { value = diff / 3600; unitKey = value == 1 ? "ago_hour" : "ago_hours"; }
+        else if (diff < 604800) { value = diff / 86400; unitKey = value == 1 ? "ago_day" : "ago_days"; }
+        else if (diff < 2629800) { value = diff / 604800; unitKey = value == 1 ? "ago_week" : "ago_weeks"; }
+        else if (diff < 31557600) { value = diff / 2629800; unitKey = value == 1 ? "ago_month" : "ago_months"; }
+        else { value = diff / 31557600; unitKey = value == 1 ? "ago_year" : "ago_years"; }
+        return tr("time_ago", value, t(unitKey));
     }
 
     private boolean isToday(String in) { if (in == null || in.trim().isEmpty()) return false; String d = niceDate(in); String today = new SimpleDateFormat("dd/MM/yyyy", new Locale("pt","BR")).format(new Date()); return d.startsWith(today); }
@@ -3852,7 +3852,7 @@ private int loadingProgressFor(String message) {
             switch (key) {
                 case "searching": return "Searching —";
                 case "search_button": return "Search";
-                case "search_hint": return "Enter a hotel nickname to look up a profile...";
+                case "search_hint": return "Enter a nick...";
                 case "ready_search": return "Ready to search";
                 case "start_note": return "Enter a nickname from the selected hotel to look up a profile and public data.";
                 case "type_nick_toast": return "Enter a hotel nickname to search.";
@@ -3961,6 +3961,21 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Added to favorites.";
                 case "favorite_removed": return "Removed from favorites.";
                 case "hide_badges": return "Hide achievements";
+                case "time_ago": return "%s %s ago";
+                case "ago_second": return "second";
+                case "ago_seconds": return "seconds";
+                case "ago_minute": return "minute";
+                case "ago_minutes": return "minutes";
+                case "ago_hour": return "hour";
+                case "ago_hours": return "hours";
+                case "ago_day": return "day";
+                case "ago_days": return "days";
+                case "ago_week": return "week";
+                case "ago_weeks": return "weeks";
+                case "ago_month": return "month";
+                case "ago_months": return "months";
+                case "ago_year": return "year";
+                case "ago_years": return "years";
             }
         }
         else if ("es".equals(lang)) {
@@ -4022,7 +4037,7 @@ private int loadingProgressFor(String message) {
                 case "tutorial_finish": return "Entendido";
                 case "searching": return "Buscando —";
                 case "search_button": return "Buscar";
-                case "search_hint": return "Escribe un nick del hotel para consultar un perfil...";
+                case "search_hint": return "Escribe un nick...";
                 case "ready_search": return "Listo para buscar";
                 case "start_note": return "Escribe un nick del hotel seleccionado para consultar un perfil y datos públicos.";
                 case "type_nick_toast": return "Escribe un nick del hotel para buscar.";
@@ -4076,6 +4091,21 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Añadido a favoritos.";
                 case "favorite_removed": return "Eliminado de favoritos.";
                 case "hide_badges": return "Ocultar logros";
+                case "time_ago": return "hace %s %s";
+                case "ago_second": return "segundo";
+                case "ago_seconds": return "segundos";
+                case "ago_minute": return "minuto";
+                case "ago_minutes": return "minutos";
+                case "ago_hour": return "hora";
+                case "ago_hours": return "horas";
+                case "ago_day": return "día";
+                case "ago_days": return "días";
+                case "ago_week": return "semana";
+                case "ago_weeks": return "semanas";
+                case "ago_month": return "mes";
+                case "ago_months": return "meses";
+                case "ago_year": return "año";
+                case "ago_years": return "años";
             }
         }
         else if ("de".equals(lang)) {
@@ -4137,7 +4167,7 @@ private int loadingProgressFor(String message) {
                 case "tutorial_finish": return "Verstanden";
                 case "searching": return "Suche —";
                 case "search_button": return "Suchen";
-                case "search_hint": return "Gib einen Hotel-Namen ein, um ein Profil aufzurufen...";
+                case "search_hint": return "Nick eingeben...";
                 case "ready_search": return "Bereit zur Suche";
                 case "start_note": return "Gib einen Nickname des ausgewählten Hotels ein, um ein Profil und öffentliche Daten aufzurufen.";
                 case "type_nick_toast": return "Gib einen Hotel-Nickname ein, um zu suchen.";
@@ -4191,6 +4221,21 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Zu Favoriten hinzugefügt.";
                 case "favorite_removed": return "Aus Favoriten entfernt.";
                 case "hide_badges": return "Erfolge ausblenden";
+                case "time_ago": return "vor %s %s";
+                case "ago_second": return "Sekunde";
+                case "ago_seconds": return "Sekunden";
+                case "ago_minute": return "Minute";
+                case "ago_minutes": return "Minuten";
+                case "ago_hour": return "Stunde";
+                case "ago_hours": return "Stunden";
+                case "ago_day": return "Tag";
+                case "ago_days": return "Tagen";
+                case "ago_week": return "Woche";
+                case "ago_weeks": return "Wochen";
+                case "ago_month": return "Monat";
+                case "ago_months": return "Monaten";
+                case "ago_year": return "Jahr";
+                case "ago_years": return "Jahren";
             }
         }
         else if ("fr".equals(lang)) {
@@ -4252,7 +4297,7 @@ private int loadingProgressFor(String message) {
                 case "tutorial_finish": return "Compris";
                 case "searching": return "Recherche —";
                 case "search_button": return "Rechercher";
-                case "search_hint": return "Saisissez un pseudo de l'hôtel pour consulter un profil...";
+                case "search_hint": return "Saisissez un pseudo...";
                 case "ready_search": return "Prêt à rechercher";
                 case "start_note": return "Saisissez un pseudo de l'hôtel sélectionné pour consulter un profil et des données publiques.";
                 case "type_nick_toast": return "Saisissez un pseudo de l'hôtel pour rechercher.";
@@ -4306,6 +4351,21 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Ajouté aux favoris.";
                 case "favorite_removed": return "Retiré des favoris.";
                 case "hide_badges": return "Masquer les succès";
+                case "time_ago": return "il y a %s %s";
+                case "ago_second": return "seconde";
+                case "ago_seconds": return "secondes";
+                case "ago_minute": return "minute";
+                case "ago_minutes": return "minutes";
+                case "ago_hour": return "heure";
+                case "ago_hours": return "heures";
+                case "ago_day": return "jour";
+                case "ago_days": return "jours";
+                case "ago_week": return "semaine";
+                case "ago_weeks": return "semaines";
+                case "ago_month": return "mois";
+                case "ago_months": return "mois";
+                case "ago_year": return "an";
+                case "ago_years": return "ans";
             }
         }
         else if ("fi".equals(lang)) {
@@ -4367,7 +4427,7 @@ private int loadingProgressFor(String message) {
                 case "tutorial_finish": return "Selvä";
                 case "searching": return "Haetaan —";
                 case "search_button": return "Hae";
-                case "search_hint": return "Kirjoita hotellin nimi tarkistaaksesi profiilin...";
+                case "search_hint": return "Kirjoita nick...";
                 case "ready_search": return "Valmis hakuun";
                 case "start_note": return "Kirjoita valitun hotellin nimimerkki tarkistaaksesi profiilin ja julkiset tiedot.";
                 case "type_nick_toast": return "Kirjoita hotellin nimimerkki hakeaksesi.";
@@ -4421,6 +4481,21 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Lisätty suosikkeihin.";
                 case "favorite_removed": return "Poistettu suosikeista.";
                 case "hide_badges": return "Piilota saavutukset";
+                case "time_ago": return "%s %s sitten";
+                case "ago_second": return "sekunti";
+                case "ago_seconds": return "sekuntia";
+                case "ago_minute": return "minuutti";
+                case "ago_minutes": return "minuuttia";
+                case "ago_hour": return "tunti";
+                case "ago_hours": return "tuntia";
+                case "ago_day": return "päivä";
+                case "ago_days": return "päivää";
+                case "ago_week": return "viikko";
+                case "ago_weeks": return "viikkoa";
+                case "ago_month": return "kuukausi";
+                case "ago_months": return "kuukautta";
+                case "ago_year": return "vuosi";
+                case "ago_years": return "vuotta";
             }
         }
         else if ("it".equals(lang)) {
@@ -4482,7 +4557,7 @@ private int loadingProgressFor(String message) {
                 case "tutorial_finish": return "Capito";
                 case "searching": return "Ricerca —";
                 case "search_button": return "Cerca";
-                case "search_hint": return "Inserisci un nick dell'hotel per consultare un profilo...";
+                case "search_hint": return "Inserisci un nick...";
                 case "ready_search": return "Pronto per cercare";
                 case "start_note": return "Inserisci un nick dell'hotel selezionato per consultare un profilo e dati pubblici.";
                 case "type_nick_toast": return "Inserisci un nick dell'hotel per cercare.";
@@ -4536,6 +4611,21 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Aggiunto ai preferiti.";
                 case "favorite_removed": return "Rimosso dai preferiti.";
                 case "hide_badges": return "Nascondi risultati";
+                case "time_ago": return "%s %s fa";
+                case "ago_second": return "secondo";
+                case "ago_seconds": return "secondi";
+                case "ago_minute": return "minuto";
+                case "ago_minutes": return "minuti";
+                case "ago_hour": return "ora";
+                case "ago_hours": return "ore";
+                case "ago_day": return "giorno";
+                case "ago_days": return "giorni";
+                case "ago_week": return "settimana";
+                case "ago_weeks": return "settimane";
+                case "ago_month": return "mese";
+                case "ago_months": return "mesi";
+                case "ago_year": return "anno";
+                case "ago_years": return "anni";
             }
         }
         else if ("nl".equals(lang)) {
@@ -4597,7 +4687,7 @@ private int loadingProgressFor(String message) {
                 case "tutorial_finish": return "Begrepen";
                 case "searching": return "Zoeken —";
                 case "search_button": return "Zoeken";
-                case "search_hint": return "Voer een hotelnaam in om een profiel te bekijken...";
+                case "search_hint": return "Voer een nick in...";
                 case "ready_search": return "Klaar om te zoeken";
                 case "start_note": return "Voer een bijnaam van het geselecteerde hotel in om een profiel en openbare gegevens te bekijken.";
                 case "type_nick_toast": return "Voer een hotelbijnaam in om te zoeken.";
@@ -4651,6 +4741,21 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Toegevoegd aan favorieten.";
                 case "favorite_removed": return "Verwijderd uit favorieten.";
                 case "hide_badges": return "Prestaties verbergen";
+                case "time_ago": return "%s %s geleden";
+                case "ago_second": return "seconde";
+                case "ago_seconds": return "seconden";
+                case "ago_minute": return "minuut";
+                case "ago_minutes": return "minuten";
+                case "ago_hour": return "uur";
+                case "ago_hours": return "uur";
+                case "ago_day": return "dag";
+                case "ago_days": return "dagen";
+                case "ago_week": return "week";
+                case "ago_weeks": return "weken";
+                case "ago_month": return "maand";
+                case "ago_months": return "maanden";
+                case "ago_year": return "jaar";
+                case "ago_years": return "jaar";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4712,7 +4817,7 @@ private int loadingProgressFor(String message) {
                 case "tutorial_finish": return "Anladım";
                 case "searching": return "Aranıyor —";
                 case "search_button": return "Ara";
-                case "search_hint": return "Bir profili görüntülemek için otel takma adını girin...";
+                case "search_hint": return "Bir nick yaz...";
                 case "ready_search": return "Aramaya hazır";
                 case "start_note": return "Bir profil ve herkese açık verileri görüntülemek için seçili otelin takma adını girin.";
                 case "type_nick_toast": return "Aramak için bir otel takma adı girin.";
@@ -4766,12 +4871,27 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Favorilere eklendi.";
                 case "favorite_removed": return "Favorilerden kaldırıldı.";
                 case "hide_badges": return "Başarıları gizle";
+                case "time_ago": return "%s %s önce";
+                case "ago_second": return "saniye";
+                case "ago_seconds": return "saniye";
+                case "ago_minute": return "dakika";
+                case "ago_minutes": return "dakika";
+                case "ago_hour": return "saat";
+                case "ago_hours": return "saat";
+                case "ago_day": return "gün";
+                case "ago_days": return "gün";
+                case "ago_week": return "hafta";
+                case "ago_weeks": return "hafta";
+                case "ago_month": return "ay";
+                case "ago_months": return "ay";
+                case "ago_year": return "yıl";
+                case "ago_years": return "yıl";
             }
         }
         switch (key) {
             case "searching": return "Buscando —";
             case "search_button": return "Pesquisar";
-            case "search_hint": return "Digite um nick do hotel para consultar perfil...";
+            case "search_hint": return "Digite um nick...";
             case "ready_search": return "Pronto para buscar";
             case "start_note": return "Digite um nick do hotel selecionado para consultar um perfil e dados públicos.";
             case "type_nick_toast": return "Digite um nick do hotel para consultar perfil...";
@@ -4880,6 +5000,21 @@ private int loadingProgressFor(String message) {
             case "favorite_added": return "Adicionado aos favoritos.";
             case "favorite_removed": return "Removido dos favoritos.";
             case "hide_badges": return "Ocultar conquistas";
+            case "time_ago": return "há %s %s";
+            case "ago_second": return "segundo";
+            case "ago_seconds": return "segundos";
+            case "ago_minute": return "minuto";
+            case "ago_minutes": return "minutos";
+            case "ago_hour": return "hora";
+            case "ago_hours": return "horas";
+            case "ago_day": return "dia";
+            case "ago_days": return "dias";
+            case "ago_week": return "semana";
+            case "ago_weeks": return "semanas";
+            case "ago_month": return "mês";
+            case "ago_months": return "meses";
+            case "ago_year": return "ano";
+            case "ago_years": return "anos";
         }
         return key;
     }
