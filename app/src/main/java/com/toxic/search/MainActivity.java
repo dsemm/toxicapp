@@ -2566,9 +2566,7 @@ public class MainActivity extends Activity {
             content.removeAllViews();
 
             hideToggle.setText("");
-            hideToggle.setBackground(hideAchievementBadges[0]
-                    ? round(Color.rgb(39, 174, 96), dp(999), Color.argb(65,255,255,255), 1)
-                    : round(lightTheme ? Color.rgb(225,225,225) : Color.rgb(50,50,58), dp(999), lightTheme ? Color.rgb(205,205,205) : Color.argb(65,255,255,255), 1));
+            hideToggle.setBackground(new AchievementSwitchDrawable(hideAchievementBadges[0]));
             
             ArrayList<JSONObject> data = hideAchievementBadges[0] ? normal : withAchievements;
             if (data == null) data = new ArrayList<>();
@@ -5530,6 +5528,48 @@ private int loadingProgressFor(String message) {
 
 
 
+
+    public class AchievementSwitchDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        boolean checked;
+        AchievementSwitchDrawable(boolean checked) { this.checked = checked; }
+
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float w = b.width(), h = b.height(), x = b.left, y = b.top;
+            float pad = Math.max(1f, h * .08f);
+            RectF track = new RectF(x + pad, y + pad, x + w - pad, y + h - pad);
+            float radius = track.height() / 2f;
+
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(checked ? Color.rgb(39, 174, 96) : (lightTheme ? Color.rgb(210, 210, 214) : Color.rgb(55, 55, 64)));
+            c.drawRoundRect(track, radius, radius, p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1f, h * .045f));
+            p.setColor(checked ? Color.rgb(39, 174, 96) : (lightTheme ? Color.rgb(196, 196, 200) : Color.rgb(72, 72, 82)));
+            c.drawRoundRect(track, radius, radius, p);
+
+            float knobRadius = track.height() * .42f;
+            float knobCx = checked ? (track.right - radius) : (track.left + radius);
+            float knobCy = track.centerY();
+
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.WHITE);
+            c.drawCircle(knobCx, knobCy, knobRadius, p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1f, h * .035f));
+            p.setColor(checked ? Color.argb(35, 0, 0, 0) : (lightTheme ? Color.rgb(190,190,194) : Color.argb(80,255,255,255)));
+            c.drawCircle(knobCx, knobCy, knobRadius, p);
+        }
+
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
+
     public class TrashTabDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         boolean active;
@@ -5557,21 +5597,21 @@ private int loadingProgressFor(String message) {
             p.setColor(active ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.WHITE));
 
             float cx = b.centerX();
-            float top = y + h*.33f;
-            float left = cx - m*.16f;
-            float right = cx + m*.16f;
-            float bottom = y + h*.70f;
+            float top = y + h*.36f;
+            float left = cx - m*.13f;
+            float right = cx + m*.13f;
+            float bottom = y + h*.66f;
 
-            c.drawLine(left-m*.05f, top-m*.05f, right+m*.05f, top-m*.05f, p);
-            c.drawLine(cx-m*.08f, top-m*.13f, cx+m*.08f, top-m*.13f, p);
-            c.drawLine(cx-m*.08f, top-m*.13f, cx-m*.04f, top-m*.05f, p);
-            c.drawLine(cx+m*.08f, top-m*.13f, cx+m*.04f, top-m*.05f, p);
+            c.drawLine(left-m*.04f, top-m*.05f, right+m*.04f, top-m*.05f, p);
+            c.drawLine(cx-m*.065f, top-m*.12f, cx+m*.065f, top-m*.12f, p);
+            c.drawLine(cx-m*.065f, top-m*.12f, cx-m*.035f, top-m*.05f, p);
+            c.drawLine(cx+m*.065f, top-m*.12f, cx+m*.035f, top-m*.05f, p);
 
             RectF body = new RectF(left, top, right, bottom);
             c.drawRoundRect(body, m*.035f, m*.035f, p);
-            c.drawLine(cx-m*.07f, top+m*.09f, cx-m*.07f, bottom-m*.07f, p);
-            c.drawLine(cx, top+m*.09f, cx, bottom-m*.07f, p);
-            c.drawLine(cx+m*.07f, top+m*.09f, cx+m*.07f, bottom-m*.07f, p);
+            c.drawLine(cx-m*.055f, top+m*.08f, cx-m*.055f, bottom-m*.06f, p);
+            c.drawLine(cx, top+m*.08f, cx, bottom-m*.06f, p);
+            c.drawLine(cx+m*.055f, top+m*.08f, cx+m*.055f, bottom-m*.06f, p);
         }
         @Override public void setAlpha(int a){p.setAlpha(a);}
         @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
