@@ -2310,13 +2310,27 @@ public class MainActivity extends Activity {
         out.add(s);
     }
 
+
+    private String newBadgeLabel() {
+        return "br".equals(normalizeHotelKey(currentHotelKey)) ? "NOVO" : "new";
+    }
+
     private void addFriendsTabs(ArrayList<JSONObject> friendsList, ArrayList<JSONObject> removedList) {
         if (friendsList.isEmpty() && removedList.isEmpty()) return;
         LinearLayout c = sectionCard(null, 0, false);
-        LinearLayout tabs = new LinearLayout(this); tabs.setOrientation(LinearLayout.HORIZONTAL); tabs.setGravity(Gravity.LEFT); c.addView(tabs, lp(-1, dp(58), 0, 0, 0, 14));
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setGravity(Gravity.CENTER_VERTICAL);
+        c.addView(tabs, lp(-1, dp(58), 0, 0, 0, 14));
+
         TextView btFriends = tabButton(t("friends") + " (" + friendsList.size() + ")", true);
-        TextView btRemoved = tabButton(t("removed"), false);
-        tabs.addView(btFriends); tabs.addView(btRemoved);
+        TextView btRemoved = trashTabButton(false);
+
+        tabs.addView(btFriends);
+        Space tabSpace = new Space(this);
+        tabs.addView(tabSpace, new LinearLayout.LayoutParams(0, 1, 1));
+        tabs.addView(btRemoved);
+
         LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); c.addView(content, lp(-1, -2, 0, 0, 0, 0));
         final boolean[] showingRemoved = {false}; final int[] page = {1};
         Runnable[] render = new Runnable[1];
@@ -2324,8 +2338,8 @@ public class MainActivity extends Activity {
             content.removeAllViews();
             btFriends.setBackground(showingRemoved[0] ? tabBg(false) : tabBg(true));
             btFriends.setTextColor(showingRemoved[0] ? Color.argb(150,255,255,255) : Color.WHITE);
-            btRemoved.setBackground(showingRemoved[0] ? tabBg(true) : tabBg(false));
-            btRemoved.setTextColor(showingRemoved[0] ? Color.WHITE : Color.argb(150,255,255,255));
+            btRemoved.setBackground(new TrashTabDrawable(showingRemoved[0]));
+            btRemoved.setText("");
             ArrayList<JSONObject> data = showingRemoved[0] ? removedList : friendsList;
             renderFriendsPage(content, data, page[0], 10, showingRemoved[0]);
             renderPager(content, data.size(), 10, page, render[0]);
@@ -2339,6 +2353,18 @@ public class MainActivity extends Activity {
         TextView v = habboText(s, 16, true); v.setTextColor(active ? Color.WHITE : Color.argb(150,255,255,255)); v.setGravity(Gravity.CENTER); v.setPadding(dp(13),0,dp(13),0); v.setBackground(tabBg(active));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, dp(44)); p.rightMargin = dp(8); v.setLayoutParams(p); return v;
     }
+
+    private TextView trashTabButton(boolean active) {
+        TextView v = text("", 16, Color.WHITE, true);
+        v.setGravity(Gravity.CENTER);
+        v.setPadding(0, 0, 0, 0);
+        v.setBackground(new TrashTabDrawable(active));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(46), dp(44));
+        p.leftMargin = dp(8);
+        v.setLayoutParams(p);
+        return v;
+    }
+
     private Drawable tabBg(boolean active) { return active ? grad(dp(13), purple2, Color.rgb(166, 42, 235)) : round(Color.argb(12,255,255,255), dp(13), Color.argb(28,255,255,255), 1); }
 
     private void renderFriendsPage(LinearLayout content, ArrayList<JSONObject> data, int page, int per, boolean removed) {
@@ -2374,7 +2400,7 @@ public class MainActivity extends Activity {
         if (!fig.isEmpty()) loadImage(head, avatarHead(fig));
 
         if (isToday(date)) {
-            TextView novo = text("NOVO", 9, Color.WHITE, true);
+            TextView novo = text(newBadgeLabel(), 9, Color.WHITE, true);
             novo.setGravity(Gravity.CENTER);
             novo.setBackground(removed
                 ? grad(dp(999), Color.rgb(190, 45, 58), Color.rgb(255, 92, 92))
@@ -2421,12 +2447,39 @@ public class MainActivity extends Activity {
     private void addRoomsTabs(ArrayList<JSONObject> rooms, ArrayList<JSONObject> oldRooms) {
         if (rooms.isEmpty() && oldRooms.isEmpty()) return;
         LinearLayout c = sectionCard(null, 0, false);
-        LinearLayout tabs = new LinearLayout(this); tabs.setOrientation(LinearLayout.HORIZONTAL); c.addView(tabs, lp(-1, dp(58), 0, 0, 0, 14));
-        TextView btRooms = tabButton(t("rooms") + " (" + rooms.size() + ")", true); TextView btOld = tabButton(t("previous"), false); tabs.addView(btRooms); tabs.addView(btOld);
-        LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); c.addView(content, lp(-1,-2,0,0,0,0));
-        final boolean[] old = {false}; final int[] page = {1}; Runnable[] render = new Runnable[1];
-        render[0] = () -> { content.removeAllViews(); btRooms.setBackground(old[0]?tabBg(false):tabBg(true)); btRooms.setTextColor(old[0]?Color.argb(150,255,255,255):Color.WHITE); btOld.setBackground(old[0]?tabBg(true):tabBg(false)); btOld.setTextColor(old[0]?Color.WHITE:Color.argb(150,255,255,255)); ArrayList<JSONObject> data=old[0]?oldRooms:rooms; renderRoomsPage(content,data,page[0],4,old[0]); renderPager(content,data.size(),4,page,render[0]); };
-        btRooms.setOnClickListener(v->{old[0]=false;page[0]=1;render[0].run();}); btOld.setOnClickListener(v->{old[0]=true;page[0]=1;render[0].run();}); render[0].run();
+
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setGravity(Gravity.CENTER_VERTICAL);
+        c.addView(tabs, lp(-1, dp(58), 0, 0, 0, 14));
+
+        TextView btRooms = tabButton(t("rooms") + " (" + rooms.size() + ")", true);
+        TextView btOld = trashTabButton(false);
+        tabs.addView(btRooms);
+        Space tabSpace = new Space(this);
+        tabs.addView(tabSpace, new LinearLayout.LayoutParams(0, 1, 1));
+        tabs.addView(btOld);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        c.addView(content, lp(-1,-2,0,0,0,0));
+
+        final boolean[] old = {false};
+        final int[] page = {1};
+        Runnable[] render = new Runnable[1];
+        render[0] = () -> {
+            content.removeAllViews();
+            btRooms.setBackground(old[0] ? tabBg(false) : tabBg(true));
+            btRooms.setTextColor(old[0] ? Color.argb(150,255,255,255) : Color.WHITE);
+            btOld.setBackground(new TrashTabDrawable(old[0]));
+            btOld.setText("");
+            ArrayList<JSONObject> data = old[0] ? oldRooms : rooms;
+            renderRoomsPage(content, data, page[0], 8, old[0]);
+            renderPager(content, data.size(), 8, page, render[0]);
+        };
+        btRooms.setOnClickListener(v -> { old[0] = false; page[0] = 1; render[0].run(); });
+        btOld.setOnClickListener(v -> { old[0] = true; page[0] = 1; render[0].run(); });
+        render[0].run();
     }
 
     private void renderRoomsPage(LinearLayout content, ArrayList<JSONObject> list, int page, int per, boolean oldRoom) {
@@ -2512,12 +2565,11 @@ public class MainActivity extends Activity {
         render[0] = () -> {
             content.removeAllViews();
 
-            hideToggle.setText(hideAchievementBadges[0] ? "ON" : "OFF");
+            hideToggle.setText("");
             hideToggle.setBackground(hideAchievementBadges[0]
                     ? round(Color.rgb(39, 174, 96), dp(999), Color.argb(65,255,255,255), 1)
                     : round(lightTheme ? Color.rgb(225,225,225) : Color.rgb(50,50,58), dp(999), lightTheme ? Color.rgb(205,205,205) : Color.argb(65,255,255,255), 1));
-            hideToggle.setTextColor(hideAchievementBadges[0] || !lightTheme ? Color.WHITE : Color.rgb(60,60,60));
-
+            
             ArrayList<JSONObject> data = hideAchievementBadges[0] ? normal : withAchievements;
             if (data == null) data = new ArrayList<>();
             renderBadgePage(content, data, page[0], 24);
@@ -2594,7 +2646,7 @@ public class MainActivity extends Activity {
             if (!code.isEmpty()) loadImage(img, badgeImageUrl(code));
 
             if (isTodayCreationTime(firstText(badgeObj, "creationTime", "createdAt", "date"))) {
-                TextView newBadge = text(t("new"), 9, Color.WHITE, true);
+                TextView newBadge = text(newBadgeLabel(), 9, Color.WHITE, true);
                 newBadge.setGravity(Gravity.CENTER);
                 newBadge.setPadding(dp(5), 0, dp(5), 0);
                 newBadge.setBackground(round(Color.rgb(39, 174, 96), dp(999), Color.argb(95,255,255,255), 1));
@@ -3908,7 +3960,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "No favorite profiles yet.";
                 case "favorite_added": return "Added to favorites.";
                 case "favorite_removed": return "Removed from favorites.";
-                case "hide_badges": return "Hide badges";
+                case "hide_badges": return "Hide achievements";
             }
         }
         else if ("es".equals(lang)) {
@@ -4023,7 +4075,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Aún no hay perfiles favoritos.";
                 case "favorite_added": return "Añadido a favoritos.";
                 case "favorite_removed": return "Eliminado de favoritos.";
-                case "hide_badges": return "Ocultar emblemas";
+                case "hide_badges": return "Ocultar logros";
             }
         }
         else if ("de".equals(lang)) {
@@ -4138,7 +4190,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Noch keine favorisierten Profile.";
                 case "favorite_added": return "Zu Favoriten hinzugefügt.";
                 case "favorite_removed": return "Aus Favoriten entfernt.";
-                case "hide_badges": return "Abzeichen ausblenden";
+                case "hide_badges": return "Erfolge ausblenden";
             }
         }
         else if ("fr".equals(lang)) {
@@ -4253,7 +4305,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Aucun profil favori pour le moment.";
                 case "favorite_added": return "Ajouté aux favoris.";
                 case "favorite_removed": return "Retiré des favoris.";
-                case "hide_badges": return "Masquer les badges";
+                case "hide_badges": return "Masquer les succès";
             }
         }
         else if ("fi".equals(lang)) {
@@ -4368,7 +4420,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Ei vielä suosikkiprofiileja.";
                 case "favorite_added": return "Lisätty suosikkeihin.";
                 case "favorite_removed": return "Poistettu suosikeista.";
-                case "hide_badges": return "Piilota merkit";
+                case "hide_badges": return "Piilota saavutukset";
             }
         }
         else if ("it".equals(lang)) {
@@ -4483,7 +4535,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Nessun profilo preferito ancora.";
                 case "favorite_added": return "Aggiunto ai preferiti.";
                 case "favorite_removed": return "Rimosso dai preferiti.";
-                case "hide_badges": return "Nascondi distintivi";
+                case "hide_badges": return "Nascondi risultati";
             }
         }
         else if ("nl".equals(lang)) {
@@ -4598,7 +4650,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Nog geen favoriete profielen.";
                 case "favorite_added": return "Toegevoegd aan favorieten.";
                 case "favorite_removed": return "Verwijderd uit favorieten.";
-                case "hide_badges": return "Badges verbergen";
+                case "hide_badges": return "Prestaties verbergen";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4713,7 +4765,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Henüz favori profil yok.";
                 case "favorite_added": return "Favorilere eklendi.";
                 case "favorite_removed": return "Favorilerden kaldırıldı.";
-                case "hide_badges": return "Rozetleri gizle";
+                case "hide_badges": return "Başarıları gizle";
             }
         }
         switch (key) {
@@ -4827,7 +4879,7 @@ private int loadingProgressFor(String message) {
             case "no_favorites": return "Nenhum perfil favoritado ainda.";
             case "favorite_added": return "Adicionado aos favoritos.";
             case "favorite_removed": return "Removido dos favoritos.";
-            case "hide_badges": return "Ocultar emblemas";
+            case "hide_badges": return "Ocultar conquistas";
         }
         return key;
     }
@@ -5476,6 +5528,55 @@ private int loadingProgressFor(String message) {
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
 
+
+
+    public class TrashTabDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        boolean active;
+        TrashTabDrawable(boolean active) { this.active = active; }
+
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float w=b.width(), h=b.height(), x=b.left, y=b.top, m=Math.min(w,h);
+            RectF bg = new RectF(x+m*.04f, y+m*.06f, x+w-m*.04f, y+h-m*.06f);
+
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            if (active) p.setColor(Color.rgb(190, 48, 70));
+            else p.setColor(lightTheme ? Color.rgb(245,245,245) : Color.argb(18,255,255,255));
+            c.drawRoundRect(bg, dp(13), dp(13), p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1));
+            p.setColor(active ? Color.argb(85,255,255,255) : (lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255)));
+            c.drawRoundRect(bg, dp(13), dp(13), p);
+
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setStrokeWidth(Math.max(2f, m*.055f));
+            p.setColor(active ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.WHITE));
+
+            float cx = b.centerX();
+            float top = y + h*.33f;
+            float left = cx - m*.16f;
+            float right = cx + m*.16f;
+            float bottom = y + h*.70f;
+
+            c.drawLine(left-m*.05f, top-m*.05f, right+m*.05f, top-m*.05f, p);
+            c.drawLine(cx-m*.08f, top-m*.13f, cx+m*.08f, top-m*.13f, p);
+            c.drawLine(cx-m*.08f, top-m*.13f, cx-m*.04f, top-m*.05f, p);
+            c.drawLine(cx+m*.08f, top-m*.13f, cx+m*.04f, top-m*.05f, p);
+
+            RectF body = new RectF(left, top, right, bottom);
+            c.drawRoundRect(body, m*.035f, m*.035f, p);
+            c.drawLine(cx-m*.07f, top+m*.09f, cx-m*.07f, bottom-m*.07f, p);
+            c.drawLine(cx, top+m*.09f, cx, bottom-m*.07f, p);
+            c.drawLine(cx+m*.07f, top+m*.09f, cx+m*.07f, bottom-m*.07f, p);
+        }
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
 
     public class FavoriteStarDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
