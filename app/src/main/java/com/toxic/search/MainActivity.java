@@ -3619,29 +3619,42 @@ private int loadingProgressFor(String message) {
 
 
     private int bottomNavIconColor(boolean selected) {
-        if (selected) return purple;
-        return lightTheme ? Color.rgb(80,80,86) : Color.argb(205,255,255,255);
+        if (selected) return lightTheme ? Color.rgb(18,18,18) : Color.WHITE;
+        return lightTheme ? Color.rgb(120,120,128) : Color.argb(155,255,255,255);
+    }
+
+    private int bottomNavDividerColor() {
+        return lightTheme ? Color.rgb(224,224,228) : Color.rgb(44,44,52);
     }
 
     private Drawable bottomNavBackground() {
-        return round(lightTheme ? Color.WHITE : Color.rgb(18, 12, 30), dp(24), lightTheme ? Color.rgb(218,218,222) : Color.argb(55,255,255,255), 1);
+        return new BottomNavigationBarDrawable();
     }
 
     private void addBottomNavigation(FrameLayout host, int selectedTab, Dialog activeDialog) {
         if (host == null) return;
 
+        FrameLayout navWrap = new FrameLayout(this);
+        navWrap.setBackground(bottomNavBackground());
+        if (Build.VERSION.SDK_INT >= 21) navWrap.setElevation(dp(14));
+
+        View divider = new View(this);
+        divider.setBackgroundColor(bottomNavDividerColor());
+        FrameLayout.LayoutParams dividerLp = new FrameLayout.LayoutParams(-1, dp(1), Gravity.TOP);
+        navWrap.addView(divider, dividerLp);
+
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
-        nav.setPadding(dp(10), dp(7), dp(10), dp(7));
-        nav.setBackground(bottomNavBackground());
-        if (Build.VERSION.SDK_INT >= 21) nav.setElevation(dp(10));
+        nav.setPadding(dp(12), dp(8), dp(12), dp(8));
+        FrameLayout.LayoutParams navInnerLp = new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER);
+        navWrap.addView(nav, navInnerLp);
 
-        FrameLayout.LayoutParams navLp = new FrameLayout.LayoutParams(-1, dp(70), Gravity.BOTTOM);
-        navLp.leftMargin = dp(18);
-        navLp.rightMargin = dp(18);
-        navLp.bottomMargin = dp(12);
-        host.addView(nav, navLp);
+        FrameLayout.LayoutParams navLp = new FrameLayout.LayoutParams(-1, dp(72), Gravity.BOTTOM);
+        navLp.leftMargin = 0;
+        navLp.rightMargin = 0;
+        navLp.bottomMargin = 0;
+        host.addView(navWrap, navLp);
 
         nav.addView(bottomNavItem("home", selectedTab == 0, () -> {
             if (activeDialog != null) activeDialog.dismiss();
@@ -3664,13 +3677,14 @@ private int loadingProgressFor(String message) {
         FrameLayout item = new FrameLayout(this);
         item.setClickable(true);
         item.setFocusable(true);
-        item.setBackground(round(selected ? adjustAlpha(purple, lightTheme ? 0.14f : 0.22f) : Color.TRANSPARENT, dp(18), Color.TRANSPARENT, 0));
+        item.setBackgroundColor(Color.TRANSPARENT);
+        item.setPadding(0, 0, 0, 0);
 
         TextView iv = text("", 1, bottomNavIconColor(selected), true);
         iv.setGravity(Gravity.CENTER);
         iv.setPadding(0, 0, 0, 0);
         iv.setBackground(new BottomNavIconDrawable(icon, selected));
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(34), dp(34), Gravity.CENTER);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER);
         item.addView(iv, ip);
 
         item.setOnClickListener(v -> {
@@ -5727,6 +5741,22 @@ private int loadingProgressFor(String message) {
 
 
 
+    public class BottomNavBarDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            p.setShader(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(lightTheme ? Color.WHITE : Color.rgb(10, 10, 14));
+            c.drawRect(b.left, b.top, b.right, b.bottom, p);
+        }
+
+        @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
+        @Override public void setColorFilter(android.graphics.ColorFilter cf) { p.setColorFilter(cf); }
+        @Override public int getOpacity() { return PixelFormat.OPAQUE; }
+    }
+
     public class BottomNavIconDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         String type;
@@ -5741,53 +5771,55 @@ private int loadingProgressFor(String message) {
 
             p.setShader(null);
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(Math.max(2f, m * .075f));
+            p.setStrokeWidth(Math.max(2f, m * .085f));
             p.setStrokeCap(Paint.Cap.ROUND);
             p.setStrokeJoin(Paint.Join.ROUND);
             p.setColor(color);
 
             if ("home".equals(type)) {
                 Path roof = new Path();
-                roof.moveTo(x + w*.18f, y + h*.48f);
-                roof.lineTo(cx, y + h*.22f);
-                roof.lineTo(x + w*.82f, y + h*.48f);
+                roof.moveTo(x + w*.18f, y + h*.46f);
+                roof.lineTo(cx, y + h*.21f);
+                roof.lineTo(x + w*.82f, y + h*.46f);
                 c.drawPath(roof, p);
 
-                RectF body = new RectF(x + w*.28f, y + h*.46f, x + w*.72f, y + h*.78f);
-                c.drawRoundRect(body, m*.05f, m*.05f, p);
-                c.drawLine(cx, y+h*.78f, cx, y+h*.62f, p);
+                Path body = new Path();
+                body.moveTo(x + w*.28f, y + h*.44f);
+                body.lineTo(x + w*.28f, y + h*.77f);
+                body.lineTo(x + w*.72f, y + h*.77f);
+                body.lineTo(x + w*.72f, y + h*.44f);
+                c.drawPath(body, p);
+
+                c.drawLine(cx, y + h*.77f, cx, y + h*.60f, p);
             } else if ("heart".equals(type)) {
                 Path heart = new Path();
-                heart.moveTo(cx, cy + m*.25f);
-                heart.cubicTo(cx - m*.43f, cy, cx - m*.35f, cy - m*.31f, cx - m*.15f, cy - m*.31f);
-                heart.cubicTo(cx - m*.05f, cy - m*.31f, cx, cy - m*.22f, cx, cy - m*.17f);
-                heart.cubicTo(cx, cy - m*.22f, cx + m*.05f, cy - m*.31f, cx + m*.15f, cy - m*.31f);
-                heart.cubicTo(cx + m*.35f, cy - m*.31f, cx + m*.43f, cy, cx, cy + m*.25f);
+                heart.moveTo(cx, cy + m*.27f);
+                heart.cubicTo(cx - m*.40f, cy + m*.02f, cx - m*.34f, cy - m*.25f, cx - m*.16f, cy - m*.25f);
+                heart.cubicTo(cx - m*.06f, cy - m*.25f, cx, cy - m*.17f, cx, cy - m*.12f);
+                heart.cubicTo(cx, cy - m*.17f, cx + m*.06f, cy - m*.25f, cx + m*.16f, cy - m*.25f);
+                heart.cubicTo(cx + m*.34f, cy - m*.25f, cx + m*.40f, cy + m*.02f, cx, cy + m*.27f);
                 heart.close();
                 if (selected) {
                     p.setStyle(Paint.Style.FILL);
+                    p.setColor(color);
                     c.drawPath(heart, p);
                 } else {
                     c.drawPath(heart, p);
                 }
             } else {
-                p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(Math.max(2f, m*.07f));
-                c.drawCircle(cx, cy, m*.17f, p);
-                for (int i=0; i<8; i++) {
-                    double a = i * Math.PI / 4.0;
-                    float x1 = cx + (float)Math.cos(a) * m*.28f;
-                    float y1 = cy + (float)Math.sin(a) * m*.28f;
-                    float x2 = cx + (float)Math.cos(a) * m*.38f;
-                    float y2 = cy + (float)Math.sin(a) * m*.38f;
-                    c.drawLine(x1, y1, x2, y2, p);
-                }
+                // Ícone tipo menu/hambúrguer minimalista.
+                float left = x + w*.23f;
+                float right = x + w*.77f;
+                c.drawLine(left, y + h*.34f, right, y + h*.34f, p);
+                c.drawLine(left, y + h*.50f, right, y + h*.50f, p);
+                c.drawLine(left, y + h*.66f, right, y + h*.66f, p);
             }
         }
         @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
         @Override public void setColorFilter(android.graphics.ColorFilter cf) { p.setColorFilter(cf); }
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
+
 
     public class AchievementSwitchDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
