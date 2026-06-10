@@ -471,7 +471,7 @@ public class MainActivity extends Activity {
         });
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(26), dp(18), dp(42));
+        root.setPadding(dp(18), dp(26), dp(18), dp(112));
         scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
         screen.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
 
@@ -516,26 +516,6 @@ public class MainActivity extends Activity {
         historyLp.leftMargin = dp(10);
         screen.addView(historyBtn, historyLp);
 
-        TextView favoritesBtn = text("", 22, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
-        favoritesBtn.setGravity(Gravity.CENTER);
-        favoritesBtn.setPadding(0, 0, 0, 0);
-        favoritesBtn.setBackground(new FavoriteStarDrawable(true));
-        favoritesBtn.setOnClickListener(v -> showFavoriteProfilesDialog());
-        FrameLayout.LayoutParams favoritesLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.LEFT);
-        favoritesLp.topMargin = dp(60);
-        favoritesLp.leftMargin = dp(10);
-        screen.addView(favoritesBtn, favoritesLp);
-
-        TextView settingsBtn = text("⚙", 20, lightTheme ? Color.rgb(33,33,33) : Color.argb(230,255,255,255), true);
-        settingsBtn.setGravity(Gravity.CENTER);
-        settingsBtn.setPadding(0, 0, 0, 0);
-        settingsBtn.setBackgroundColor(Color.TRANSPARENT);
-        settingsBtn.setOnClickListener(v -> showSettingsDialog());
-        FrameLayout.LayoutParams settingsLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.RIGHT);
-        settingsLp.topMargin = dp(14);
-        settingsLp.rightMargin = dp(10);
-        screen.addView(settingsBtn, settingsLp);
-
         rewardAdBtn = text("", 22, Color.WHITE, true);
         rewardAdBtn.setGravity(Gravity.CENTER);
         rewardAdBtn.setPadding(0, 0, 0, 0);
@@ -543,7 +523,7 @@ public class MainActivity extends Activity {
         rewardAdBtn.setBackground(new RewardVideoDrawable());
         rewardAdBtn.setOnClickListener(v -> showRewardedAdDialog());
         FrameLayout.LayoutParams rewardLp = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.TOP | Gravity.RIGHT);
-        rewardLp.topMargin = dp(60);
+        rewardLp.topMargin = dp(14);
         rewardLp.rightMargin = dp(10);
         screen.addView(rewardAdBtn, rewardLp);
 
@@ -553,11 +533,12 @@ public class MainActivity extends Activity {
         rewardAdTimeLabel.setSingleLine(true);
         rewardAdTimeLabel.setVisibility(View.GONE);
         FrameLayout.LayoutParams rewardTimeLp = new FrameLayout.LayoutParams(dp(58), dp(16), Gravity.TOP | Gravity.RIGHT);
-        rewardTimeLp.topMargin = dp(100);
+        rewardTimeLp.topMargin = dp(54);
         rewardTimeLp.rightMargin = dp(0);
         screen.addView(rewardAdTimeLabel, rewardTimeLp);
 
         updateRewardButtonText();
+        addBottomNavigation(screen, 0, null);
 
 
         ImageView topLogo = new ImageView(this);
@@ -2476,8 +2457,8 @@ public class MainActivity extends Activity {
             btOld.setBackground(new TrashTabDrawable(old[0]));
             btOld.setText("");
             ArrayList<JSONObject> data = old[0] ? oldRooms : rooms;
-            renderRoomsPage(content, data, page[0], 8, old[0]);
-            renderPager(content, data.size(), 8, page, render[0]);
+            renderRoomsPage(content, data, page[0], 5, old[0]);
+            renderPager(content, data.size(), 5, page, render[0]);
         };
         btRooms.setOnClickListener(v -> { old[0] = false; page[0] = 1; render[0].run(); });
         btOld.setOnClickListener(v -> { old[0] = true; page[0] = 1; render[0].run(); });
@@ -3636,17 +3617,90 @@ private int loadingProgressFor(String message) {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_OPENED_HISTORY, arr.toString()).apply();
     }
 
+
+    private int bottomNavIconColor(boolean selected) {
+        if (selected) return purple;
+        return lightTheme ? Color.rgb(80,80,86) : Color.argb(205,255,255,255);
+    }
+
+    private Drawable bottomNavBackground() {
+        return round(lightTheme ? Color.WHITE : Color.rgb(18, 12, 30), dp(24), lightTheme ? Color.rgb(218,218,222) : Color.argb(55,255,255,255), 1);
+    }
+
+    private void addBottomNavigation(FrameLayout host, int selectedTab, Dialog activeDialog) {
+        if (host == null) return;
+
+        LinearLayout nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
+        nav.setGravity(Gravity.CENTER);
+        nav.setPadding(dp(10), dp(7), dp(10), dp(7));
+        nav.setBackground(bottomNavBackground());
+        if (Build.VERSION.SDK_INT >= 21) nav.setElevation(dp(10));
+
+        FrameLayout.LayoutParams navLp = new FrameLayout.LayoutParams(-1, dp(70), Gravity.BOTTOM);
+        navLp.leftMargin = dp(18);
+        navLp.rightMargin = dp(18);
+        navLp.bottomMargin = dp(12);
+        host.addView(nav, navLp);
+
+        nav.addView(bottomNavItem("home", selectedTab == 0, () -> {
+            if (activeDialog != null) activeDialog.dismiss();
+        }), new LinearLayout.LayoutParams(0, -1, 1));
+
+        nav.addView(bottomNavItem("heart", selectedTab == 1, () -> {
+            if (selectedTab == 1) return;
+            if (activeDialog != null) activeDialog.dismiss();
+            showFavoriteProfilesDialog();
+        }), new LinearLayout.LayoutParams(0, -1, 1));
+
+        nav.addView(bottomNavItem("settings", selectedTab == 2, () -> {
+            if (selectedTab == 2) return;
+            if (activeDialog != null) activeDialog.dismiss();
+            showSettingsDialog();
+        }), new LinearLayout.LayoutParams(0, -1, 1));
+    }
+
+    private View bottomNavItem(String icon, boolean selected, final Runnable action) {
+        FrameLayout item = new FrameLayout(this);
+        item.setClickable(true);
+        item.setFocusable(true);
+        item.setBackground(round(selected ? adjustAlpha(purple, lightTheme ? 0.14f : 0.22f) : Color.TRANSPARENT, dp(18), Color.TRANSPARENT, 0));
+
+        TextView iv = text("", 1, bottomNavIconColor(selected), true);
+        iv.setGravity(Gravity.CENTER);
+        iv.setPadding(0, 0, 0, 0);
+        iv.setBackground(new BottomNavIconDrawable(icon, selected));
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(34), dp(34), Gravity.CENTER);
+        item.addView(iv, ip);
+
+        item.setOnClickListener(v -> {
+            if (action != null) action.run();
+        });
+        return item;
+    }
+
     private void showSettingsDialog() {
         final Dialog dialog = new Dialog(this);
+        FrameLayout full = new FrameLayout(this);
+        full.setBackground(makeBg());
+
+        ScrollView dialogScroll = new ScrollView(this);
+        dialogScroll.setFillViewport(true);
+        dialogScroll.setVerticalScrollBarEnabled(false);
+
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
-        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
-        dialog.setContentView(wrap);
+        wrap.setPadding(dp(18), dp(34), dp(18), dp(104));
+        wrap.setBackgroundColor(Color.TRANSPARENT);
+        dialogScroll.addView(wrap, new ScrollView.LayoutParams(-1, -2));
+        full.addView(dialogScroll, new FrameLayout.LayoutParams(-1, -1));
+
+        addBottomNavigation(full, 2, dialog);
+        dialog.setContentView(full);
 
         TextView title = habboText(t("settings"), 24, true);
         title.setGravity(Gravity.CENTER);
-        wrap.addView(title, lp(-1, -2, 0, 0, 0, 10));
+        wrap.addView(title, lp(-1, -2, 0, 0, 0, 18));
 
         TextView hotelTitle = text(t("search_hotel"), 13, themeMutedColor(), true);
         hotelTitle.setGravity(Gravity.CENTER);
@@ -3670,17 +3724,17 @@ private int loadingProgressFor(String message) {
         themeRow.setGravity(Gravity.CENTER);
         TextView lightBtn = dialogButton(t("light_theme"));
         TextView darkBtn = dialogButton(t("dark_theme"));
-        lightBtn.setBackground(lightTheme ? grad(dp(14), purple2, purple) : round(Color.argb(20,255,255,255), dp(14), Color.argb(32,255,255,255), 1));
+        lightBtn.setBackground(lightTheme ? grad(dp(14), purple2, purple) : round(Color.rgb(250,250,250), dp(14), Color.rgb(218,218,218), 1));
         darkBtn.setBackground(!lightTheme ? grad(dp(14), purple2, purple) : round(Color.rgb(250,250,250), dp(14), Color.rgb(218,218,218), 1));
-        lightBtn.setTextColor(Color.WHITE);
-        darkBtn.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
+        lightBtn.setTextColor(lightTheme ? Color.WHITE : Color.rgb(33,33,33));
+        darkBtn.setTextColor(!lightTheme ? Color.WHITE : Color.rgb(33,33,33));
         LinearLayout.LayoutParams th1 = new LinearLayout.LayoutParams(0, dp(48), 1); th1.rightMargin = dp(6);
         LinearLayout.LayoutParams th2 = new LinearLayout.LayoutParams(0, dp(48), 1); th2.leftMargin = dp(6);
         themeRow.addView(lightBtn, th1);
         themeRow.addView(darkBtn, th2);
         wrap.addView(themeRow, lp(-1, dp(48), 0, 0, 0, 10));
-        lightBtn.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "light").apply(); lightTheme = true; dialog.dismiss(); rebuildUiPreservingProfile(); });
-        darkBtn.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "dark").apply(); lightTheme = false; dialog.dismiss(); rebuildUiPreservingProfile(); });
+        lightBtn.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "light").apply(); lightTheme = true; dialog.dismiss(); rebuildUiPreservingProfile(); showSettingsDialog(); });
+        darkBtn.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "dark").apply(); lightTheme = false; dialog.dismiss(); rebuildUiPreservingProfile(); showSettingsDialog(); });
 
         TextView clear = dialogButton(t("clear_app_cache"));
         clear.setBackground(grad(dp(14), Color.rgb(120, 36, 46), Color.rgb(210, 54, 77)));
@@ -3694,15 +3748,14 @@ private int loadingProgressFor(String message) {
             });
         });
 
-
         dialog.show();
         Window w = dialog.getWindow();
         if (w != null) {
             w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             WindowManager.LayoutParams params = new WindowManager.LayoutParams();
             params.copyFrom(w.getAttributes());
-            params.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(430));
-            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.width = WindowManager.LayoutParams.MATCH_PARENT;
+            params.height = WindowManager.LayoutParams.MATCH_PARENT;
             w.setAttributes(params);
         }
     }
@@ -5449,15 +5502,21 @@ private int loadingProgressFor(String message) {
 
     private void showFavoriteProfilesDialog() {
         final Dialog dialog = new Dialog(this);
+        FrameLayout full = new FrameLayout(this);
+        full.setBackground(makeBg());
+
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setPadding(dp(16), dp(16), dp(16), dp(16));
-        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
-        dialog.setContentView(wrap);
+        wrap.setPadding(dp(16), dp(34), dp(16), dp(104));
+        wrap.setBackgroundColor(Color.TRANSPARENT);
+        full.addView(wrap, new FrameLayout.LayoutParams(-1, -1));
 
-        TextView title = habboText(t("favorites"), 22, true);
+        addBottomNavigation(full, 1, dialog);
+        dialog.setContentView(full);
+
+        TextView title = habboText(t("favorites"), 24, true);
         title.setGravity(Gravity.CENTER);
-        wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
+        wrap.addView(title, lp(-1, -2, 0, 0, 0, 18));
 
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(true);
@@ -5466,7 +5525,8 @@ private int loadingProgressFor(String message) {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         sv.addView(list, new ScrollView.LayoutParams(-1, -2));
-        wrap.addView(sv, lp(-1, dp(380), 0, 0, 0, 12));
+        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(-1, 0, 1);
+        wrap.addView(sv, svLp);
 
         Runnable[] render = new Runnable[1];
         render[0] = () -> {
@@ -5485,8 +5545,8 @@ private int loadingProgressFor(String message) {
             w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             WindowManager.LayoutParams params = new WindowManager.LayoutParams();
             params.copyFrom(w.getAttributes());
-            params.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(430));
-            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.width = WindowManager.LayoutParams.MATCH_PARENT;
+            params.height = WindowManager.LayoutParams.MATCH_PARENT;
             w.setAttributes(params);
         }
     }
@@ -5665,6 +5725,69 @@ private int loadingProgressFor(String message) {
 
 
 
+
+
+    public class BottomNavIconDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        String type;
+        boolean selected;
+        BottomNavIconDrawable(String type, boolean selected) { this.type = type == null ? "home" : type; this.selected = selected; }
+
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float w = b.width(), h = b.height(), x = b.left, y = b.top, m = Math.min(w, h);
+            float cx = b.centerX(), cy = b.centerY();
+            int color = bottomNavIconColor(selected);
+
+            p.setShader(null);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(2f, m * .075f));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setColor(color);
+
+            if ("home".equals(type)) {
+                Path roof = new Path();
+                roof.moveTo(x + w*.18f, y + h*.48f);
+                roof.lineTo(cx, y + h*.22f);
+                roof.lineTo(x + w*.82f, y + h*.48f);
+                c.drawPath(roof, p);
+
+                RectF body = new RectF(x + w*.28f, y + h*.46f, x + w*.72f, y + h*.78f);
+                c.drawRoundRect(body, m*.05f, m*.05f, p);
+                c.drawLine(cx, y+h*.78f, cx, y+h*.62f, p);
+            } else if ("heart".equals(type)) {
+                Path heart = new Path();
+                heart.moveTo(cx, cy + m*.25f);
+                heart.cubicTo(cx - m*.43f, cy, cx - m*.35f, cy - m*.31f, cx - m*.15f, cy - m*.31f);
+                heart.cubicTo(cx - m*.05f, cy - m*.31f, cx, cy - m*.22f, cx, cy - m*.17f);
+                heart.cubicTo(cx, cy - m*.22f, cx + m*.05f, cy - m*.31f, cx + m*.15f, cy - m*.31f);
+                heart.cubicTo(cx + m*.35f, cy - m*.31f, cx + m*.43f, cy, cx, cy + m*.25f);
+                heart.close();
+                if (selected) {
+                    p.setStyle(Paint.Style.FILL);
+                    c.drawPath(heart, p);
+                } else {
+                    c.drawPath(heart, p);
+                }
+            } else {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(Math.max(2f, m*.07f));
+                c.drawCircle(cx, cy, m*.17f, p);
+                for (int i=0; i<8; i++) {
+                    double a = i * Math.PI / 4.0;
+                    float x1 = cx + (float)Math.cos(a) * m*.28f;
+                    float y1 = cy + (float)Math.sin(a) * m*.28f;
+                    float x2 = cx + (float)Math.cos(a) * m*.38f;
+                    float y2 = cy + (float)Math.sin(a) * m*.38f;
+                    c.drawLine(x1, y1, x2, y2, p);
+                }
+            }
+        }
+        @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
+        @Override public void setColorFilter(android.graphics.ColorFilter cf) { p.setColorFilter(cf); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
 
     public class AchievementSwitchDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
