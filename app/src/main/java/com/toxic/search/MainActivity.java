@@ -164,6 +164,16 @@ public class MainActivity extends Activity {
         loadInterstitialAd();
         loadRewardedAd();
     }
+    private void applySystemBarsForTheme() {
+        getWindow().setStatusBarColor(lightTheme ? Color.WHITE : bg);
+        getWindow().setNavigationBarColor(lightTheme ? Color.WHITE : bg);
+        if (Build.VERSION.SDK_INT >= 23) {
+            int flags = lightTheme ? View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : 0;
+            if (Build.VERSION.SDK_INT >= 26 && lightTheme) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+        }
+    }
+
     private void loadInterstitialAd() {
         if (interstitialLoading || interstitialAd != null) return;
 
@@ -3759,8 +3769,28 @@ private int loadingProgressFor(String message) {
         themeRow.addView(lightBtn, th1);
         themeRow.addView(darkBtn, th2);
         wrap.addView(themeRow, lp(-1, dp(48), 0, 0, 0, 10));
-        lightBtn.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "light").apply(); lightTheme = true; dialog.dismiss(); rebuildUiPreservingProfile(); showSettingsDialog(); });
-        darkBtn.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "dark").apply(); lightTheme = false; dialog.dismiss(); rebuildUiPreservingProfile(); showSettingsDialog(); });
+        lightBtn.setOnClickListener(v -> {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "light").apply();
+            lightTheme = true;
+            openingSplashShownThisSession = true;
+            applySystemBarsForTheme();
+            rebuildUiPreservingProfile();
+            showSettingsDialog();
+            uiHandler.postDelayed(() -> {
+                try { dialog.dismiss(); } catch (Exception ignored) {}
+            }, 120L);
+        });
+        darkBtn.setOnClickListener(v -> {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "dark").apply();
+            lightTheme = false;
+            openingSplashShownThisSession = true;
+            applySystemBarsForTheme();
+            rebuildUiPreservingProfile();
+            showSettingsDialog();
+            uiHandler.postDelayed(() -> {
+                try { dialog.dismiss(); } catch (Exception ignored) {}
+            }, 120L);
+        });
 
         TextView clear = dialogButton(t("clear_app_cache"));
         clear.setBackground(grad(dp(14), Color.rgb(120, 36, 46), Color.rgb(210, 54, 77)));
@@ -5839,12 +5869,13 @@ private int loadingProgressFor(String message) {
                     c.drawPath(heart, p);
                 }
             } else {
-                // Ícone tipo menu/hambúrguer minimalista.
-                float left = x + w*.23f;
-                float right = x + w*.77f;
-                c.drawLine(left, y + h*.34f, right, y + h*.34f, p);
+                // Ícone tipo menu/hambúrguer minimalista, mais alto e proporcional aos outros.
+                p.setStrokeWidth(Math.max(2.2f, m*.09f));
+                float left = x + w*.17f;
+                float right = x + w*.83f;
+                c.drawLine(left, y + h*.27f, right, y + h*.27f, p);
                 c.drawLine(left, y + h*.50f, right, y + h*.50f, p);
-                c.drawLine(left, y + h*.66f, right, y + h*.66f, p);
+                c.drawLine(left, y + h*.73f, right, y + h*.73f, p);
             }
         }
         @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
