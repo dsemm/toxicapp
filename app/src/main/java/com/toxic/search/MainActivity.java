@@ -102,6 +102,7 @@ public class MainActivity extends Activity {
     private boolean rewardedLoading = false;
     private TextView rewardAdBtn;
     private TextView rewardAdTimeLabel;
+    private boolean openingSplashShownThisSession = false;
     private long adFreeUntilMs = 0L;
     private final Runnable adFreeTicker = new Runnable() {
         @Override public void run() {
@@ -538,7 +539,7 @@ public class MainActivity extends Activity {
         screen.addView(rewardAdTimeLabel, rewardTimeLp);
 
         updateRewardButtonText();
-        addBottomNavigation(screen, 0, null);
+        
 
 
         ImageView topLogo = new ImageView(this);
@@ -639,12 +640,17 @@ public class MainActivity extends Activity {
         });
         bindNickSuggestions();
         showStartState();
-        showOpeningSplashOverlay();
+        if (!openingSplashShownThisSession) {
+            showOpeningSplashOverlay();
+        } else {
+            addBottomNavigation(screen, 0, null);
+        }
         maybeShowFirstRunTutorial();
     }
 
     private void showOpeningSplashOverlay() {
         if (screen == null) return;
+        openingSplashShownThisSession = true;
 
         final FrameLayout splash = new FrameLayout(this);
         splash.setBackgroundColor(Color.BLACK);
@@ -687,6 +693,7 @@ public class MainActivity extends Activity {
                     .setDuration(260)
                     .withEndAction(() -> {
                         try { screen.removeView(splash); } catch (Exception ignored) {}
+                        addBottomNavigation(screen, 0, null);
                     })
                     .start();
         }, 2000L);
@@ -5784,25 +5791,26 @@ private int loadingProgressFor(String message) {
             p.setColor(color);
 
             if ("home".equals(type)) {
-                float s = m * .82f;
-                float hx = cx - s / 2f;
-                float hy = cy - s / 2f + m * .02f;
+                float sw = m * .92f;
+                float sh = m * .76f;
+                float hx = cx - sw / 2f;
+                float hy = cy - sh / 2f + m * .04f;
 
                 Path house = new Path();
-                house.moveTo(cx, hy + s*.18f);
-                house.lineTo(hx + s*.20f, hy + s*.46f);
-                house.lineTo(hx + s*.28f, hy + s*.46f);
-                house.lineTo(hx + s*.28f, hy + s*.78f);
-                house.quadTo(hx + s*.28f, hy + s*.84f, hx + s*.34f, hy + s*.84f);
-                house.lineTo(hx + s*.46f, hy + s*.84f);
-                house.lineTo(hx + s*.46f, hy + s*.62f);
-                house.quadTo(hx + s*.46f, hy + s*.58f, hx + s*.50f, hy + s*.58f);
-                house.quadTo(hx + s*.54f, hy + s*.58f, hx + s*.54f, hy + s*.62f);
-                house.lineTo(hx + s*.54f, hy + s*.84f);
-                house.lineTo(hx + s*.66f, hy + s*.84f);
-                house.quadTo(hx + s*.72f, hy + s*.84f, hx + s*.72f, hy + s*.78f);
-                house.lineTo(hx + s*.72f, hy + s*.46f);
-                house.lineTo(hx + s*.80f, hy + s*.46f);
+                house.moveTo(cx, hy + sh*.08f);
+                house.lineTo(hx + sw*.14f, hy + sh*.42f);
+                house.lineTo(hx + sw*.24f, hy + sh*.42f);
+                house.lineTo(hx + sw*.24f, hy + sh*.80f);
+                house.quadTo(hx + sw*.24f, hy + sh*.88f, hx + sw*.32f, hy + sh*.88f);
+                house.lineTo(hx + sw*.45f, hy + sh*.88f);
+                house.lineTo(hx + sw*.45f, hy + sh*.62f);
+                house.quadTo(hx + sw*.45f, hy + sh*.57f, hx + sw*.50f, hy + sh*.57f);
+                house.quadTo(hx + sw*.55f, hy + sh*.57f, hx + sw*.55f, hy + sh*.62f);
+                house.lineTo(hx + sw*.55f, hy + sh*.88f);
+                house.lineTo(hx + sw*.68f, hy + sh*.88f);
+                house.quadTo(hx + sw*.76f, hy + sh*.88f, hx + sw*.76f, hy + sh*.80f);
+                house.lineTo(hx + sw*.76f, hy + sh*.42f);
+                house.lineTo(hx + sw*.86f, hy + sh*.42f);
                 house.close();
 
                 if (selected) {
