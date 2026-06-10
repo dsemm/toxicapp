@@ -3628,7 +3628,7 @@ private int loadingProgressFor(String message) {
     }
 
     private Drawable bottomNavBackground() {
-        return new BottomNavigationBarDrawable();
+        return new BottomNavBarDrawable();
     }
 
     private void addBottomNavigation(FrameLayout host, int selectedTab, Dialog activeDialog) {
