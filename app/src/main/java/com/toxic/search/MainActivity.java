@@ -705,6 +705,7 @@ public class MainActivity extends Activity {
         final int safeStep = Math.max(0, Math.min(2, step));
 
         final FrameLayout overlay = new FrameLayout(this);
+        if (Build.VERSION.SDK_INT >= 21) overlay.setElevation(dp(80));
         overlay.setClickable(true);
         overlay.setFocusable(true);
         overlay.setBackground(new TutorialOverlayDrawable(safeStep));
@@ -3663,13 +3664,17 @@ private int loadingProgressFor(String message) {
         nav.addView(bottomNavItem("heart", selectedTab == 1, () -> {
             if (selectedTab == 1) return;
             showFavoriteProfilesDialog();
-            if (activeDialog != null) activeDialog.dismiss();
+            if (activeDialog != null) uiHandler.postDelayed(() -> {
+                try { activeDialog.dismiss(); } catch (Exception ignored) {}
+            }, 120L);
         }), new LinearLayout.LayoutParams(0, -1, 1));
 
         nav.addView(bottomNavItem("settings", selectedTab == 2, () -> {
             if (selectedTab == 2) return;
             showSettingsDialog();
-            if (activeDialog != null) activeDialog.dismiss();
+            if (activeDialog != null) uiHandler.postDelayed(() -> {
+                try { activeDialog.dismiss(); } catch (Exception ignored) {}
+            }, 120L);
         }), new LinearLayout.LayoutParams(0, -1, 1));
     }
 
@@ -3770,6 +3775,7 @@ private int loadingProgressFor(String message) {
             params.copyFrom(w.getAttributes());
             params.width = WindowManager.LayoutParams.MATCH_PARENT;
             params.height = WindowManager.LayoutParams.MATCH_PARENT;
+            w.setWindowAnimations(0);
             w.setAttributes(params);
         }
     }
@@ -5561,6 +5567,7 @@ private int loadingProgressFor(String message) {
             params.copyFrom(w.getAttributes());
             params.width = WindowManager.LayoutParams.MATCH_PARENT;
             params.height = WindowManager.LayoutParams.MATCH_PARENT;
+            w.setWindowAnimations(0);
             w.setAttributes(params);
         }
     }
@@ -5777,21 +5784,25 @@ private int loadingProgressFor(String message) {
             p.setColor(color);
 
             if ("home".equals(type)) {
+                float s = m * .82f;
+                float hx = cx - s / 2f;
+                float hy = cy - s / 2f + m * .02f;
+
                 Path house = new Path();
-                house.moveTo(cx, y + h*.18f);
-                house.lineTo(x + w*.18f, y + h*.48f);
-                house.lineTo(x + w*.26f, y + h*.48f);
-                house.lineTo(x + w*.26f, y + h*.78f);
-                house.quadTo(x + w*.26f, y + h*.84f, x + w*.32f, y + h*.84f);
-                house.lineTo(x + w*.46f, y + h*.84f);
-                house.lineTo(x + w*.46f, y + h*.61f);
-                house.quadTo(x + w*.46f, y + h*.57f, x + w*.50f, y + h*.57f);
-                house.quadTo(x + w*.54f, y + h*.57f, x + w*.54f, y + h*.61f);
-                house.lineTo(x + w*.54f, y + h*.84f);
-                house.lineTo(x + w*.68f, y + h*.84f);
-                house.quadTo(x + w*.74f, y + h*.84f, x + w*.74f, y + h*.78f);
-                house.lineTo(x + w*.74f, y + h*.48f);
-                house.lineTo(x + w*.82f, y + h*.48f);
+                house.moveTo(cx, hy + s*.18f);
+                house.lineTo(hx + s*.20f, hy + s*.46f);
+                house.lineTo(hx + s*.28f, hy + s*.46f);
+                house.lineTo(hx + s*.28f, hy + s*.78f);
+                house.quadTo(hx + s*.28f, hy + s*.84f, hx + s*.34f, hy + s*.84f);
+                house.lineTo(hx + s*.46f, hy + s*.84f);
+                house.lineTo(hx + s*.46f, hy + s*.62f);
+                house.quadTo(hx + s*.46f, hy + s*.58f, hx + s*.50f, hy + s*.58f);
+                house.quadTo(hx + s*.54f, hy + s*.58f, hx + s*.54f, hy + s*.62f);
+                house.lineTo(hx + s*.54f, hy + s*.84f);
+                house.lineTo(hx + s*.66f, hy + s*.84f);
+                house.quadTo(hx + s*.72f, hy + s*.84f, hx + s*.72f, hy + s*.78f);
+                house.lineTo(hx + s*.72f, hy + s*.46f);
+                house.lineTo(hx + s*.80f, hy + s*.46f);
                 house.close();
 
                 if (selected) {
@@ -5800,6 +5811,7 @@ private int loadingProgressFor(String message) {
                     c.drawPath(house, p);
                 } else {
                     p.setStyle(Paint.Style.STROKE);
+                    p.setStrokeWidth(Math.max(2f, m * .075f));
                     p.setColor(color);
                     c.drawPath(house, p);
                 }
@@ -6197,9 +6209,9 @@ private int loadingProgressFor(String message) {
             Rect b = getBounds();
             RectF hole;
             if (step == 0) {
-                float cx = b.left + b.width() * (5f / 6f);
+                float cx = b.left + b.width() * (5f / 6f) - dp(8);
                 float cy = b.bottom - dp(28);
-                hole = new RectF(cx - dp(30), cy - dp(28), cx + dp(30), cy + dp(28));
+                hole = new RectF(cx - dp(28), cy - dp(28), cx + dp(28), cy + dp(28));
             } else if (step == 1) {
                 hole = new RectF(b.left + dp(12), b.top + dp(132), b.right - dp(12), b.top + dp(252));
             } else {
