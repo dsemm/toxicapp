@@ -471,7 +471,7 @@ public class MainActivity extends Activity {
         });
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(26), dp(18), dp(112));
+        root.setPadding(dp(18), dp(26), dp(18), dp(86));
         scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
         screen.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
 
@@ -742,7 +742,7 @@ public class MainActivity extends Activity {
         card.addView(hint, new LinearLayout.LayoutParams(-1, -2));
 
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        cp.setMargins(dp(18), 0, dp(18), dp(30));
+        cp.setMargins(dp(18), 0, dp(18), dp(76));
         overlay.addView(card, cp);
 
         overlay.setOnClickListener(v -> {
@@ -3646,11 +3646,11 @@ private int loadingProgressFor(String message) {
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
-        nav.setPadding(dp(12), dp(8), dp(12), dp(8));
+        nav.setPadding(dp(12), dp(4), dp(12), dp(4));
         FrameLayout.LayoutParams navInnerLp = new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER);
         navWrap.addView(nav, navInnerLp);
 
-        FrameLayout.LayoutParams navLp = new FrameLayout.LayoutParams(-1, dp(72), Gravity.BOTTOM);
+        FrameLayout.LayoutParams navLp = new FrameLayout.LayoutParams(-1, dp(56), Gravity.BOTTOM);
         navLp.leftMargin = 0;
         navLp.rightMargin = 0;
         navLp.bottomMargin = 0;
@@ -3662,14 +3662,14 @@ private int loadingProgressFor(String message) {
 
         nav.addView(bottomNavItem("heart", selectedTab == 1, () -> {
             if (selectedTab == 1) return;
-            if (activeDialog != null) activeDialog.dismiss();
             showFavoriteProfilesDialog();
+            if (activeDialog != null) activeDialog.dismiss();
         }), new LinearLayout.LayoutParams(0, -1, 1));
 
         nav.addView(bottomNavItem("settings", selectedTab == 2, () -> {
             if (selectedTab == 2) return;
-            if (activeDialog != null) activeDialog.dismiss();
             showSettingsDialog();
+            if (activeDialog != null) activeDialog.dismiss();
         }), new LinearLayout.LayoutParams(0, -1, 1));
     }
 
@@ -3684,7 +3684,7 @@ private int loadingProgressFor(String message) {
         iv.setGravity(Gravity.CENTER);
         iv.setPadding(0, 0, 0, 0);
         iv.setBackground(new BottomNavIconDrawable(icon, selected));
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER);
         item.addView(iv, ip);
 
         item.setOnClickListener(v -> {
@@ -3704,7 +3704,7 @@ private int loadingProgressFor(String message) {
 
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setPadding(dp(18), dp(34), dp(18), dp(104));
+        wrap.setPadding(dp(18), dp(34), dp(18), dp(82));
         wrap.setBackgroundColor(Color.TRANSPARENT);
         dialogScroll.addView(wrap, new ScrollView.LayoutParams(-1, -2));
         full.addView(dialogScroll, new FrameLayout.LayoutParams(-1, -1));
@@ -3990,7 +3990,7 @@ private int loadingProgressFor(String message) {
                 case "close": return "Close";
                 case "item": return "Item";
                 case "tutorial_settings_title": return "Change hotel";
-                case "tutorial_settings_body": return "Tap the gear to choose the hotel and change the language used by the app.";
+                case "tutorial_settings_body": return "Tap the menu icon at the bottom to choose the hotel and change the app language.";
                 case "tutorial_search_title": return "Search profile";
                 case "tutorial_search_body": return "Enter a nickname in the search bar and tap Search to look up public data.";
                 case "tutorial_history_title": return "History";
@@ -4095,7 +4095,7 @@ private int loadingProgressFor(String message) {
                 case "close": return "Cerrar";
                 case "item": return "Prenda";
                 case "tutorial_settings_title": return "Cambiar hotel";
-                case "tutorial_settings_body": return "Toca el engranaje para elegir el hotel y cambiar el idioma usado por la app.";
+                case "tutorial_settings_body": return "Toca el icono de menú inferior para elegir el hotel y cambiar el idioma de la app.";
                 case "tutorial_search_title": return "Buscar perfil";
                 case "tutorial_search_body": return "Escribe un nick en la barra y toca Buscar para consultar datos públicos.";
                 case "tutorial_history_title": return "Historial";
@@ -4225,7 +4225,7 @@ private int loadingProgressFor(String message) {
                 case "close": return "Schließen";
                 case "item": return "Teil";
                 case "tutorial_settings_title": return "Hotel wechseln";
-                case "tutorial_settings_body": return "Tippe auf das Zahnrad, um das Hotel und die App-Sprache zu ändern.";
+                case "tutorial_settings_body": return "Tippe unten auf das Menü-Symbol, um Hotel und App-Sprache zu ändern.";
                 case "tutorial_search_title": return "Profil suchen";
                 case "tutorial_search_body": return "Gib einen Namen ein und tippe auf Suchen, um öffentliche Daten abzurufen.";
                 case "tutorial_history_title": return "Verlauf";
@@ -4485,7 +4485,7 @@ private int loadingProgressFor(String message) {
                 case "close": return "Sulje";
                 case "item": return "Kohde";
                 case "tutorial_settings_title": return "Vaihda hotelli";
-                case "tutorial_settings_body": return "Napauta ratasta valitaksesi hotellin ja sovelluksen kielen.";
+                case "tutorial_settings_body": return "Napauta alareunan valikkokuvaketta valitaksesi hotellin ja sovelluksen kielen.";
                 case "tutorial_search_title": return "Hae profiilia";
                 case "tutorial_search_body": return "Kirjoita nimimerkki ja napauta Hae nähdäksesi julkiset tiedot.";
                 case "tutorial_history_title": return "Historia";
@@ -4745,7 +4745,7 @@ private int loadingProgressFor(String message) {
                 case "close": return "Sluiten";
                 case "item": return "Item";
                 case "tutorial_settings_title": return "Hotel wijzigen";
-                case "tutorial_settings_body": return "Tik op het tandwiel om het hotel en de app-taal te wijzigen.";
+                case "tutorial_settings_body": return "Tik onderaan op het menu-icoon om het hotel en de app-taal te wijzigen.";
                 case "tutorial_search_title": return "Profiel zoeken";
                 case "tutorial_search_body": return "Voer een naam in en tik op Zoeken om openbare gegevens te bekijken.";
                 case "tutorial_history_title": return "Geschiedenis";
@@ -4875,7 +4875,7 @@ private int loadingProgressFor(String message) {
                 case "close": return "Kapat";
                 case "item": return "Öğe";
                 case "tutorial_settings_title": return "Otel değiştir";
-                case "tutorial_settings_body": return "Otel seçmek ve uygulama dilini değiştirmek için dişliye dokunun.";
+                case "tutorial_settings_body": return "Otel ve uygulama dilini değiştirmek için alttaki menü simgesine dokunun.";
                 case "tutorial_search_title": return "Profil ara";
                 case "tutorial_search_body": return "Bir nick yazıp Ara'ya dokunarak herkese açık verileri görüntüleyin.";
                 case "tutorial_history_title": return "Geçmiş";
@@ -5029,7 +5029,7 @@ private int loadingProgressFor(String message) {
             case "close": return "Fechar";
             case "item": return "Peça";
             case "tutorial_settings_title": return "Trocar hotel";
-            case "tutorial_settings_body": return "Toque na engrenagem para escolher o hotel e alterar o idioma usado pelo app.";
+            case "tutorial_settings_body": return "Toque no ícone de menu na barra inferior para escolher o hotel e alterar o idioma do app.";
             case "tutorial_search_title": return "Pesquisar perfil";
             case "tutorial_search_body": return "Digite um nick na barra de pesquisa e toque em Pesquisar para consultar os dados públicos.";
             case "tutorial_history_title": return "Histórico";
@@ -5521,7 +5521,7 @@ private int loadingProgressFor(String message) {
 
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setPadding(dp(16), dp(34), dp(16), dp(104));
+        wrap.setPadding(dp(16), dp(34), dp(16), dp(82));
         wrap.setBackgroundColor(Color.TRANSPARENT);
         full.addView(wrap, new FrameLayout.LayoutParams(-1, -1));
 
@@ -5777,20 +5777,32 @@ private int loadingProgressFor(String message) {
             p.setColor(color);
 
             if ("home".equals(type)) {
-                Path roof = new Path();
-                roof.moveTo(x + w*.18f, y + h*.46f);
-                roof.lineTo(cx, y + h*.21f);
-                roof.lineTo(x + w*.82f, y + h*.46f);
-                c.drawPath(roof, p);
+                Path house = new Path();
+                house.moveTo(cx, y + h*.18f);
+                house.lineTo(x + w*.18f, y + h*.48f);
+                house.lineTo(x + w*.26f, y + h*.48f);
+                house.lineTo(x + w*.26f, y + h*.78f);
+                house.quadTo(x + w*.26f, y + h*.84f, x + w*.32f, y + h*.84f);
+                house.lineTo(x + w*.46f, y + h*.84f);
+                house.lineTo(x + w*.46f, y + h*.61f);
+                house.quadTo(x + w*.46f, y + h*.57f, x + w*.50f, y + h*.57f);
+                house.quadTo(x + w*.54f, y + h*.57f, x + w*.54f, y + h*.61f);
+                house.lineTo(x + w*.54f, y + h*.84f);
+                house.lineTo(x + w*.68f, y + h*.84f);
+                house.quadTo(x + w*.74f, y + h*.84f, x + w*.74f, y + h*.78f);
+                house.lineTo(x + w*.74f, y + h*.48f);
+                house.lineTo(x + w*.82f, y + h*.48f);
+                house.close();
 
-                Path body = new Path();
-                body.moveTo(x + w*.28f, y + h*.44f);
-                body.lineTo(x + w*.28f, y + h*.77f);
-                body.lineTo(x + w*.72f, y + h*.77f);
-                body.lineTo(x + w*.72f, y + h*.44f);
-                c.drawPath(body, p);
-
-                c.drawLine(cx, y + h*.77f, cx, y + h*.60f, p);
+                if (selected) {
+                    p.setStyle(Paint.Style.FILL);
+                    p.setColor(color);
+                    c.drawPath(house, p);
+                } else {
+                    p.setStyle(Paint.Style.STROKE);
+                    p.setColor(color);
+                    c.drawPath(house, p);
+                }
             } else if ("heart".equals(type)) {
                 Path heart = new Path();
                 heart.moveTo(cx, cy + m*.27f);
@@ -6185,9 +6197,9 @@ private int loadingProgressFor(String message) {
             Rect b = getBounds();
             RectF hole;
             if (step == 0) {
-                float cx = b.right - dp(29);
-                float cy = b.top + dp(35);
-                hole = new RectF(cx - dp(34), cy - dp(34), cx + dp(34), cy + dp(34));
+                float cx = b.left + b.width() * (5f / 6f);
+                float cy = b.bottom - dp(28);
+                hole = new RectF(cx - dp(30), cy - dp(28), cx + dp(30), cy + dp(28));
             } else if (step == 1) {
                 hole = new RectF(b.left + dp(12), b.top + dp(132), b.right - dp(12), b.top + dp(252));
             } else {
