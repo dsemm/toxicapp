@@ -4182,7 +4182,7 @@ private int loadingProgressFor(String message) {
         info.setOrientation(LinearLayout.VERTICAL);
         wrap.addView(info, lp(-1, -2, 0, 0, 0, 12));
 
-        TextView loading = text(t("loading_item_info"), 14, themeTextColor(), false);
+        TextView loading = text(t("loading_item_info"), 14, lightTheme ? Color.rgb(35,35,35) : Color.WHITE, false);
         loading.setGravity(Gravity.CENTER);
         info.addView(loading, lp(-1, -2, 0, 4, 0, 4));
 
@@ -4243,7 +4243,7 @@ private int loadingProgressFor(String message) {
         l.setGravity(Gravity.LEFT);
         row.addView(l, lp(-1, -2, 0, 0, 0, 2));
 
-        TextView v = text(value == null ? "" : value, 14, themeTextColor(), false);
+        TextView v = text(value == null ? "" : value, 14, lightTheme ? Color.rgb(35,35,35) : Color.WHITE, false);
         v.setGravity(Gravity.LEFT);
         v.setMaxLines(3);
         v.setEllipsize(TextUtils.TruncateAt.END);
