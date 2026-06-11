@@ -103,6 +103,10 @@ public class MainActivity extends Activity {
     private TextView rewardAdBtn;
     private TextView rewardAdTimeLabel;
     private boolean openingSplashShownThisSession = false;
+    private JSONObject visualFigureDataCache = null;
+    private long visualFigureDataLoadedAt = 0L;
+    private static final String VISUAL_FIGUREDATA_URL = "https://atoxic.com.br/tools/converter_figuredata.php?json=1";
+    private static final String DEFAULT_VISUAL_FIGURE = "hr-100-61.hd-180-1.ch-210-66.lg-270-82.sh-290-91";
     private long adFreeUntilMs = 0L;
     private final Runnable adFreeTicker = new Runnable() {
         @Override public void run() {
@@ -3678,16 +3682,24 @@ private int loadingProgressFor(String message) {
             if (activeDialog != null) activeDialog.dismiss();
         }), new LinearLayout.LayoutParams(0, -1, 1));
 
-        nav.addView(bottomNavItem("heart", selectedTab == 1, () -> {
+        nav.addView(bottomNavItem("visuals", selectedTab == 1, () -> {
             if (selectedTab == 1) return;
+            showVisualEditorDialog();
+            if (activeDialog != null) uiHandler.postDelayed(() -> {
+                try { activeDialog.dismiss(); } catch (Exception ignored) {}
+            }, 120L);
+        }), new LinearLayout.LayoutParams(0, -1, 1));
+
+        nav.addView(bottomNavItem("heart", selectedTab == 2, () -> {
+            if (selectedTab == 2) return;
             showFavoriteProfilesDialog();
             if (activeDialog != null) uiHandler.postDelayed(() -> {
                 try { activeDialog.dismiss(); } catch (Exception ignored) {}
             }, 120L);
         }), new LinearLayout.LayoutParams(0, -1, 1));
 
-        nav.addView(bottomNavItem("settings", selectedTab == 2, () -> {
-            if (selectedTab == 2) return;
+        nav.addView(bottomNavItem("settings", selectedTab == 3, () -> {
+            if (selectedTab == 3) return;
             showSettingsDialog();
             if (activeDialog != null) uiHandler.postDelayed(() -> {
                 try { activeDialog.dismiss(); } catch (Exception ignored) {}
@@ -3715,6 +3727,483 @@ private int loadingProgressFor(String message) {
         return item;
     }
 
+
+    private void showVisualEditorDialog() {
+        final Dialog dialog = new Dialog(this);
+        FrameLayout full = new FrameLayout(this);
+        full.setBackground(makeBg());
+
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(16), dp(30), dp(16), dp(82));
+        wrap.setBackgroundColor(Color.TRANSPARENT);
+        full.addView(wrap, new FrameLayout.LayoutParams(-1, -1));
+
+        addBottomNavigation(full, 1, dialog);
+        dialog.setContentView(full);
+
+        TextView title = habboText(t("visual_editor"), 24, true);
+        title.setGravity(Gravity.CENTER);
+        wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
+
+        ImageView preview = new ImageView(this);
+        preview.setAdjustViewBounds(true);
+        preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        preview.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(20), lightTheme ? Color.rgb(220,220,224) : Color.argb(35,255,255,255), 1));
+        wrap.addView(preview, lp(-1, dp(220), 0, 0, 0, 12));
+
+        final String[] currentFigure = {DEFAULT_VISUAL_FIGURE};
+        final String[] currentGender = {"M"};
+        final String[] currentType = {"hr"};
+        final Runnable[] refreshAll = new Runnable[1];
+
+        LinearLayout nickRow = new LinearLayout(this);
+        nickRow.setOrientation(LinearLayout.HORIZONTAL);
+        nickRow.setGravity(Gravity.CENTER_VERTICAL);
+        EditText nickInput = new EditText(this);
+        nickInput.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
+        nickInput.setHintTextColor(lightTheme ? Color.rgb(125,125,125) : Color.argb(150,255,255,255));
+        nickInput.setTextSize(14);
+        nickInput.setSingleLine(true);
+        nickInput.setHint(t("type_nick"));
+        nickInput.setPadding(dp(12), 0, dp(12), 0);
+        nickInput.setBackground(round(lightTheme ? Color.WHITE : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(30,255,255,255), 1));
+        nickRow.addView(nickInput, new LinearLayout.LayoutParams(0, dp(46), 1));
+
+        TextView loadNick = dialogButton(t("search_button"));
+        LinearLayout.LayoutParams loadLp = new LinearLayout.LayoutParams(dp(92), dp(46));
+        loadLp.leftMargin = dp(8);
+        nickRow.addView(loadNick, loadLp);
+        wrap.addView(nickRow, lp(-1, dp(46), 0, 0, 0, 10));
+
+        LinearLayout genderRow = new LinearLayout(this);
+        genderRow.setOrientation(LinearLayout.HORIZONTAL);
+        TextView maleBtn = dialogButton(t("male"));
+        TextView femaleBtn = dialogButton(t("female"));
+        genderRow.addView(maleBtn, new LinearLayout.LayoutParams(0, dp(42), 1));
+        LinearLayout.LayoutParams femaleLp = new LinearLayout.LayoutParams(0, dp(42), 1);
+        femaleLp.leftMargin = dp(8);
+        genderRow.addView(femaleBtn, femaleLp);
+        wrap.addView(genderRow, lp(-1, dp(42), 0, 0, 0, 12));
+
+        HorizontalScrollView catScroll = new HorizontalScrollView(this);
+        catScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout catTabs = new LinearLayout(this);
+        catTabs.setOrientation(LinearLayout.HORIZONTAL);
+        catScroll.addView(catTabs, new HorizontalScrollView.LayoutParams(-2, dp(48)));
+        wrap.addView(catScroll, lp(-1, dp(48), 0, 0, 0, 10));
+
+        ScrollView itemScroll = new ScrollView(this);
+        itemScroll.setVerticalScrollBarEnabled(true);
+        itemScroll.setScrollbarFadingEnabled(false);
+        tintScrollBar(itemScroll);
+        LinearLayout itemsArea = new LinearLayout(this);
+        itemsArea.setOrientation(LinearLayout.VERTICAL);
+        itemScroll.addView(itemsArea, new ScrollView.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams itemLp = new LinearLayout.LayoutParams(-1, 0, 1);
+        wrap.addView(itemScroll, itemLp);
+
+        LinearLayout colorPanel = new LinearLayout(this);
+        colorPanel.setOrientation(LinearLayout.VERTICAL);
+        wrap.addView(colorPanel, lp(-1, -2, 0, 10, 0, 0));
+
+        Runnable updatePreview = () -> Glide.with(MainActivity.this)
+                .load(avatarFull(currentFigure[0], 2))
+                .placeholder(R.drawable.avatar_placeholder)
+                .into(preview);
+        updatePreview.run();
+
+        final JSONObject[] figureDataRef = {visualFigureDataCache};
+
+        refreshAll[0] = () -> {
+            updateVisualGenderButtons(maleBtn, femaleBtn, currentGender[0]);
+            renderVisualCategories(catTabs, currentType, figureDataRef[0], refreshAll[0]);
+            renderVisualItems(itemsArea, colorPanel, currentFigure, currentGender, currentType, figureDataRef[0], updatePreview);
+            updatePreview.run();
+        };
+
+        maleBtn.setOnClickListener(v -> {
+            currentGender[0] = "M";
+            refreshAll[0].run();
+        });
+        femaleBtn.setOnClickListener(v -> {
+            currentGender[0] = "F";
+            refreshAll[0].run();
+        });
+
+        loadNick.setOnClickListener(v -> {
+            String nick = nickInput.getText().toString().trim();
+            if (nick.isEmpty()) {
+                toast(t("type_nick_toast"));
+                return;
+            }
+            loadNick.setText("...");
+            executor.submit(() -> {
+                try {
+                    JSONObject p = validProfileObject(tryJson(habboApiUrl("/api/public/users?name=" + enc(nick))));
+                    String fig = firstText(p, "figureString", "figure");
+                    String g = firstText(p, "gender", "sex");
+                    if (fig.isEmpty()) {
+                        JSONObject d = unwrap(tryJson(habbodexProfileByNameUrl(nick)));
+                        fig = firstText(d, "figureString", "figure");
+                        if (g.isEmpty()) g = firstText(d, "gender", "sex");
+                    }
+                    final String f = fig;
+                    final String gender = g;
+                    runOnUiThread(() -> {
+                        loadNick.setText(t("search_button"));
+                        if (f == null || f.trim().isEmpty()) {
+                            toast(t("not_found_simple"));
+                            return;
+                        }
+                        currentFigure[0] = f.trim();
+                        currentGender[0] = normalizeVisualGender(gender, currentGender[0]);
+                        refreshAll[0].run();
+                    });
+                } catch(Exception e) {
+                    runOnUiThread(() -> {
+                        loadNick.setText(t("search_button"));
+                        toast(t("cannot_load_visuals"));
+                    });
+                }
+            });
+        });
+
+        if (figureDataRef[0] == null) {
+            itemsArea.addView(centerNote(t("loading_visuals")));
+            loadVisualFigureData(data -> {
+                figureDataRef[0] = data;
+                refreshAll[0].run();
+            }, () -> {
+                itemsArea.removeAllViews();
+                itemsArea.addView(centerNote(t("cannot_load_visuals")));
+            });
+        } else {
+            refreshAll[0].run();
+        }
+
+        dialog.show();
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(w.getAttributes());
+            params.width = WindowManager.LayoutParams.MATCH_PARENT;
+            params.height = WindowManager.LayoutParams.MATCH_PARENT;
+            w.setWindowAnimations(0);
+            w.setAttributes(params);
+        }
+    }
+
+    private void loadVisualFigureData(final VisualDataCallback ok, final Runnable fail) {
+        if (visualFigureDataCache != null && System.currentTimeMillis() - visualFigureDataLoadedAt < 86400000L) {
+            if (ok != null) ok.onLoaded(visualFigureDataCache);
+            return;
+        }
+        executor.submit(() -> {
+            try {
+                JSONObject data = getJson(VISUAL_FIGUREDATA_URL);
+                if (data == null || !data.optBoolean("ok", true) || data.optJSONObject("categories") == null) throw new RuntimeException("invalid figuredata");
+                visualFigureDataCache = data;
+                visualFigureDataLoadedAt = System.currentTimeMillis();
+                runOnUiThread(() -> { if (ok != null) ok.onLoaded(data); });
+            } catch(Exception e) {
+                runOnUiThread(() -> { if (fail != null) fail.run(); });
+            }
+        });
+    }
+
+    private interface VisualDataCallback {
+        void onLoaded(JSONObject data);
+    }
+
+    private void updateVisualGenderButtons(TextView maleBtn, TextView femaleBtn, String gender) {
+        if (maleBtn == null || femaleBtn == null) return;
+        boolean male = !"F".equalsIgnoreCase(gender);
+        maleBtn.setBackground(male ? grad(dp(14), purple2, purple) : round(lightTheme ? Color.WHITE : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(30,255,255,255), 1));
+        femaleBtn.setBackground(!male ? grad(dp(14), purple2, purple) : round(lightTheme ? Color.WHITE : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(30,255,255,255), 1));
+        maleBtn.setTextColor(male ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.WHITE));
+        femaleBtn.setTextColor(!male ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.WHITE));
+    }
+
+    private void renderVisualCategories(LinearLayout tabs, String[] currentType, JSONObject data, Runnable refresh) {
+        if (tabs == null) return;
+        tabs.removeAllViews();
+        String[] order = {"hr","hd","ch","lg","sh","ha","he","ea","fa","ca","cc","cp","wa"};
+        for (String type : order) {
+            if (visualCategory(data, type) == null) continue;
+            TextView tab = text(visualCategoryName(type), 13, type.equals(currentType[0]) ? Color.WHITE : (lightTheme ? Color.rgb(55,55,55) : Color.argb(215,255,255,255)), true);
+            tab.setGravity(Gravity.CENTER);
+            tab.setPadding(dp(14), 0, dp(14), 0);
+            tab.setBackground(type.equals(currentType[0]) ? grad(dp(999), purple2, purple) : round(lightTheme ? Color.WHITE : Color.argb(18,255,255,255), dp(999), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(38));
+            lp.rightMargin = dp(8);
+            tabs.addView(tab, lp);
+            tab.setOnClickListener(v -> {
+                currentType[0] = type;
+                if (refresh != null) refresh.run();
+            });
+        }
+    }
+
+    private void renderVisualItems(LinearLayout area, LinearLayout colors, String[] currentFigure, String[] gender, String[] currentType, JSONObject data, Runnable updatePreview) {
+        if (area == null) return;
+        area.removeAllViews();
+        if (colors != null) colors.removeAllViews();
+
+        JSONObject category = visualCategory(data, currentType[0]);
+        if (category == null) {
+            area.addView(centerNote(t("cannot_load_visuals")));
+            return;
+        }
+
+        JSONArray items = category.optJSONArray("items");
+        if (items == null || items.length() == 0) {
+            area.addView(centerNote(t("no_items_found")));
+            return;
+        }
+
+        int perRow = 4;
+        LinearLayout row = null;
+        int shown = 0;
+
+        TextView remove = visualItemCell(t("remove_item"), currentType[0], "0", currentFigure[0], true);
+        remove.setOnClickListener(v -> {
+            currentFigure[0] = removeFigurePart(currentFigure[0], currentType[0]);
+            if (updatePreview != null) updatePreview.run();
+            renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
+        });
+        row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        area.addView(row, lp(-1, dp(92), 0, 0, 0, 8));
+        row.addView(remove, new LinearLayout.LayoutParams(0, dp(88), 1));
+        shown = 1;
+
+        for (int i=0; i<items.length() && shown < 81; i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null || !item.optBoolean("selectable", true)) continue;
+            String g = firstText(item, "gender");
+            if (!visualGenderMatches(g, gender[0])) continue;
+
+            if (shown % perRow == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                area.addView(row, lp(-1, dp(92), 0, 0, 0, 8));
+            }
+            final JSONObject finalItem = item;
+            final String itemId = firstText(item, "id");
+            String previewFigure = applyFigureItem(currentFigure[0], currentType[0], item, null);
+            TextView cell = visualItemCell("", currentType[0], itemId, previewFigure, false);
+            cell.setOnClickListener(v -> {
+                currentFigure[0] = applyFigureItem(currentFigure[0], currentType[0], finalItem, null);
+                if (updatePreview != null) updatePreview.run();
+                renderVisualColors(colors, currentFigure, currentType[0], finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
+            });
+            row.addView(cell, new LinearLayout.LayoutParams(0, dp(88), 1));
+            shown++;
+        }
+
+        if (row != null) {
+            while (row.getChildCount() < perRow) {
+                Space sp = new Space(this);
+                row.addView(sp, new LinearLayout.LayoutParams(0, dp(88), 1));
+            }
+        }
+
+        JSONObject selected = findVisualItemByFigure(category, currentFigure[0], currentType[0]);
+        if (selected != null) renderVisualColors(colors, currentFigure, currentType[0], selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
+    }
+
+    private TextView visualItemCell(String label, String type, String id, String figure, boolean remove) {
+        TextView box = text(label, remove ? 12 : 1, remove ? (lightTheme ? Color.rgb(120,40,55) : Color.rgb(255,150,165)) : Color.TRANSPARENT, true);
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(dp(4), dp(4), dp(4), dp(4));
+        box.setBackground(round(lightTheme ? Color.WHITE : Color.argb(16,255,255,255), dp(16), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
+        if (!remove && figure != null && !figure.isEmpty()) {
+            Drawable d = box.getBackground();
+            box.setBackground(d);
+            box.post(() -> {
+                try {
+                    Glide.with(MainActivity.this).load(avatarSmall(figure)).into(new com.bumptech.glide.request.target.CustomTarget<android.graphics.drawable.Drawable>() {
+                        @Override public void onResourceReady(android.graphics.drawable.Drawable resource, com.bumptech.glide.request.transition.Transition<? super android.graphics.drawable.Drawable> transition) {
+                            box.setCompoundDrawablesWithIntrinsicBounds(null, resource, null, null);
+                        }
+                        @Override public void onLoadCleared(android.graphics.drawable.Drawable placeholder) {}
+                    });
+                } catch(Exception ignored) {}
+            });
+        }
+        return box;
+    }
+
+    private void renderVisualColors(LinearLayout colors, String[] currentFigure, String type, JSONObject item, Runnable updatePreview, Runnable refreshItems) {
+        if (colors == null || item == null) return;
+        colors.removeAllViews();
+        if (!item.optBoolean("colorable", false)) return;
+        JSONArray arr = item.optJSONArray("colors");
+        if (arr == null || arr.length() == 0) return;
+
+        TextView title = text(t("available_colors"), 13, themeMutedColor(), true);
+        title.setGravity(Gravity.LEFT);
+        colors.addView(title, lp(-1, -2, 0, 0, 0, 6));
+
+        HorizontalScrollView hsv = new HorizontalScrollView(this);
+        hsv.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        hsv.addView(row, new HorizontalScrollView.LayoutParams(-2, dp(42)));
+        colors.addView(hsv, lp(-1, dp(42), 0, 0, 0, 0));
+
+        int max = Math.min(arr.length(), 80);
+        for (int i=0; i<max; i++) {
+            JSONObject c = arr.optJSONObject(i);
+            if (c == null || !c.optBoolean("selectable", true)) continue;
+            String colorId = firstText(c, "id");
+            String hex = firstText(c, "hex");
+            TextView sw = text("", 1, Color.TRANSPARENT, true);
+            sw.setGravity(Gravity.CENTER);
+            sw.setBackground(round(colorFromHex(hex), dp(999), lightTheme ? Color.rgb(70,70,70) : Color.WHITE, 1));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(32), dp(32));
+            cp.rightMargin = dp(8);
+            row.addView(sw, cp);
+            sw.setOnClickListener(v -> {
+                currentFigure[0] = applyFigureItem(currentFigure[0], type, item, colorId);
+                if (updatePreview != null) updatePreview.run();
+                if (refreshItems != null) refreshItems.run();
+            });
+        }
+    }
+
+    private JSONObject visualCategory(JSONObject data, String type) {
+        if (data == null) return null;
+        JSONObject cats = data.optJSONObject("categories");
+        if (cats == null) return null;
+        return cats.optJSONObject(type);
+    }
+
+    private JSONObject findVisualItemByFigure(JSONObject category, String figure, String type) {
+        String id = figurePartId(figure, type);
+        if (id.isEmpty()) return null;
+        JSONArray items = category == null ? null : category.optJSONArray("items");
+        if (items == null) return null;
+        for (int i=0; i<items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item != null && id.equals(firstText(item, "id"))) return item;
+        }
+        return null;
+    }
+
+    private String applyFigureItem(String figure, String type, JSONObject item, String forcedColor) {
+        if (item == null) return figure;
+        String id = firstText(item, "id");
+        if (id.isEmpty()) return figure;
+        String old = figurePart(figure, type);
+        ArrayList<String> colors = new ArrayList<>();
+        if (old != null && !old.isEmpty()) {
+            String[] bits = old.split("-");
+            for (int i=2; i<bits.length; i++) if (!bits[i].trim().isEmpty()) colors.add(bits[i].trim());
+        }
+        int colorCount = Math.max(0, item.optInt("colorCount", item.optBoolean("colorable", false) ? 1 : 0));
+        if (forcedColor != null && !forcedColor.trim().isEmpty()) {
+            if (colors.isEmpty()) colors.add(forcedColor.trim());
+            else colors.set(0, forcedColor.trim());
+        }
+        JSONArray itemColors = item.optJSONArray("colors");
+        while (colors.size() < colorCount) {
+            String first = firstSelectableColorId(itemColors);
+            colors.add(first.isEmpty() ? "1" : first);
+        }
+        StringBuilder part = new StringBuilder(type + "-" + id);
+        for (int i=0; i<Math.min(colorCount, colors.size()); i++) part.append("-").append(colors.get(i));
+        return setFigurePart(figure, type, part.toString());
+    }
+
+    private String firstSelectableColorId(JSONArray colors) {
+        if (colors == null) return "";
+        for (int i=0; i<colors.length(); i++) {
+            JSONObject c = colors.optJSONObject(i);
+            if (c != null && c.optBoolean("selectable", true)) return firstText(c, "id");
+        }
+        return "";
+    }
+
+    private String figurePart(String figure, String type) {
+        if (figure == null || type == null) return "";
+        String[] parts = figure.split("\\.");
+        for (String p : parts) if (p.startsWith(type + "-")) return p;
+        return "";
+    }
+
+    private String figurePartId(String figure, String type) {
+        String p = figurePart(figure, type);
+        if (p.isEmpty()) return "";
+        String[] bits = p.split("-");
+        return bits.length > 1 ? bits[1] : "";
+    }
+
+    private String setFigurePart(String figure, String type, String part) {
+        ArrayList<String> parts = new ArrayList<>();
+        boolean replaced = false;
+        if (figure != null && !figure.trim().isEmpty()) {
+            for (String p : figure.split("\\.")) {
+                if (p.trim().isEmpty()) continue;
+                if (p.startsWith(type + "-")) {
+                    if (part != null && !part.isEmpty()) parts.add(part);
+                    replaced = true;
+                } else {
+                    parts.add(p);
+                }
+            }
+        }
+        if (!replaced && part != null && !part.isEmpty()) parts.add(part);
+        return TextUtils.join(".", parts);
+    }
+
+    private String removeFigurePart(String figure, String type) {
+        return setFigurePart(figure, type, "");
+    }
+
+    private boolean visualGenderMatches(String itemGender, String currentGender) {
+        if (itemGender == null || itemGender.trim().isEmpty()) return true;
+        String g = itemGender.trim().toUpperCase(Locale.ROOT);
+        return "U".equals(g) || g.equals(normalizeVisualGender(currentGender, "M"));
+    }
+
+    private String normalizeVisualGender(String gender, String fallback) {
+        if (gender == null) return fallback == null ? "M" : fallback;
+        String g = gender.trim().toUpperCase(Locale.ROOT);
+        if (g.startsWith("F")) return "F";
+        if (g.startsWith("M")) return "M";
+        return fallback == null ? "M" : fallback;
+    }
+
+    private String visualCategoryName(String type) {
+        if ("hr".equals(type)) return t("cat_hair");
+        if ("hd".equals(type)) return t("cat_head");
+        if ("ch".equals(type)) return t("cat_shirts");
+        if ("lg".equals(type)) return t("cat_pants");
+        if ("sh".equals(type)) return t("cat_shoes");
+        if ("ha".equals(type)) return t("cat_hats");
+        if ("he".equals(type)) return t("cat_accessories");
+        if ("ea".equals(type)) return t("cat_face");
+        if ("fa".equals(type)) return t("cat_face");
+        if ("ca".equals(type)) return t("cat_coats");
+        if ("cc".equals(type)) return t("cat_coats");
+        if ("cp".equals(type)) return t("cat_prints");
+        if ("wa".equals(type)) return t("cat_accessories");
+        return type.toUpperCase(Locale.ROOT);
+    }
+
+    private int colorFromHex(String hex) {
+        try {
+            String h = hex == null ? "" : hex.trim();
+            if (!h.startsWith("#")) h = "#" + h;
+            return Color.parseColor(h);
+        } catch(Exception e) {
+            return Color.WHITE;
+        }
+    }
+
     private void showSettingsDialog() {
         final Dialog dialog = new Dialog(this);
         FrameLayout full = new FrameLayout(this);
@@ -3731,7 +4220,7 @@ private int loadingProgressFor(String message) {
         dialogScroll.addView(wrap, new ScrollView.LayoutParams(-1, -2));
         full.addView(dialogScroll, new FrameLayout.LayoutParams(-1, -1));
 
-        addBottomNavigation(full, 2, dialog);
+        addBottomNavigation(full, 3, dialog);
         dialog.setContentView(full);
 
         TextView title = habboText(t("settings"), 24, true);
@@ -4086,6 +4575,26 @@ private int loadingProgressFor(String message) {
                 case "ago_months": return "months";
                 case "ago_year": return "year";
                 case "ago_years": return "years";
+                case "visual_editor": return "Visual editor";
+                case "type_nick": return "Enter a nick...";
+                case "male": return "Male";
+                case "female": return "Female";
+                case "loading_visuals": return "Loading visual editor...";
+                case "cannot_load_visuals": return "Couldn't load the visual editor.";
+                case "not_found_simple": return "Profile not found.";
+                case "no_items_found": return "No items found.";
+                case "remove_item": return "Remove";
+                case "available_colors": return "Available colors";
+                case "cat_hair": return "Hair";
+                case "cat_head": return "Skin";
+                case "cat_shirts": return "Shirts";
+                case "cat_pants": return "Pants";
+                case "cat_shoes": return "Shoes";
+                case "cat_hats": return "Hats";
+                case "cat_accessories": return "Accessories";
+                case "cat_face": return "Face";
+                case "cat_coats": return "Coats";
+                case "cat_prints": return "Prints";
             }
         }
         else if ("es".equals(lang)) {
@@ -4216,6 +4725,26 @@ private int loadingProgressFor(String message) {
                 case "ago_months": return "meses";
                 case "ago_year": return "año";
                 case "ago_years": return "años";
+                case "visual_editor": return "Probador de looks";
+                case "type_nick": return "Escribe un nick...";
+                case "male": return "Masculino";
+                case "female": return "Femenino";
+                case "loading_visuals": return "Cargando probador...";
+                case "cannot_load_visuals": return "No se pudo cargar el probador.";
+                case "not_found_simple": return "Perfil no encontrado.";
+                case "no_items_found": return "No se encontraron ítems.";
+                case "remove_item": return "Quitar";
+                case "available_colors": return "Colores disponibles";
+                case "cat_hair": return "Pelo";
+                case "cat_head": return "Piel";
+                case "cat_shirts": return "Camisas";
+                case "cat_pants": return "Pantalones";
+                case "cat_shoes": return "Zapatos";
+                case "cat_hats": return "Sombreros";
+                case "cat_accessories": return "Accesorios";
+                case "cat_face": return "Rostro";
+                case "cat_coats": return "Abrigos";
+                case "cat_prints": return "Estampados";
             }
         }
         else if ("de".equals(lang)) {
@@ -4346,6 +4875,26 @@ private int loadingProgressFor(String message) {
                 case "ago_months": return "Monaten";
                 case "ago_year": return "Jahr";
                 case "ago_years": return "Jahren";
+                case "visual_editor": return "Outfit-Editor";
+                case "type_nick": return "Nick eingeben...";
+                case "male": return "Männlich";
+                case "female": return "Weiblich";
+                case "loading_visuals": return "Editor wird geladen...";
+                case "cannot_load_visuals": return "Editor konnte nicht geladen werden.";
+                case "not_found_simple": return "Profil nicht gefunden.";
+                case "no_items_found": return "Keine Teile gefunden.";
+                case "remove_item": return "Entfernen";
+                case "available_colors": return "Verfügbare Farben";
+                case "cat_hair": return "Haare";
+                case "cat_head": return "Haut";
+                case "cat_shirts": return "Oberteile";
+                case "cat_pants": return "Hosen";
+                case "cat_shoes": return "Schuhe";
+                case "cat_hats": return "Hüte";
+                case "cat_accessories": return "Accessoires";
+                case "cat_face": return "Gesicht";
+                case "cat_coats": return "Jacken";
+                case "cat_prints": return "Muster";
             }
         }
         else if ("fr".equals(lang)) {
@@ -4476,6 +5025,26 @@ private int loadingProgressFor(String message) {
                 case "ago_months": return "mois";
                 case "ago_year": return "an";
                 case "ago_years": return "ans";
+                case "visual_editor": return "Essayeur de looks";
+                case "type_nick": return "Saisissez un pseudo...";
+                case "male": return "Masculin";
+                case "female": return "Féminin";
+                case "loading_visuals": return "Chargement de l'essayeur...";
+                case "cannot_load_visuals": return "Impossible de charger l'essayeur.";
+                case "not_found_simple": return "Profil introuvable.";
+                case "no_items_found": return "Aucun élément trouvé.";
+                case "remove_item": return "Retirer";
+                case "available_colors": return "Couleurs disponibles";
+                case "cat_hair": return "Cheveux";
+                case "cat_head": return "Peau";
+                case "cat_shirts": return "Hauts";
+                case "cat_pants": return "Pantalons";
+                case "cat_shoes": return "Chaussures";
+                case "cat_hats": return "Chapeaux";
+                case "cat_accessories": return "Accessoires";
+                case "cat_face": return "Visage";
+                case "cat_coats": return "Vestes";
+                case "cat_prints": return "Imprimés";
             }
         }
         else if ("fi".equals(lang)) {
@@ -4606,6 +5175,26 @@ private int loadingProgressFor(String message) {
                 case "ago_months": return "kuukautta";
                 case "ago_year": return "vuosi";
                 case "ago_years": return "vuotta";
+                case "visual_editor": return "Asueditori";
+                case "type_nick": return "Kirjoita nick...";
+                case "male": return "Mies";
+                case "female": return "Nainen";
+                case "loading_visuals": return "Ladataan editoria...";
+                case "cannot_load_visuals": return "Editoria ei voitu ladata.";
+                case "not_found_simple": return "Profiilia ei löytynyt.";
+                case "no_items_found": return "Kohteita ei löytynyt.";
+                case "remove_item": return "Poista";
+                case "available_colors": return "Värit";
+                case "cat_hair": return "Hiukset";
+                case "cat_head": return "Iho";
+                case "cat_shirts": return "Paidat";
+                case "cat_pants": return "Housut";
+                case "cat_shoes": return "Kengät";
+                case "cat_hats": return "Hatut";
+                case "cat_accessories": return "Asusteet";
+                case "cat_face": return "Kasvot";
+                case "cat_coats": return "Takit";
+                case "cat_prints": return "Kuviot";
             }
         }
         else if ("it".equals(lang)) {
@@ -4736,6 +5325,26 @@ private int loadingProgressFor(String message) {
                 case "ago_months": return "mesi";
                 case "ago_year": return "anno";
                 case "ago_years": return "anni";
+                case "visual_editor": return "Prova look";
+                case "type_nick": return "Inserisci un nick...";
+                case "male": return "Maschile";
+                case "female": return "Femminile";
+                case "loading_visuals": return "Caricamento prova look...";
+                case "cannot_load_visuals": return "Impossibile caricare la prova look.";
+                case "not_found_simple": return "Profilo non trovato.";
+                case "no_items_found": return "Nessun item trovato.";
+                case "remove_item": return "Rimuovi";
+                case "available_colors": return "Colori disponibili";
+                case "cat_hair": return "Capelli";
+                case "cat_head": return "Pelle";
+                case "cat_shirts": return "Maglie";
+                case "cat_pants": return "Pantaloni";
+                case "cat_shoes": return "Scarpe";
+                case "cat_hats": return "Cappelli";
+                case "cat_accessories": return "Accessori";
+                case "cat_face": return "Viso";
+                case "cat_coats": return "Giacche";
+                case "cat_prints": return "Stampe";
             }
         }
         else if ("nl".equals(lang)) {
@@ -4866,6 +5475,26 @@ private int loadingProgressFor(String message) {
                 case "ago_months": return "maanden";
                 case "ago_year": return "jaar";
                 case "ago_years": return "jaar";
+                case "visual_editor": return "Look-passer";
+                case "type_nick": return "Voer een nick in...";
+                case "male": return "Man";
+                case "female": return "Vrouw";
+                case "loading_visuals": return "Look-passer laden...";
+                case "cannot_load_visuals": return "Kon de look-passer niet laden.";
+                case "not_found_simple": return "Profiel niet gevonden.";
+                case "no_items_found": return "Geen items gevonden.";
+                case "remove_item": return "Verwijder";
+                case "available_colors": return "Beschikbare kleuren";
+                case "cat_hair": return "Haar";
+                case "cat_head": return "Huid";
+                case "cat_shirts": return "Shirts";
+                case "cat_pants": return "Broeken";
+                case "cat_shoes": return "Schoenen";
+                case "cat_hats": return "Hoeden";
+                case "cat_accessories": return "Accessoires";
+                case "cat_face": return "Gezicht";
+                case "cat_coats": return "Jassen";
+                case "cat_prints": return "Prints";
             }
         }
         else if ("tr".equals(lang)) {
@@ -4996,6 +5625,26 @@ private int loadingProgressFor(String message) {
                 case "ago_months": return "ay";
                 case "ago_year": return "yıl";
                 case "ago_years": return "yıl";
+                case "visual_editor": return "Görünüm deneme";
+                case "type_nick": return "Bir nick yaz...";
+                case "male": return "Erkek";
+                case "female": return "Kadın";
+                case "loading_visuals": return "Görünüm yükleniyor...";
+                case "cannot_load_visuals": return "Görünüm deneme yüklenemedi.";
+                case "not_found_simple": return "Profil bulunamadı.";
+                case "no_items_found": return "Öğe bulunamadı.";
+                case "remove_item": return "Kaldır";
+                case "available_colors": return "Renkler";
+                case "cat_hair": return "Saç";
+                case "cat_head": return "Ten";
+                case "cat_shirts": return "Üstler";
+                case "cat_pants": return "Pantolon";
+                case "cat_shoes": return "Ayakkabı";
+                case "cat_hats": return "Şapkalar";
+                case "cat_accessories": return "Aksesuarlar";
+                case "cat_face": return "Yüz";
+                case "cat_coats": return "Ceketler";
+                case "cat_prints": return "Desenler";
             }
         }
         switch (key) {
@@ -5125,6 +5774,26 @@ private int loadingProgressFor(String message) {
             case "ago_months": return "meses";
             case "ago_year": return "ano";
             case "ago_years": return "anos";
+            case "visual_editor": return "Provador de Visuais";
+            case "type_nick": return "Digite um nick...";
+            case "male": return "Masculino";
+            case "female": return "Feminino";
+            case "loading_visuals": return "Carregando provador...";
+            case "cannot_load_visuals": return "Não foi possível carregar o provador.";
+            case "not_found_simple": return "Perfil não encontrado.";
+            case "no_items_found": return "Nenhum item encontrado.";
+            case "remove_item": return "Remover";
+            case "available_colors": return "Cores disponíveis";
+            case "cat_hair": return "Cabelo";
+            case "cat_head": return "Pele";
+            case "cat_shirts": return "Camisas";
+            case "cat_pants": return "Calças";
+            case "cat_shoes": return "Sapatos";
+            case "cat_hats": return "Chapéus";
+            case "cat_accessories": return "Acessórios";
+            case "cat_face": return "Rosto";
+            case "cat_coats": return "Casacos";
+            case "cat_prints": return "Estampas";
         }
         return key;
     }
@@ -5568,7 +6237,7 @@ private int loadingProgressFor(String message) {
         wrap.setBackgroundColor(Color.TRANSPARENT);
         full.addView(wrap, new FrameLayout.LayoutParams(-1, -1));
 
-        addBottomNavigation(full, 1, dialog);
+        addBottomNavigation(full, 2, dialog);
         dialog.setContentView(full);
 
         TextView title = habboText(t("favorites"), 24, true);
@@ -5852,6 +6521,32 @@ private int loadingProgressFor(String message) {
                     p.setStrokeWidth(Math.max(2f, m * .075f));
                     p.setColor(color);
                     c.drawPath(house, p);
+                }
+            } else if ("visuals".equals(type)) {
+                // Ícone de camiseta minimalista para o provador de visuais.
+                Path shirt = new Path();
+                shirt.moveTo(x + w*.27f, y + h*.28f);
+                shirt.lineTo(x + w*.39f, y + h*.20f);
+                shirt.quadTo(x + w*.50f, y + h*.28f, x + w*.61f, y + h*.20f);
+                shirt.lineTo(x + w*.73f, y + h*.28f);
+                shirt.lineTo(x + w*.86f, y + h*.43f);
+                shirt.lineTo(x + w*.75f, y + h*.55f);
+                shirt.lineTo(x + w*.70f, y + h*.49f);
+                shirt.lineTo(x + w*.70f, y + h*.80f);
+                shirt.lineTo(x + w*.30f, y + h*.80f);
+                shirt.lineTo(x + w*.30f, y + h*.49f);
+                shirt.lineTo(x + w*.25f, y + h*.55f);
+                shirt.lineTo(x + w*.14f, y + h*.43f);
+                shirt.close();
+                if (selected) {
+                    p.setStyle(Paint.Style.FILL);
+                    p.setColor(color);
+                    c.drawPath(shirt, p);
+                } else {
+                    p.setStyle(Paint.Style.STROKE);
+                    p.setStrokeWidth(Math.max(2f, m * .075f));
+                    p.setColor(color);
+                    c.drawPath(shirt, p);
                 }
             } else if ("heart".equals(type)) {
                 Path heart = new Path();
@@ -6248,7 +6943,7 @@ private int loadingProgressFor(String message) {
             Rect b = getBounds();
             RectF hole;
             if (step == 0) {
-                float cx = b.left + b.width() * (5f / 6f) - dp(8);
+                float cx = b.left + b.width() * (7f / 8f);
                 float cy = b.bottom - dp(28);
                 hole = new RectF(cx - dp(28), cy - dp(28), cx + dp(28), cy + dp(28));
             } else if (step == 1) {
