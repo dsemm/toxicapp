@@ -3735,11 +3735,18 @@ private int loadingProgressFor(String message) {
         FrameLayout full = new FrameLayout(this);
         full.setBackground(makeBg());
 
+        ScrollView visualScroll = new ScrollView(this);
+        visualScroll.setFillViewport(false);
+        visualScroll.setVerticalScrollBarEnabled(true);
+        visualScroll.setScrollbarFadingEnabled(false);
+        tintScrollBar(visualScroll);
+        full.addView(visualScroll, new FrameLayout.LayoutParams(-1, -1));
+
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setPadding(dp(16), dp(30), dp(16), dp(82));
+        wrap.setPadding(dp(16), dp(28), dp(16), dp(88));
         wrap.setBackgroundColor(Color.TRANSPARENT);
-        full.addView(wrap, new FrameLayout.LayoutParams(-1, -1));
+        visualScroll.addView(wrap, new ScrollView.LayoutParams(-1, -2));
 
         addBottomNavigation(full, 1, dialog);
         dialog.setContentView(full);
@@ -3752,11 +3759,11 @@ private int loadingProgressFor(String message) {
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(20), lightTheme ? Color.rgb(220,220,224) : Color.argb(35,255,255,255), 1));
-        wrap.addView(preview, lp(-1, dp(280), 0, 0, 0, 14));
+        wrap.addView(preview, lp(-1, dp(260), 0, 0, 0, 12));
 
         final String[] currentFigure = {DEFAULT_VISUAL_FIGURE};
         final String[] currentGender = {"M"};
-        final String[] currentType = {"hr"};
+        final String[] currentType = {"hd"};
         final Runnable[] refreshAll = new Runnable[1];
 
         LinearLayout nickRow = new LinearLayout(this);
@@ -3778,20 +3785,10 @@ private int loadingProgressFor(String message) {
         nickRow.addView(loadNick, loadLp);
         wrap.addView(nickRow, lp(-1, dp(46), 0, 0, 0, 10));
 
-        LinearLayout genderRow = new LinearLayout(this);
-        genderRow.setOrientation(LinearLayout.HORIZONTAL);
-        TextView maleBtn = dialogButton(t("male"));
-        TextView femaleBtn = dialogButton(t("female"));
-        genderRow.addView(maleBtn, new LinearLayout.LayoutParams(0, dp(42), 1));
-        LinearLayout.LayoutParams femaleLp = new LinearLayout.LayoutParams(0, dp(42), 1);
-        femaleLp.leftMargin = dp(8);
-        genderRow.addView(femaleBtn, femaleLp);
-        wrap.addView(genderRow, lp(-1, dp(42), 0, 0, 0, 12));
-
         LinearLayout catTabs = new LinearLayout(this);
         catTabs.setOrientation(LinearLayout.VERTICAL);
         catTabs.setPadding(0, 0, 0, 0);
-        wrap.addView(catTabs, lp(-1, dp(98), 0, 0, 0, 12));
+        wrap.addView(catTabs, lp(-1, dp(110), 0, 0, 0, 12));
 
         ScrollView itemScroll = new ScrollView(this);
         itemScroll.setVerticalScrollBarEnabled(true);
@@ -3800,12 +3797,14 @@ private int loadingProgressFor(String message) {
         LinearLayout itemsArea = new LinearLayout(this);
         itemsArea.setOrientation(LinearLayout.VERTICAL);
         itemScroll.addView(itemsArea, new ScrollView.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams itemLp = new LinearLayout.LayoutParams(-1, 0, 1);
-        wrap.addView(itemScroll, itemLp);
+        itemScroll.setBackground(round(Color.argb(lightTheme ? 18 : 44, 0, 0, 0), dp(20), Color.argb(lightTheme ? 30 : 35, 255,255,255), 1));
+        wrap.addView(itemScroll, lp(-1, dp(250), 0, 0, 0, 10));
 
         LinearLayout colorPanel = new LinearLayout(this);
         colorPanel.setOrientation(LinearLayout.VERTICAL);
-        wrap.addView(colorPanel, lp(-1, -2, 0, 10, 0, 0));
+        colorPanel.setPadding(dp(10), dp(10), dp(10), dp(10));
+        colorPanel.setBackground(round(Color.argb(lightTheme ? 24 : 44, 0, 0, 0), dp(20), Color.argb(lightTheme ? 30 : 35, 255,255,255), 1));
+        wrap.addView(colorPanel, lp(-1, -2, 0, 6, 0, 10));
 
         Runnable updatePreview = () -> Glide.with(MainActivity.this)
                 .load(avatarFull(currentFigure[0], 2))
@@ -3815,26 +3814,10 @@ private int loadingProgressFor(String message) {
         final JSONObject[] figureDataRef = {visualFigureDataCache};
 
         refreshAll[0] = () -> {
-            updateVisualGenderButtons(maleBtn, femaleBtn, currentGender[0]);
-            renderVisualCategories(catTabs, currentType, figureDataRef[0], refreshAll[0]);
+            renderVisualCategories(catTabs, currentType, currentGender, currentFigure, figureDataRef[0], refreshAll[0]);
             renderVisualItems(itemsArea, colorPanel, currentFigure, currentGender, currentType, figureDataRef[0], updatePreview);
             updatePreview.run();
         };
-
-        maleBtn.setOnClickListener(v -> {
-            if (!"M".equals(currentGender[0])) {
-                currentGender[0] = "M";
-                currentFigure[0] = DEFAULT_VISUAL_FIGURE_MALE;
-            }
-            refreshAll[0].run();
-        });
-        femaleBtn.setOnClickListener(v -> {
-            if (!"F".equals(currentGender[0])) {
-                currentGender[0] = "F";
-                currentFigure[0] = DEFAULT_VISUAL_FIGURE_FEMALE;
-            }
-            refreshAll[0].run();
-        });
 
         loadNick.setOnClickListener(v -> {
             String nick = nickInput.getText().toString().trim();
@@ -3922,16 +3905,7 @@ private int loadingProgressFor(String message) {
         void onLoaded(JSONObject data);
     }
 
-    private void updateVisualGenderButtons(TextView maleBtn, TextView femaleBtn, String gender) {
-        if (maleBtn == null || femaleBtn == null) return;
-        boolean male = !"F".equalsIgnoreCase(gender);
-        maleBtn.setBackground(male ? grad(dp(14), purple2, purple) : round(lightTheme ? Color.WHITE : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(30,255,255,255), 1));
-        femaleBtn.setBackground(!male ? grad(dp(14), purple2, purple) : round(lightTheme ? Color.WHITE : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(30,255,255,255), 1));
-        maleBtn.setTextColor(male ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.WHITE));
-        femaleBtn.setTextColor(!male ? Color.WHITE : (lightTheme ? Color.rgb(33,33,33) : Color.WHITE));
-    }
-
-    private void renderVisualCategories(LinearLayout tabs, String[] currentType, JSONObject data, Runnable refresh) {
+    private void renderVisualCategories(LinearLayout tabs, String[] currentType, String[] currentGender, String[] currentFigure, JSONObject data, Runnable refresh) {
         if (tabs == null) return;
         tabs.removeAllViews();
 
@@ -3939,45 +3913,74 @@ private int loadingProgressFor(String message) {
         mainScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout mainRow = new LinearLayout(this);
         mainRow.setOrientation(LinearLayout.HORIZONTAL);
-        mainScroll.addView(mainRow, new HorizontalScrollView.LayoutParams(-2, dp(44)));
-        tabs.addView(mainScroll, new LinearLayout.LayoutParams(-1, dp(46)));
+        mainScroll.addView(mainRow, new HorizontalScrollView.LayoutParams(-2, dp(50)));
+        tabs.addView(mainScroll, new LinearLayout.LayoutParams(-1, dp(52)));
 
         HorizontalScrollView subScroll = new HorizontalScrollView(this);
         subScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout subRow = new LinearLayout(this);
         subRow.setOrientation(LinearLayout.HORIZONTAL);
-        subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-2, dp(44)));
-        LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-1, dp(46));
-        subLp.topMargin = dp(4);
+        subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-2, dp(50)));
+        LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-1, dp(52));
+        subLp.topMargin = dp(6);
         tabs.addView(subScroll, subLp);
 
-        String[] mainTypes = {"hd", "hr", "ea", "ch", "lg", "sh", "wa"};
-        String activeMain = visualMainType(currentType[0]);
+        VisualGroup[] groups = visualCategoryGroups(data);
+        String activeGroup = visualActiveGroup(currentType[0], groups);
 
-        for (String type : mainTypes) {
-            if (!visualGroupHasAny(data, type)) continue;
-            View item = visualIconTab(categoryIconUrl(type), activeMain.equals(type), dp(44));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(54), dp(44));
+        for (VisualGroup group : groups) {
+            View item = visualIconTab(group.icon, group.id.equals(activeGroup), dp(48));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(55), dp(48));
             lp.rightMargin = dp(7);
             mainRow.addView(item, lp);
             item.setOnClickListener(v -> {
-                String first = firstAvailableInGroup(data, type);
-                if (!first.isEmpty()) currentType[0] = first;
+                String first = group.types.length > 0 ? group.types[0] : "hd";
+                currentType[0] = first;
                 if (refresh != null) refresh.run();
             });
         }
 
-        String[] subs = visualSubTypes(activeMain);
-        for (String type : subs) {
-            if (visualCategory(data, type) == null) continue;
-            View item = visualIconTab(categoryIconUrl(type), type.equals(currentType[0]), dp(42));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(50), dp(42));
-            lp.rightMargin = dp(7);
-            subRow.addView(item, lp);
-            item.setOnClickListener(v -> {
-                currentType[0] = type;
+        VisualGroup active = visualFindGroup(activeGroup, groups);
+        if (active == null) return;
+
+        if (active.genderTabs) {
+            View male = visualIconTab("https://lite.habbonews.net/ferramentas/visuais/male.png", "M".equals(currentGender[0]), dp(48));
+            LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(dp(55), dp(48));
+            mlp.rightMargin = dp(7);
+            subRow.addView(male, mlp);
+            male.setOnClickListener(v -> {
+                if (!"M".equals(currentGender[0])) {
+                    currentGender[0] = "M";
+                    currentType[0] = "hd";
+                    currentFigure[0] = setFigurePart(currentFigure[0], "hd", figurePart(DEFAULT_VISUAL_FIGURE_MALE, "hd"));
+                }
                 if (refresh != null) refresh.run();
             });
+
+            View female = visualIconTab("https://lite.habbonews.net/ferramentas/visuais/female.png", "F".equals(currentGender[0]), dp(48));
+            LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(dp(55), dp(48));
+            flp.rightMargin = dp(7);
+            subRow.addView(female, flp);
+            female.setOnClickListener(v -> {
+                if (!"F".equals(currentGender[0])) {
+                    currentGender[0] = "F";
+                    currentType[0] = "hd";
+                    currentFigure[0] = setFigurePart(currentFigure[0], "hd", figurePart(DEFAULT_VISUAL_FIGURE_FEMALE, "hd"));
+                }
+                if (refresh != null) refresh.run();
+            });
+        } else {
+            for (String type : active.types) {
+                if (visualCategory(data, type) == null) continue;
+                View item = visualIconTab(categoryIconUrl(type, true), type.equals(currentType[0]), dp(48));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(55), dp(48));
+                lp.rightMargin = dp(7);
+                subRow.addView(item, lp);
+                item.setOnClickListener(v -> {
+                    currentType[0] = type;
+                    if (refresh != null) refresh.run();
+                });
+            }
         }
     }
 
@@ -4001,9 +4004,10 @@ private int loadingProgressFor(String message) {
         int perRow = 5;
         LinearLayout row = null;
         int shown = 0;
+        String currentId = figurePartId(currentFigure[0], currentType[0]);
 
         if (isVisualRemovableType(currentType[0])) {
-            View remove = visualItemCell("", currentType[0], "0", currentFigure[0], true);
+            View remove = visualItemCell("", currentType[0], "0", currentFigure[0], true, currentId.isEmpty());
             remove.setOnClickListener(v -> {
                 currentFigure[0] = removeFigurePart(currentFigure[0], currentType[0]);
                 if (updatePreview != null) updatePreview.run();
@@ -4011,8 +4015,8 @@ private int loadingProgressFor(String message) {
             });
             row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            area.addView(row, lp(-1, dp(86), 0, 0, 0, 8));
-            row.addView(remove, new LinearLayout.LayoutParams(0, dp(82), 1));
+            area.addView(row, lp(-1, dp(66), 0, dp(10), 0, 2));
+            row.addView(remove, new LinearLayout.LayoutParams(0, dp(62), 1));
             shown = 1;
         }
 
@@ -4025,25 +4029,25 @@ private int loadingProgressFor(String message) {
             if (shown % perRow == 0 || row == null) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                area.addView(row, lp(-1, dp(86), 0, 0, 0, 8));
+                area.addView(row, lp(-1, dp(66), 0, shown == 0 ? dp(10) : 0, 0, 2));
             }
             final JSONObject finalItem = item;
             final String itemId = firstText(item, "id");
             String previewFigure = applyFigureItem(currentFigure[0], currentType[0], item, null);
-            View cell = visualItemCell("", currentType[0], itemId, previewFigure, false);
+            View cell = visualItemCell("", currentType[0], itemId, previewFigure, false, itemId.equals(currentId));
             cell.setOnClickListener(v -> {
                 currentFigure[0] = applyFigureItem(currentFigure[0], currentType[0], finalItem, null);
                 if (updatePreview != null) updatePreview.run();
                 renderVisualColors(colors, currentFigure, currentType[0], finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
             });
-            row.addView(cell, new LinearLayout.LayoutParams(0, dp(82), 1));
+            row.addView(cell, new LinearLayout.LayoutParams(0, dp(62), 1));
             shown++;
         }
 
         if (row != null) {
             while (row.getChildCount() < perRow) {
                 Space sp = new Space(this);
-                row.addView(sp, new LinearLayout.LayoutParams(0, dp(82), 1));
+                row.addView(sp, new LinearLayout.LayoutParams(0, dp(62), 1));
             }
         }
 
@@ -4051,24 +4055,33 @@ private int loadingProgressFor(String message) {
         if (selected != null) renderVisualColors(colors, currentFigure, currentType[0], selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
     }
 
-    private View visualItemCell(String label, String type, String id, String figure, boolean remove) {
+    private View visualItemCell(String label, String type, String id, String figure, boolean remove, boolean selected) {
+        FrameLayout outer = new FrameLayout(this);
+        outer.setPadding(dp(3), dp(3), dp(3), dp(3));
+        int selectedStroke = Color.rgb(183, 67, 255);
+        int normalStroke = Color.argb(lightTheme ? 36 : 26, 255, 255, 255);
+        int fill = selected ? Color.argb(lightTheme ? 82 : 76, 171, 77, 255) : Color.argb(lightTheme ? 24 : 38, 255, 255, 255);
+        outer.setBackground(round(fill, dp(14), selected ? selectedStroke : normalStroke, selected ? 2 : 1));
+        if (Build.VERSION.SDK_INT >= 21 && selected) outer.setElevation(dp(5));
+
         FrameLayout box = new FrameLayout(this);
-        box.setPadding(dp(4), dp(4), dp(4), dp(4));
         box.setClipChildren(true);
         box.setClipToPadding(true);
-        box.setBackground(round(lightTheme ? Color.rgb(236,234,224) : Color.rgb(236,234,224), dp(999), Color.TRANSPARENT, 0));
+        box.setBackground(round(Color.argb(lightTheme ? 28 : 30, 0, 0, 0), dp(11), Color.TRANSPARENT, 0));
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER);
+        outer.addView(box, bp);
 
         ImageView img = new ImageView(this);
-        img.setAdjustViewBounds(true);
+        img.setAdjustViewBounds(false);
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);
         img.setPadding(0, 0, 0, 0);
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(72), dp(92), Gravity.CENTER);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(54), dp(74), Gravity.CENTER);
         box.addView(img, ip);
 
         if (remove) {
             Glide.with(MainActivity.this).load("https://lite.habbonews.net/ferramentas/visuais/removable.png").into(img);
-            img.setScaleX(0.72f);
-            img.setScaleY(0.72f);
+            img.setScaleX(0.70f);
+            img.setScaleY(0.70f);
         } else if (figure != null && !figure.isEmpty()) {
             img.setScaleX(visualItemScale(type));
             img.setScaleY(visualItemScale(type));
@@ -4076,7 +4089,7 @@ private int loadingProgressFor(String message) {
             Glide.with(MainActivity.this).load(avatarFull(figure, 2)).into(img);
         }
 
-        return box;
+        return outer;
     }
 
     private void renderVisualColors(LinearLayout colors, String[] currentFigure, String type, JSONObject item, Runnable updatePreview, Runnable refreshItems) {
@@ -4089,38 +4102,57 @@ private int loadingProgressFor(String message) {
         int count = Math.max(1, Math.min(2, item.optInt("colorCount", 1)));
         for (int slot=0; slot<count; slot++) {
             final int colorSlot = slot;
-            TextView title = text(count == 1 ? t("available_colors") : (t("available_colors") + " " + (slot + 1)), 13, themeMutedColor(), true);
+            TextView title = text(count == 1 ? t("available_colors") : (t("available_colors") + " " + (slot + 1)), 12, themeMutedColor(), true);
             title.setGravity(Gravity.LEFT);
             LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
             titleLp.setMargins(0, slot == 0 ? 0 : dp(8), 0, dp(6));
             colors.addView(title, titleLp);
 
-            HorizontalScrollView hsv = new HorizontalScrollView(this);
-            hsv.setHorizontalScrollBarEnabled(false);
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            hsv.addView(row, new HorizontalScrollView.LayoutParams(-2, dp(42)));
-            colors.addView(hsv, lp(-1, dp(42), 0, 0, 0, 0));
+            LinearLayout grid = new LinearLayout(this);
+            grid.setOrientation(LinearLayout.VERTICAL);
+            colors.addView(grid, lp(-1, -2, 0, 0, 0, 2));
 
-            int max = Math.min(arr.length(), 90);
+            int perRow = 12;
+            LinearLayout row = null;
+            int shown = 0;
+            int max = Math.min(arr.length(), 120);
             for (int i=0; i<max; i++) {
                 JSONObject c = arr.optJSONObject(i);
                 if (c == null || !c.optBoolean("selectable", true)) continue;
+                if (shown % perRow == 0 || row == null) {
+                    row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    grid.addView(row, lp(-1, dp(31), 0, 0, 0, 2));
+                }
                 String colorId = firstText(c, "id");
                 String hex = firstText(c, "hex");
-                TextView sw = text("", 1, Color.TRANSPARENT, true);
-                sw.setGravity(Gravity.CENTER);
-                sw.setBackground(round(colorFromHex(hex), dp(3), Color.rgb(115,109,103), 2));
+                boolean club = c.optBoolean("isClub", false) || c.optBoolean("club", false) || "1".equals(firstText(c, "club")) || "2".equals(firstText(c, "club"));
+                View sw = visualColorCell(hex, club);
                 LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(22), dp(26));
-                cp.rightMargin = dp(7);
+                cp.rightMargin = dp(5);
                 row.addView(sw, cp);
                 sw.setOnClickListener(v -> {
                     currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], type, item, colorId, colorSlot);
                     if (updatePreview != null) updatePreview.run();
                     if (refreshItems != null) refreshItems.run();
                 });
+                shown++;
             }
         }
+    }
+
+    private View visualColorCell(String hex, boolean club) {
+        FrameLayout box = new FrameLayout(this);
+        box.setBackground(round(colorFromHex(hex), dp(4), Color.rgb(104, 98, 92), 1));
+        if (club) {
+            TextView hc = text("HC", 6, Color.rgb(54, 34, 0), true);
+            hc.setGravity(Gravity.CENTER);
+            hc.setIncludeFontPadding(false);
+            hc.setBackground(round(Color.rgb(255, 218, 68), dp(2), Color.rgb(92, 59, 0), 1));
+            FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(15), dp(10), Gravity.CENTER);
+            box.addView(hc, hp);
+        }
+        return box;
     }
 
     private JSONObject visualCategory(JSONObject data, String type) {
@@ -4232,50 +4264,65 @@ private int loadingProgressFor(String message) {
                 || "sh".equals(type) || "wa".equals(type) || "pt".equals(type) || "mc".equals(type);
     }
 
-    private String[] visualSubTypes(String main) {
-        if ("hr".equals(main)) return new String[]{"hr","ha","he"};
-        if ("ea".equals(main)) return new String[]{"ea","fa"};
-        if ("ch".equals(main)) return new String[]{"ch","ca","cc","cp","pt","mc"};
-        if ("lg".equals(main)) return new String[]{"lg"};
-        if ("sh".equals(main)) return new String[]{"sh"};
-        if ("wa".equals(main)) return new String[]{"wa"};
-        return new String[]{"hd"};
+    private static class VisualGroup {
+        String id, icon;
+        String[] types;
+        boolean genderTabs;
+        VisualGroup(String id, String icon, boolean genderTabs, String... types) {
+            this.id = id;
+            this.icon = icon;
+            this.genderTabs = genderTabs;
+            this.types = types == null ? new String[0] : types;
+        }
     }
 
-    private String visualMainType(String type) {
-        if ("hr".equals(type) || "ha".equals(type) || "he".equals(type)) return "hr";
-        if ("ea".equals(type) || "fa".equals(type)) return "ea";
-        if ("ch".equals(type) || "ca".equals(type) || "cc".equals(type) || "cp".equals(type) || "pt".equals(type) || "mc".equals(type)) return "ch";
-        if ("lg".equals(type)) return "lg";
-        if ("sh".equals(type)) return "sh";
-        if ("wa".equals(type)) return "wa";
-        return "hd";
+    private VisualGroup[] visualCategoryGroups(JSONObject data) {
+        ArrayList<VisualGroup> out = new ArrayList<>();
+        addVisualGroupIfAvailable(out, data, new VisualGroup("body", categoryIconUrl("hd", false), true, "hd"));
+        addVisualGroupIfAvailable(out, data, new VisualGroup("hair", categoryIconUrl("hr", false), false, "hr","ha","he","ea","fa"));
+        addVisualGroupIfAvailable(out, data, new VisualGroup("tops", categoryIconUrl("ch", false), false, "ch","ca","cc","cp"));
+        addVisualGroupIfAvailable(out, data, new VisualGroup("bottoms", categoryIconUrl("lg", false), false, "lg","sh","wa"));
+        addVisualGroupIfAvailable(out, data, new VisualGroup("extras", categoryIconUrl("mc", false), false, "pt","mc"));
+        return out.toArray(new VisualGroup[0]);
     }
 
-    private boolean visualGroupHasAny(JSONObject data, String main) {
-        for (String t : visualSubTypes(main)) if (visualCategory(data, t) != null) return true;
-        return false;
+    private void addVisualGroupIfAvailable(ArrayList<VisualGroup> out, JSONObject data, VisualGroup group) {
+        ArrayList<String> types = new ArrayList<>();
+        for (String t : group.types) if (visualCategory(data, t) != null) types.add(t);
+        if (!types.isEmpty()) {
+            group.types = types.toArray(new String[0]);
+            out.add(group);
+        }
     }
 
-    private String firstAvailableInGroup(JSONObject data, String main) {
-        for (String t : visualSubTypes(main)) if (visualCategory(data, t) != null) return t;
-        return "";
+    private String visualActiveGroup(String type, VisualGroup[] groups) {
+        for (VisualGroup g : groups) for (String t : g.types) if (t.equals(type)) return g.id;
+        return groups.length > 0 ? groups[0].id : "body";
+    }
+
+    private VisualGroup visualFindGroup(String id, VisualGroup[] groups) {
+        for (VisualGroup g : groups) if (g.id.equals(id)) return g;
+        return groups.length > 0 ? groups[0] : null;
     }
 
     private String categoryIconUrl(String type) {
+        return categoryIconUrl(type, false);
+    }
+
+    private String categoryIconUrl(String type, boolean sub) {
         if ("hd".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/body.png";
-        if ("hr".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/hair.png";
+        if ("hr".equals(type)) return sub ? "https://lite.habbonews.net/ferramentas/visuais/hair-sn.png" : "https://lite.habbonews.net/ferramentas/visuais/hair.png";
         if ("ha".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/hats.png";
         if ("he".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/hair-accessories.png";
         if ("ea".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/glasses.png";
         if ("fa".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/moustaches.png";
-        if ("ch".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/tops.png";
+        if ("ch".equals(type)) return sub ? "https://lite.habbonews.net/ferramentas/visuais/top.png" : "https://lite.habbonews.net/ferramentas/visuais/tops.png";
         if ("ca".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/chest.png";
         if ("cc".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/jackets.png";
         if ("cp".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/accessories.png";
         if ("pt".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/pets.png";
         if ("mc".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/misc.png";
-        if ("lg".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/bottoms.png";
+        if ("lg".equals(type)) return sub ? "https://lite.habbonews.net/ferramentas/visuais/bottoms-sn.png" : "https://lite.habbonews.net/ferramentas/visuais/bottoms.png";
         if ("sh".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/shoes.png";
         if ("wa".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/belts.png";
         return "https://lite.habbonews.net/ferramentas/visuais/misc.png";
@@ -4284,34 +4331,35 @@ private int loadingProgressFor(String message) {
     private View visualIconTab(String url, boolean active, int size) {
         FrameLayout box = new FrameLayout(this);
         box.setPadding(dp(4), dp(4), dp(4), dp(4));
-        box.setBackground(active
-                ? round(Color.rgb(236,234,224), dp(7), Color.TRANSPARENT, 0)
-                : round(Color.argb(lightTheme ? 20 : 55, 0, 0, 0), dp(7), Color.TRANSPARENT, 0));
+        int fill = active ? Color.argb(lightTheme ? 96 : 92, 171, 77, 255) : Color.argb(lightTheme ? 24 : 34, 255, 255, 255);
+        int stroke = active ? Color.rgb(190, 76, 255) : Color.argb(lightTheme ? 28 : 26, 255,255,255);
+        box.setBackground(round(fill, dp(14), stroke, active ? 2 : 1));
+        if (Build.VERSION.SDK_INT >= 21 && active) box.setElevation(dp(4));
         ImageView img = new ImageView(this);
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(size - dp(10), size - dp(10), Gravity.CENTER);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(size - dp(12), size - dp(12), Gravity.CENTER);
         box.addView(img, ip);
         Glide.with(MainActivity.this).load(url).into(img);
         return box;
     }
 
     private float visualItemScale(String type) {
-        if ("hd".equals(type)) return 1.05f;
-        if ("hr".equals(type) || "ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)) return 1.28f;
-        if ("lg".equals(type) || "sh".equals(type)) return 1.75f;
-        if ("ch".equals(type) || "ca".equals(type) || "cc".equals(type) || "cp".equals(type)) return 1.55f;
-        if ("wa".equals(type) || "pt".equals(type) || "mc".equals(type)) return 1.55f;
-        return 1.25f;
+        if ("hd".equals(type)) return 1.02f;
+        if ("hr".equals(type) || "ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)) return 1.18f;
+        if ("lg".equals(type) || "sh".equals(type)) return 1.48f;
+        if ("ch".equals(type) || "ca".equals(type) || "cc".equals(type) || "cp".equals(type)) return 1.34f;
+        if ("wa".equals(type) || "pt".equals(type) || "mc".equals(type)) return 1.34f;
+        return 1.15f;
     }
 
     private int visualItemOffsetDp(String type) {
         if ("ch".equals(type) || "cp".equals(type) || "ca".equals(type)) return -10;
-        if ("cc".equals(type)) return -15;
-        if ("lg".equals(type)) return -24;
-        if ("sh".equals(type)) return -26;
-        if ("wa".equals(type)) return -17;
-        if ("pt".equals(type)) return -21;
-        if ("mc".equals(type)) return -15;
+        if ("cc".equals(type)) return -14;
+        if ("lg".equals(type)) return -22;
+        if ("sh".equals(type)) return -24;
+        if ("wa".equals(type)) return -16;
+        if ("pt".equals(type)) return -20;
+        if ("mc".equals(type)) return -14;
         return 0;
     }
 
