@@ -1905,11 +1905,6 @@ public class MainActivity extends Activity {
                     } catch(Exception ignored) {}
                 }
 
-                case "visual_item_info": return "Item information";
-                case "loading_item_info": return "Loading HabboDex information...";
-                case "item_name": return "Item name";
-                case "collection": return "Collection";
-                case "image": return "Image";
             }
         }
     }
@@ -4937,6 +4932,11 @@ private int loadingProgressFor(String message) {
                 case "limit_24h": return "You already reached the 4-hour ad-free limit.";
                 case "video_loading": return "The video is still loading. Try again in a few seconds.";
                 case "adfree_granted": return "30 ad-free minutes unlocked.";
+                case "visual_item_info": return "Item information";
+                case "loading_item_info": return "Loading HabboDex information...";
+                case "item_name": return "Item name";
+                case "collection": return "Collection";
+                case "image": return "Image";
                 case "disclaimer1": return "This application is not affiliated with, endorsed, sponsored, or specifically approved by Sulake Corporation Oy or its affiliates.";
                 case "private": return "Private";
                 case "banned": return "Banned";
