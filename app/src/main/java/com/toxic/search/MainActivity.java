@@ -3793,6 +3793,15 @@ private int loadingProgressFor(String message) {
         ScrollView itemScroll = new ScrollView(this);
         itemScroll.setVerticalScrollBarEnabled(true);
         itemScroll.setScrollbarFadingEnabled(false);
+        itemScroll.setNestedScrollingEnabled(true);
+        itemScroll.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN || event.getAction() == MotionEvent.ACTION_MOVE) {
+                v.getParent().requestDisallowInterceptTouchEvent(true);
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return false;
+        });
         tintScrollBar(itemScroll);
         LinearLayout itemsArea = new LinearLayout(this);
         itemsArea.setOrientation(LinearLayout.VERTICAL);
@@ -3989,7 +3998,9 @@ private int loadingProgressFor(String message) {
         area.removeAllViews();
         if (colors != null) colors.removeAllViews();
 
-        JSONObject category = visualCategory(data, currentType[0]);
+        String uiType = currentType[0];
+        String itemType = getVisualItemTypeForUiCategory(uiType);
+        JSONObject category = visualCategory(data, itemType);
         if (category == null) {
             area.addView(centerNote(t("cannot_load_visuals")));
             return;
@@ -4004,12 +4015,12 @@ private int loadingProgressFor(String message) {
         int perRow = 5;
         LinearLayout row = null;
         int shown = 0;
-        String currentId = figurePartId(currentFigure[0], currentType[0]);
+        String currentId = figurePartId(currentFigure[0], itemType);
 
-        if (isVisualRemovableType(currentType[0])) {
-            View remove = visualItemCell("", currentType[0], "0", currentFigure[0], true, currentId.isEmpty());
+        if (isVisualRemovableType(uiType)) {
+            View remove = visualItemCell("", itemType, "0", currentFigure[0], true, currentId.isEmpty());
             remove.setOnClickListener(v -> {
-                currentFigure[0] = removeFigurePart(currentFigure[0], currentType[0]);
+                currentFigure[0] = removeFigurePart(currentFigure[0], itemType);
                 if (updatePreview != null) updatePreview.run();
                 renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
             });
@@ -4033,12 +4044,13 @@ private int loadingProgressFor(String message) {
             }
             final JSONObject finalItem = item;
             final String itemId = firstText(item, "id");
-            String previewFigure = applyFigureItem(currentFigure[0], currentType[0], item, null);
-            View cell = visualItemCell("", currentType[0], itemId, previewFigure, false, itemId.equals(currentId));
+            String previewFigure = applyFigureItem(currentFigure[0], itemType, item, null);
+            View cell = visualItemCell("", itemType, itemId, previewFigure, false, itemId.equals(currentId));
             cell.setOnClickListener(v -> {
-                currentFigure[0] = applyFigureItem(currentFigure[0], currentType[0], finalItem, null);
+                currentFigure[0] = applyFigureItem(currentFigure[0], itemType, finalItem, null);
                 if (updatePreview != null) updatePreview.run();
-                renderVisualColors(colors, currentFigure, currentType[0], finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
+                renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
+                renderVisualColors(colors, currentFigure, uiType, finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
             });
             row.addView(cell, new LinearLayout.LayoutParams(0, dp(62), 1));
             shown++;
@@ -4051,8 +4063,8 @@ private int loadingProgressFor(String message) {
             }
         }
 
-        JSONObject selected = findVisualItemByFigure(category, currentFigure[0], currentType[0]);
-        if (selected != null) renderVisualColors(colors, currentFigure, currentType[0], selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
+        JSONObject selected = findVisualItemByFigure(category, currentFigure[0], itemType);
+        if (selected != null) renderVisualColors(colors, currentFigure, uiType, selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
     }
 
     private View visualItemCell(String label, String type, String id, String figure, boolean remove, boolean selected) {
@@ -4099,6 +4111,7 @@ private int loadingProgressFor(String message) {
         JSONArray arr = item.optJSONArray("colors");
         if (arr == null || arr.length() == 0) return;
 
+        final String itemType = getVisualItemTypeForUiCategory(type);
         int count = Math.max(1, Math.min(2, item.optInt("colorCount", 1)));
         for (int slot=0; slot<count; slot++) {
             final int colorSlot = slot;
@@ -4132,7 +4145,7 @@ private int loadingProgressFor(String message) {
                 cp.rightMargin = dp(5);
                 row.addView(sw, cp);
                 sw.setOnClickListener(v -> {
-                    currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], type, item, colorId, colorSlot);
+                    currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], itemType, item, colorId, colorSlot);
                     if (updatePreview != null) updatePreview.run();
                     if (refreshItems != null) refreshItems.run();
                 });
@@ -4145,11 +4158,12 @@ private int loadingProgressFor(String message) {
         FrameLayout box = new FrameLayout(this);
         box.setBackground(round(colorFromHex(hex), dp(4), Color.rgb(104, 98, 92), 1));
         if (club) {
-            TextView hc = text("HC", 6, Color.rgb(54, 34, 0), true);
-            hc.setGravity(Gravity.CENTER);
-            hc.setIncludeFontPadding(false);
-            hc.setBackground(round(Color.rgb(255, 218, 68), dp(2), Color.rgb(92, 59, 0), 1));
-            FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(15), dp(10), Gravity.CENTER);
+            ImageView hc = new ImageView(this);
+            hc.setImageResource(R.drawable.hcmini);
+            hc.setAdjustViewBounds(true);
+            hc.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(16), dp(11), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            hp.bottomMargin = dp(1);
             box.addView(hc, hp);
         }
         return box;
@@ -4256,6 +4270,12 @@ private int loadingProgressFor(String message) {
         if (g.startsWith("F")) return "F";
         if (g.startsWith("M")) return "M";
         return fallback == null ? "M" : fallback;
+    }
+
+    private String getVisualItemTypeForUiCategory(String type) {
+        if ("ca".equals(type)) return "cp";
+        if ("cp".equals(type)) return "ca";
+        return type == null ? "" : type;
     }
 
     private boolean isVisualRemovableType(String type) {
