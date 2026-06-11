@@ -3731,6 +3731,11 @@ private int loadingProgressFor(String message) {
     }
 
 
+
+    private String avatarMedium(String figure, int direction) {
+        return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=" + direction + "&head_direction=" + direction + "&gesture=std&action=std";
+    }
+
     private void showVisualEditorDialog() {
         final Dialog dialog = new Dialog(this);
         FrameLayout full = new FrameLayout(this);
@@ -3760,7 +3765,21 @@ private int loadingProgressFor(String message) {
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(20), lightTheme ? Color.rgb(220,220,224) : Color.argb(35,255,255,255), 1));
-        wrap.addView(preview, lp(-1, dp(260), 0, 0, 0, 12));
+        wrap.addView(preview, lp(-1, dp(170), 0, 0, 0, 6));
+
+        LinearLayout visualRotateRow = new LinearLayout(this);
+        visualRotateRow.setOrientation(LinearLayout.HORIZONTAL);
+        visualRotateRow.setGravity(Gravity.CENTER);
+        TextView visualLeft = dialogButton("‹");
+        TextView visualRight = dialogButton("›");
+        visualLeft.setTextSize(22);
+        visualRight.setTextSize(22);
+        LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(dp(54), dp(36));
+        visualRotateRow.addView(visualLeft, vlp);
+        LinearLayout.LayoutParams vrp = new LinearLayout.LayoutParams(dp(54), dp(36));
+        vrp.leftMargin = dp(10);
+        visualRotateRow.addView(visualRight, vrp);
+        wrap.addView(visualRotateRow, lp(-1, dp(36), 0, 0, 0, 10));
 
         final String[] currentFigure = {DEFAULT_VISUAL_FIGURE};
         final String[] currentGender = {"M"};
@@ -3834,30 +3853,17 @@ private int loadingProgressFor(String message) {
         wrap.addView(colorPanel, lp(-1, -2, 0, 6, 0, 10));
 
         Runnable updatePreview = () -> Glide.with(MainActivity.this)
-                .load(avatarFull(currentFigure[0], visualDirection[0]))
+                .load(avatarMedium(currentFigure[0], visualDirection[0]))
                 .into(preview);
         updatePreview.run();
 
-        LinearLayout visualRotateRow = new LinearLayout(this);
-        visualRotateRow.setOrientation(LinearLayout.HORIZONTAL);
-        visualRotateRow.setGravity(Gravity.CENTER);
-        TextView visualLeft = dialogButton("‹");
-        TextView visualRight = dialogButton("›");
-        visualLeft.setTextSize(24);
-        visualRight.setTextSize(24);
-        visualRotateRow.addView(visualLeft, new LinearLayout.LayoutParams(0, dp(44), 1));
-        LinearLayout.LayoutParams vrp = new LinearLayout.LayoutParams(0, dp(44), 1);
-        vrp.leftMargin = dp(10);
-        visualRotateRow.addView(visualRight, vrp);
-        wrap.addView(visualRotateRow, lp(-1, dp(44), 0, 0, 0, 12));
-
         visualLeft.setOnClickListener(v -> {
-            visualDirection[0] = visualDirection[0] - 1;
-            if (visualDirection[0] < 0) visualDirection[0] = 7;
+            visualDirection[0] = (visualDirection[0] + 1) % 8;
             updatePreview.run();
         });
         visualRight.setOnClickListener(v -> {
-            visualDirection[0] = (visualDirection[0] + 1) % 8;
+            visualDirection[0] = visualDirection[0] - 1;
+            if (visualDirection[0] < 0) visualDirection[0] = 7;
             updatePreview.run();
         });
 
@@ -3978,7 +3984,7 @@ private int loadingProgressFor(String message) {
         subScroll.setFillViewport(true);
         LinearLayout subRow = new LinearLayout(this);
         subRow.setOrientation(LinearLayout.HORIZONTAL);
-        subRow.setGravity(Gravity.CENTER);
+        subRow.setGravity(Gravity.LEFT);
         subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-1, dp(50)));
         LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-1, dp(52));
         subLp.topMargin = dp(6);
@@ -4066,6 +4072,8 @@ private int loadingProgressFor(String message) {
         LinearLayout row = null;
         int shown = 0;
         String currentId = figurePartId(currentFigure[0], itemType);
+        int cellSize = dp(54);
+        int gap = dp(8);
 
         if (isVisualRemovableType(uiType)) {
             View remove = visualItemCell("", itemType, "0", currentFigure[0], true, currentId.isEmpty());
@@ -4076,8 +4084,11 @@ private int loadingProgressFor(String message) {
             });
             row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            area.addView(row, lp(-1, dp(58), 0, dp(8), 0, 4));
-            row.addView(remove, new LinearLayout.LayoutParams(0, dp(54), 1));
+            row.setGravity(Gravity.CENTER);
+            area.addView(row, lp(-1, dp(62), 0, dp(8), 0, 4));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(cellSize, cellSize);
+            rp.rightMargin = gap;
+            row.addView(remove, rp);
             shown = 1;
         }
 
@@ -4090,7 +4101,8 @@ private int loadingProgressFor(String message) {
             if (shown % perRow == 0 || row == null) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                area.addView(row, lp(-1, dp(58), 0, shown == 0 ? dp(8) : 0, 0, 4));
+                row.setGravity(Gravity.CENTER);
+                area.addView(row, lp(-1, dp(62), 0, shown == 0 ? dp(8) : 0, 0, 4));
             }
             final JSONObject finalItem = item;
             final String itemId = firstText(item, "id");
@@ -4103,21 +4115,15 @@ private int loadingProgressFor(String message) {
                 renderVisualColors(colors, currentFigure, uiType, finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
             });
             attachVisualItemLongPress(cell, itemType, itemId, previewFigure);
-            row.addView(cell, new LinearLayout.LayoutParams(0, dp(54), 1));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(cellSize, cellSize);
+            cp.rightMargin = gap;
+            row.addView(cell, cp);
             shown++;
-        }
-
-        if (row != null) {
-            while (row.getChildCount() < perRow) {
-                Space sp = new Space(this);
-                row.addView(sp, new LinearLayout.LayoutParams(0, dp(54), 1));
-            }
         }
 
         JSONObject selected = findVisualItemByFigure(category, currentFigure[0], itemType);
         if (selected != null) renderVisualColors(colors, currentFigure, uiType, selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
     }
-
 
     private void attachVisualItemLongPress(final View cell, final String type, final String itemId, final String previewFigure) {
         if (cell == null) return;
@@ -4161,22 +4167,23 @@ private int loadingProgressFor(String message) {
 
     private void showVisualItemInfoDialog(final String type, final String itemId, final String previewFigure) {
         final Dialog dialog = new Dialog(this);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        tintScrollBar(scroll);
+
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
         wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
-        dialog.setContentView(wrap);
+        scroll.addView(wrap, new ScrollView.LayoutParams(-1, -2));
+        dialog.setContentView(scroll);
 
-        TextView title = habboText(t("visual_item_info"), 20, true);
-        title.setGravity(Gravity.CENTER);
-        wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
-
-        ImageView image = new ImageView(this);
-        image.setAdjustViewBounds(true);
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setBackground(round(lightTheme ? Color.rgb(248,248,248) : Color.argb(22,255,255,255), dp(18), lightTheme ? Color.rgb(220,220,220) : Color.argb(35,255,255,255), 1));
-        wrap.addView(image, lp(-1, dp(130), 0, 0, 0, 12));
-        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).into(image);
+        ImageView avatarImage = new ImageView(this);
+        avatarImage.setAdjustViewBounds(true);
+        avatarImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        avatarImage.setBackground(round(lightTheme ? Color.rgb(248,248,248) : Color.argb(22,255,255,255), dp(18), lightTheme ? Color.rgb(220,220,220) : Color.argb(35,255,255,255), 1));
+        wrap.addView(avatarImage, lp(-1, dp(150), 0, 0, 0, 12));
+        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).into(avatarImage);
 
         LinearLayout info = new LinearLayout(this);
         info.setOrientation(LinearLayout.VERTICAL);
@@ -4222,14 +4229,32 @@ private int loadingProgressFor(String message) {
                 String collection = clothingLineName(itemInfo, "");
                 String icon = firstText(itemInfo, "iconUrl", "imageUrl", "url", "thumbnail");
                 if (icon.isEmpty() && !code.isEmpty()) icon = "https://habbodex.com/images/furni/" + enc(code) + "/" + enc(code) + "_icon.png";
-                if (!icon.isEmpty()) Glide.with(MainActivity.this).load(icon).into(image);
 
-                info.addView(visualItemInfoRow("HabboDex", code.isEmpty() ? (type + "-" + itemId) : code));
                 info.addView(visualItemInfoRow(t("item_name"), name.isEmpty() ? (type + "-" + itemId) : name));
                 info.addView(visualItemInfoRow(t("collection"), collection.isEmpty() ? "-" : collection));
-                info.addView(visualItemInfoRow(t("image"), icon.isEmpty() ? "-" : icon));
+                info.addView(visualItemThumbnailBlock(t("thumbnail"), icon));
             });
         });
+    }
+
+    private LinearLayout visualItemThumbnailBlock(String label, String icon) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(12), dp(9), dp(12), dp(9));
+        row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(22,255,255,255), dp(14), lightTheme ? Color.rgb(222,222,222) : Color.argb(30,255,255,255), 1));
+        row.setLayoutParams(lp(-1, -2, 0, 0, 0, 8));
+
+        TextView l = text(label, 12, themeMutedColor(), true);
+        l.setGravity(Gravity.LEFT);
+        row.addView(l, lp(-1, -2, 0, 0, 0, 8));
+
+        ImageView img = new ImageView(this);
+        img.setAdjustViewBounds(true);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        img.setBackground(round(lightTheme ? Color.rgb(244,244,244) : Color.argb(18,255,255,255), dp(12), Color.TRANSPARENT, 0));
+        row.addView(img, lp(-1, dp(54), 0, 0, 0, 0));
+        if (icon != null && !icon.isEmpty()) Glide.with(MainActivity.this).load(icon).into(img);
+        return row;
     }
 
     private LinearLayout visualItemInfoRow(String label, String value) {
@@ -4264,14 +4289,14 @@ private int loadingProgressFor(String message) {
         box.setClipChildren(true);
         box.setClipToPadding(true);
         box.setBackground(round(Color.TRANSPARENT, dp(10), Color.TRANSPARENT, 0));
-        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER);
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER);
         outer.addView(box, bp);
 
         ImageView img = new ImageView(this);
         img.setAdjustViewBounds(false);
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);
         img.setPadding(0, 0, 0, 0);
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(50), dp(76), Gravity.CENTER);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(46), dp(72), Gravity.CENTER);
         box.addView(img, ip);
 
         if (remove) {
@@ -4300,46 +4325,50 @@ private int loadingProgressFor(String message) {
             return;
         }
 
-        colors.setAlpha(1f);
+        colors.setAlpha(0.88f);
         colors.setEnabled(true);
 
         int count = Math.max(1, Math.min(2, item.optInt("colorCount", 1)));
         ArrayList<String> activeColors = figurePartColors(currentFigure[0], itemType);
 
-        HorizontalScrollView colorScroll = new HorizontalScrollView(this);
-        colorScroll.setHorizontalScrollBarEnabled(false);
-        colorScroll.setFillViewport(true);
-        colorScroll.setPadding(0, 0, 0, 0);
+        HorizontalScrollView horizontal = new HorizontalScrollView(this);
+        horizontal.setHorizontalScrollBarEnabled(false);
+        horizontal.setFillViewport(false);
         LinearLayout columns = new LinearLayout(this);
         columns.setOrientation(LinearLayout.HORIZONTAL);
-        columns.setGravity(Gravity.CENTER);
-        colorScroll.addView(columns, new HorizontalScrollView.LayoutParams(-2, -2));
-        colors.addView(colorScroll, lp(-1, -2, 0, 0, 0, 0));
+        columns.setGravity(Gravity.LEFT);
+        horizontal.addView(columns, new HorizontalScrollView.LayoutParams(-2, -2));
+        colors.addView(horizontal, lp(-1, dp(142), 0, 0, 0, 0));
 
         for (int slot=0; slot<count; slot++) {
             final int colorSlot = slot;
+            ScrollView vertical = new ScrollView(this);
+            vertical.setVerticalScrollBarEnabled(true);
+            vertical.setScrollbarFadingEnabled(true);
+            tintScrollBar(vertical);
+
             LinearLayout column = new LinearLayout(this);
             column.setOrientation(LinearLayout.VERTICAL);
-            column.setGravity(Gravity.CENTER_HORIZONTAL);
+            column.setGravity(Gravity.LEFT);
             column.setPadding(0, 0, 0, 0);
+            vertical.addView(column, new ScrollView.LayoutParams(-2, -2));
 
-            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? -2 : dp(150), -2);
+            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? -2 : dp(150), dp(136));
             if (slot > 0) colLp.leftMargin = dp(10);
-            columns.addView(column, colLp);
+            columns.addView(vertical, colLp);
 
             int perRow = count == 1 ? 13 : 6;
-            int max = Math.min(arr.length(), count == 1 ? 104 : 96);
             LinearLayout row = null;
             int shown = 0;
             String activeColor = activeColors.size() > slot ? activeColors.get(slot) : "";
 
-            for (int i=0; i<max; i++) {
+            for (int i=0; i<arr.length(); i++) {
                 JSONObject c = arr.optJSONObject(i);
                 if (c == null || !c.optBoolean("selectable", true)) continue;
                 if (shown % perRow == 0 || row == null) {
                     row = new LinearLayout(this);
                     row.setOrientation(LinearLayout.HORIZONTAL);
-                    row.setGravity(Gravity.CENTER);
+                    row.setGravity(Gravity.LEFT);
                     column.addView(row, lp(-2, dp(27), 0, 0, 0, 1));
                 }
                 String colorId = firstText(c, "id");
@@ -4606,7 +4635,7 @@ private int loadingProgressFor(String message) {
         if ("ch".equals(type) || "cp".equals(type) || "ca".equals(type)) return -10;
         if ("cc".equals(type)) return -14;
         if ("lg".equals(type)) return -22;
-        if ("sh".equals(type)) return -14;
+        if ("sh".equals(type)) return 10;
         if ("wa".equals(type)) return -16;
         if ("pt".equals(type)) return -20;
         if ("mc".equals(type)) return -14;
@@ -4934,9 +4963,10 @@ private int loadingProgressFor(String message) {
                 case "adfree_granted": return "30 ad-free minutes unlocked.";
                 case "visual_item_info": return "Item information";
                 case "loading_item_info": return "Loading HabboDex information...";
-                case "item_name": return "Item name";
+                case "item_name": return "Visual name";
                 case "collection": return "Collection";
                 case "image": return "Image";
+                case "thumbnail": return "Thumbnail";
                 case "disclaimer1": return "This application is not affiliated with, endorsed, sponsored, or specifically approved by Sulake Corporation Oy or its affiliates.";
                 case "private": return "Private";
                 case "banned": return "Banned";
@@ -6261,9 +6291,10 @@ private int loadingProgressFor(String message) {
 
             case "visual_item_info": return "Informações do item";
             case "loading_item_info": return "Carregando informações do HabboDex...";
-            case "item_name": return "Nome do item";
+            case "item_name": return "Nome do visual";
             case "collection": return "Coleção";
             case "image": return "Imagem";
+            case "thumbnail": return "Miniatura";
         }
         return key;
     }
