@@ -106,7 +106,9 @@ public class MainActivity extends Activity {
     private JSONObject visualFigureDataCache = null;
     private long visualFigureDataLoadedAt = 0L;
     private static final String VISUAL_FIGUREDATA_URL = "https://atoxic.com.br/tools/converter_figuredata.php?json=1";
-    private static final String DEFAULT_VISUAL_FIGURE = "hr-100-61.hd-180-1.ch-210-66.lg-270-82.sh-290-91";
+    private static final String DEFAULT_VISUAL_FIGURE_MALE = "hd-180-22-0";
+    private static final String DEFAULT_VISUAL_FIGURE_FEMALE = "hd-600-1-0";
+    private static final String DEFAULT_VISUAL_FIGURE = DEFAULT_VISUAL_FIGURE_MALE;
     private long adFreeUntilMs = 0L;
     private final Runnable adFreeTicker = new Runnable() {
         @Override public void run() {
@@ -3750,7 +3752,7 @@ private int loadingProgressFor(String message) {
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(20), lightTheme ? Color.rgb(220,220,224) : Color.argb(35,255,255,255), 1));
-        wrap.addView(preview, lp(-1, dp(220), 0, 0, 0, 12));
+        wrap.addView(preview, lp(-1, dp(280), 0, 0, 0, 14));
 
         final String[] currentFigure = {DEFAULT_VISUAL_FIGURE};
         final String[] currentGender = {"M"};
@@ -3786,12 +3788,10 @@ private int loadingProgressFor(String message) {
         genderRow.addView(femaleBtn, femaleLp);
         wrap.addView(genderRow, lp(-1, dp(42), 0, 0, 0, 12));
 
-        HorizontalScrollView catScroll = new HorizontalScrollView(this);
-        catScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout catTabs = new LinearLayout(this);
-        catTabs.setOrientation(LinearLayout.HORIZONTAL);
-        catScroll.addView(catTabs, new HorizontalScrollView.LayoutParams(-2, dp(48)));
-        wrap.addView(catScroll, lp(-1, dp(48), 0, 0, 0, 10));
+        catTabs.setOrientation(LinearLayout.VERTICAL);
+        catTabs.setPadding(0, 0, 0, 0);
+        wrap.addView(catTabs, lp(-1, dp(98), 0, 0, 0, 12));
 
         ScrollView itemScroll = new ScrollView(this);
         itemScroll.setVerticalScrollBarEnabled(true);
@@ -3822,11 +3822,17 @@ private int loadingProgressFor(String message) {
         };
 
         maleBtn.setOnClickListener(v -> {
-            currentGender[0] = "M";
+            if (!"M".equals(currentGender[0])) {
+                currentGender[0] = "M";
+                currentFigure[0] = DEFAULT_VISUAL_FIGURE_MALE;
+            }
             refreshAll[0].run();
         });
         femaleBtn.setOnClickListener(v -> {
-            currentGender[0] = "F";
+            if (!"F".equals(currentGender[0])) {
+                currentGender[0] = "F";
+                currentFigure[0] = DEFAULT_VISUAL_FIGURE_FEMALE;
+            }
             refreshAll[0].run();
         });
 
@@ -3928,24 +3934,54 @@ private int loadingProgressFor(String message) {
     private void renderVisualCategories(LinearLayout tabs, String[] currentType, JSONObject data, Runnable refresh) {
         if (tabs == null) return;
         tabs.removeAllViews();
-        String[] order = {"hr","hd","ch","lg","sh","ha","he","ea","fa","ca","cc","cp","wa"};
-        for (String type : order) {
+
+        HorizontalScrollView mainScroll = new HorizontalScrollView(this);
+        mainScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout mainRow = new LinearLayout(this);
+        mainRow.setOrientation(LinearLayout.HORIZONTAL);
+        mainScroll.addView(mainRow, new HorizontalScrollView.LayoutParams(-2, dp(44)));
+        tabs.addView(mainScroll, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        HorizontalScrollView subScroll = new HorizontalScrollView(this);
+        subScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout subRow = new LinearLayout(this);
+        subRow.setOrientation(LinearLayout.HORIZONTAL);
+        subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-2, dp(44)));
+        LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-1, dp(46));
+        subLp.topMargin = dp(4);
+        tabs.addView(subScroll, subLp);
+
+        String[] mainTypes = {"hd", "hr", "ea", "ch", "lg", "sh", "wa"};
+        String activeMain = visualMainType(currentType[0]);
+
+        for (String type : mainTypes) {
+            if (!visualGroupHasAny(data, type)) continue;
+            View item = visualIconTab(categoryIconUrl(type), activeMain.equals(type), dp(44));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(54), dp(44));
+            lp.rightMargin = dp(7);
+            mainRow.addView(item, lp);
+            item.setOnClickListener(v -> {
+                String first = firstAvailableInGroup(data, type);
+                if (!first.isEmpty()) currentType[0] = first;
+                if (refresh != null) refresh.run();
+            });
+        }
+
+        String[] subs = visualSubTypes(activeMain);
+        for (String type : subs) {
             if (visualCategory(data, type) == null) continue;
-            TextView tab = text(visualCategoryName(type), 13, type.equals(currentType[0]) ? Color.WHITE : (lightTheme ? Color.rgb(55,55,55) : Color.argb(215,255,255,255)), true);
-            tab.setGravity(Gravity.CENTER);
-            tab.setPadding(dp(14), 0, dp(14), 0);
-            tab.setBackground(type.equals(currentType[0]) ? grad(dp(999), purple2, purple) : round(lightTheme ? Color.WHITE : Color.argb(18,255,255,255), dp(999), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(38));
-            lp.rightMargin = dp(8);
-            tabs.addView(tab, lp);
-            tab.setOnClickListener(v -> {
+            View item = visualIconTab(categoryIconUrl(type), type.equals(currentType[0]), dp(42));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(50), dp(42));
+            lp.rightMargin = dp(7);
+            subRow.addView(item, lp);
+            item.setOnClickListener(v -> {
                 currentType[0] = type;
                 if (refresh != null) refresh.run();
             });
         }
     }
 
-    private void renderVisualItems(LinearLayout area, LinearLayout colors, String[] currentFigure, String[] gender, String[] currentType, JSONObject data, Runnable updatePreview) {
+    private void renderVisualItems    private void renderVisualItems(LinearLayout area, LinearLayout colors, String[] currentFigure, String[] gender, String[] currentType, JSONObject data, Runnable updatePreview) {
         if (area == null) return;
         area.removeAllViews();
         if (colors != null) colors.removeAllViews();
@@ -3962,50 +3998,52 @@ private int loadingProgressFor(String message) {
             return;
         }
 
-        int perRow = 4;
+        int perRow = 5;
         LinearLayout row = null;
         int shown = 0;
 
-        TextView remove = visualItemCell(t("remove_item"), currentType[0], "0", currentFigure[0], true);
-        remove.setOnClickListener(v -> {
-            currentFigure[0] = removeFigurePart(currentFigure[0], currentType[0]);
-            if (updatePreview != null) updatePreview.run();
-            renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
-        });
-        row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        area.addView(row, lp(-1, dp(92), 0, 0, 0, 8));
-        row.addView(remove, new LinearLayout.LayoutParams(0, dp(88), 1));
-        shown = 1;
+        if (isVisualRemovableType(currentType[0])) {
+            View remove = visualItemCell("", currentType[0], "0", currentFigure[0], true);
+            remove.setOnClickListener(v -> {
+                currentFigure[0] = removeFigurePart(currentFigure[0], currentType[0]);
+                if (updatePreview != null) updatePreview.run();
+                renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
+            });
+            row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            area.addView(row, lp(-1, dp(86), 0, 0, 0, 8));
+            row.addView(remove, new LinearLayout.LayoutParams(0, dp(82), 1));
+            shown = 1;
+        }
 
-        for (int i=0; i<items.length() && shown < 81; i++) {
+        for (int i=0; i<items.length() && shown < 121; i++) {
             JSONObject item = items.optJSONObject(i);
             if (item == null || !item.optBoolean("selectable", true)) continue;
             String g = firstText(item, "gender");
             if (!visualGenderMatches(g, gender[0])) continue;
 
-            if (shown % perRow == 0) {
+            if (shown % perRow == 0 || row == null) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                area.addView(row, lp(-1, dp(92), 0, 0, 0, 8));
+                area.addView(row, lp(-1, dp(86), 0, 0, 0, 8));
             }
             final JSONObject finalItem = item;
             final String itemId = firstText(item, "id");
             String previewFigure = applyFigureItem(currentFigure[0], currentType[0], item, null);
-            TextView cell = visualItemCell("", currentType[0], itemId, previewFigure, false);
+            View cell = visualItemCell("", currentType[0], itemId, previewFigure, false);
             cell.setOnClickListener(v -> {
                 currentFigure[0] = applyFigureItem(currentFigure[0], currentType[0], finalItem, null);
                 if (updatePreview != null) updatePreview.run();
                 renderVisualColors(colors, currentFigure, currentType[0], finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
             });
-            row.addView(cell, new LinearLayout.LayoutParams(0, dp(88), 1));
+            row.addView(cell, new LinearLayout.LayoutParams(0, dp(82), 1));
             shown++;
         }
 
         if (row != null) {
             while (row.getChildCount() < perRow) {
                 Space sp = new Space(this);
-                row.addView(sp, new LinearLayout.LayoutParams(0, dp(88), 1));
+                row.addView(sp, new LinearLayout.LayoutParams(0, dp(82), 1));
             }
         }
 
@@ -4013,67 +4051,79 @@ private int loadingProgressFor(String message) {
         if (selected != null) renderVisualColors(colors, currentFigure, currentType[0], selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
     }
 
-    private TextView visualItemCell(String label, String type, String id, String figure, boolean remove) {
-        TextView box = text(label, remove ? 12 : 1, remove ? (lightTheme ? Color.rgb(120,40,55) : Color.rgb(255,150,165)) : Color.TRANSPARENT, true);
-        box.setGravity(Gravity.CENTER);
+    private View visualItemCell    private View visualItemCell(String label, String type, String id, String figure, boolean remove) {
+        FrameLayout box = new FrameLayout(this);
         box.setPadding(dp(4), dp(4), dp(4), dp(4));
-        box.setBackground(round(lightTheme ? Color.WHITE : Color.argb(16,255,255,255), dp(16), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
-        if (!remove && figure != null && !figure.isEmpty()) {
-            Drawable d = box.getBackground();
-            box.setBackground(d);
-            box.post(() -> {
-                try {
-                    Glide.with(MainActivity.this).load(avatarSmall(figure)).into(new com.bumptech.glide.request.target.CustomTarget<android.graphics.drawable.Drawable>() {
-                        @Override public void onResourceReady(android.graphics.drawable.Drawable resource, com.bumptech.glide.request.transition.Transition<? super android.graphics.drawable.Drawable> transition) {
-                            box.setCompoundDrawablesWithIntrinsicBounds(null, resource, null, null);
-                        }
-                        @Override public void onLoadCleared(android.graphics.drawable.Drawable placeholder) {}
-                    });
-                } catch(Exception ignored) {}
-            });
+        box.setClipChildren(true);
+        box.setClipToPadding(true);
+        box.setBackground(round(lightTheme ? Color.rgb(236,234,224) : Color.rgb(236,234,224), dp(999), Color.TRANSPARENT, 0));
+
+        ImageView img = new ImageView(this);
+        img.setAdjustViewBounds(true);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        img.setPadding(0, 0, 0, 0);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(72), dp(92), Gravity.CENTER);
+        box.addView(img, ip);
+
+        if (remove) {
+            Glide.with(MainActivity.this).load("https://lite.habbonews.net/ferramentas/visuais/removable.png").into(img);
+            img.setScaleX(0.72f);
+            img.setScaleY(0.72f);
+        } else if (figure != null && !figure.isEmpty()) {
+            img.setScaleX(visualItemScale(type));
+            img.setScaleY(visualItemScale(type));
+            img.setTranslationY(dp(visualItemOffsetDp(type)));
+            Glide.with(MainActivity.this).load(avatarFull(figure, 2)).into(img);
         }
+
         return box;
     }
 
-    private void renderVisualColors(LinearLayout colors, String[] currentFigure, String type, JSONObject item, Runnable updatePreview, Runnable refreshItems) {
+    private void renderVisualColors    private void renderVisualColors(LinearLayout colors, String[] currentFigure, String type, JSONObject item, Runnable updatePreview, Runnable refreshItems) {
         if (colors == null || item == null) return;
         colors.removeAllViews();
         if (!item.optBoolean("colorable", false)) return;
         JSONArray arr = item.optJSONArray("colors");
         if (arr == null || arr.length() == 0) return;
 
-        TextView title = text(t("available_colors"), 13, themeMutedColor(), true);
-        title.setGravity(Gravity.LEFT);
-        colors.addView(title, lp(-1, -2, 0, 0, 0, 6));
+        int count = Math.max(1, Math.min(2, item.optInt("colorCount", 1)));
+        for (int slot=0; slot<count; slot++) {
+            final int colorSlot = slot;
+            TextView title = text(count == 1 ? t("available_colors") : (t("available_colors") + " " + (slot + 1)), 13, themeMutedColor(), true);
+            title.setGravity(Gravity.LEFT);
+            LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
+            titleLp.setMargins(0, slot == 0 ? 0 : dp(8), 0, dp(6));
+            colors.addView(title, titleLp);
 
-        HorizontalScrollView hsv = new HorizontalScrollView(this);
-        hsv.setHorizontalScrollBarEnabled(false);
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        hsv.addView(row, new HorizontalScrollView.LayoutParams(-2, dp(42)));
-        colors.addView(hsv, lp(-1, dp(42), 0, 0, 0, 0));
+            HorizontalScrollView hsv = new HorizontalScrollView(this);
+            hsv.setHorizontalScrollBarEnabled(false);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            hsv.addView(row, new HorizontalScrollView.LayoutParams(-2, dp(42)));
+            colors.addView(hsv, lp(-1, dp(42), 0, 0, 0, 0));
 
-        int max = Math.min(arr.length(), 80);
-        for (int i=0; i<max; i++) {
-            JSONObject c = arr.optJSONObject(i);
-            if (c == null || !c.optBoolean("selectable", true)) continue;
-            String colorId = firstText(c, "id");
-            String hex = firstText(c, "hex");
-            TextView sw = text("", 1, Color.TRANSPARENT, true);
-            sw.setGravity(Gravity.CENTER);
-            sw.setBackground(round(colorFromHex(hex), dp(999), lightTheme ? Color.rgb(70,70,70) : Color.WHITE, 1));
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(32), dp(32));
-            cp.rightMargin = dp(8);
-            row.addView(sw, cp);
-            sw.setOnClickListener(v -> {
-                currentFigure[0] = applyFigureItem(currentFigure[0], type, item, colorId);
-                if (updatePreview != null) updatePreview.run();
-                if (refreshItems != null) refreshItems.run();
-            });
+            int max = Math.min(arr.length(), 90);
+            for (int i=0; i<max; i++) {
+                JSONObject c = arr.optJSONObject(i);
+                if (c == null || !c.optBoolean("selectable", true)) continue;
+                String colorId = firstText(c, "id");
+                String hex = firstText(c, "hex");
+                TextView sw = text("", 1, Color.TRANSPARENT, true);
+                sw.setGravity(Gravity.CENTER);
+                sw.setBackground(round(colorFromHex(hex), dp(3), Color.rgb(115,109,103), 2));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(22), dp(26));
+                cp.rightMargin = dp(7);
+                row.addView(sw, cp);
+                sw.setOnClickListener(v -> {
+                    currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], type, item, colorId, colorSlot);
+                    if (updatePreview != null) updatePreview.run();
+                    if (refreshItems != null) refreshItems.run();
+                });
+            }
         }
     }
 
-    private JSONObject visualCategory(JSONObject data, String type) {
+    private JSONObject visualCategory    private JSONObject visualCategory(JSONObject data, String type) {
         if (data == null) return null;
         JSONObject cats = data.optJSONObject("categories");
         if (cats == null) return null;
@@ -4174,6 +4224,118 @@ private int loadingProgressFor(String message) {
         if (g.startsWith("F")) return "F";
         if (g.startsWith("M")) return "M";
         return fallback == null ? "M" : fallback;
+    }
+
+    private boolean isVisualRemovableType(String type) {
+        return "hr".equals(type) || "ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)
+                || "ch".equals(type) || "ca".equals(type) || "cc".equals(type) || "cp".equals(type)
+                || "sh".equals(type) || "wa".equals(type) || "pt".equals(type) || "mc".equals(type);
+    }
+
+    private String[] visualSubTypes(String main) {
+        if ("hr".equals(main)) return new String[]{"hr","ha","he"};
+        if ("ea".equals(main)) return new String[]{"ea","fa"};
+        if ("ch".equals(main)) return new String[]{"ch","ca","cc","cp","pt","mc"};
+        if ("lg".equals(main)) return new String[]{"lg"};
+        if ("sh".equals(main)) return new String[]{"sh"};
+        if ("wa".equals(main)) return new String[]{"wa"};
+        return new String[]{"hd"};
+    }
+
+    private String visualMainType(String type) {
+        if ("hr".equals(type) || "ha".equals(type) || "he".equals(type)) return "hr";
+        if ("ea".equals(type) || "fa".equals(type)) return "ea";
+        if ("ch".equals(type) || "ca".equals(type) || "cc".equals(type) || "cp".equals(type) || "pt".equals(type) || "mc".equals(type)) return "ch";
+        if ("lg".equals(type)) return "lg";
+        if ("sh".equals(type)) return "sh";
+        if ("wa".equals(type)) return "wa";
+        return "hd";
+    }
+
+    private boolean visualGroupHasAny(JSONObject data, String main) {
+        for (String t : visualSubTypes(main)) if (visualCategory(data, t) != null) return true;
+        return false;
+    }
+
+    private String firstAvailableInGroup(JSONObject data, String main) {
+        for (String t : visualSubTypes(main)) if (visualCategory(data, t) != null) return t;
+        return "";
+    }
+
+    private String categoryIconUrl(String type) {
+        if ("hd".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/body.png";
+        if ("hr".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/hair.png";
+        if ("ha".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/hats.png";
+        if ("he".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/hair-accessories.png";
+        if ("ea".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/glasses.png";
+        if ("fa".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/moustaches.png";
+        if ("ch".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/tops.png";
+        if ("ca".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/chest.png";
+        if ("cc".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/jackets.png";
+        if ("cp".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/accessories.png";
+        if ("pt".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/pets.png";
+        if ("mc".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/misc.png";
+        if ("lg".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/bottoms.png";
+        if ("sh".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/shoes.png";
+        if ("wa".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/belts.png";
+        return "https://lite.habbonews.net/ferramentas/visuais/misc.png";
+    }
+
+    private View visualIconTab(String url, boolean active, int size) {
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(4), dp(4), dp(4), dp(4));
+        box.setBackground(active
+                ? round(Color.rgb(236,234,224), dp(7), Color.TRANSPARENT, 0)
+                : round(Color.argb(lightTheme ? 20 : 55, 0, 0, 0), dp(7), Color.TRANSPARENT, 0));
+        ImageView img = new ImageView(this);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(size - dp(10), size - dp(10), Gravity.CENTER);
+        box.addView(img, ip);
+        Glide.with(MainActivity.this).load(url).into(img);
+        return box;
+    }
+
+    private float visualItemScale(String type) {
+        if ("hd".equals(type)) return 1.05f;
+        if ("hr".equals(type) || "ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)) return 1.28f;
+        if ("lg".equals(type) || "sh".equals(type)) return 1.75f;
+        if ("ch".equals(type) || "ca".equals(type) || "cc".equals(type) || "cp".equals(type)) return 1.55f;
+        if ("wa".equals(type) || "pt".equals(type) || "mc".equals(type)) return 1.55f;
+        return 1.25f;
+    }
+
+    private int visualItemOffsetDp(String type) {
+        if ("ch".equals(type) || "cp".equals(type) || "ca".equals(type)) return -10;
+        if ("cc".equals(type)) return -15;
+        if ("lg".equals(type)) return -24;
+        if ("sh".equals(type)) return -26;
+        if ("wa".equals(type)) return -17;
+        if ("pt".equals(type)) return -21;
+        if ("mc".equals(type)) return -15;
+        return 0;
+    }
+
+    private String applyFigureItemColorSlot(String figure, String type, JSONObject item, String colorId, int slot) {
+        if (item == null || colorId == null || colorId.trim().isEmpty()) return figure;
+        String id = firstText(item, "id");
+        if (id.isEmpty()) return figure;
+        String old = figurePart(figure, type);
+        ArrayList<String> colors = new ArrayList<>();
+        if (old != null && !old.isEmpty()) {
+            String[] bits = old.split("-");
+            for (int i=2; i<bits.length; i++) if (!bits[i].trim().isEmpty()) colors.add(bits[i].trim());
+        }
+        int colorCount = Math.max(1, Math.min(2, item.optInt("colorCount", item.optBoolean("colorable", false) ? 1 : 0)));
+        JSONArray itemColors = item.optJSONArray("colors");
+        while (colors.size() < colorCount) {
+            String first = firstSelectableColorId(itemColors);
+            colors.add(first.isEmpty() ? "1" : first);
+        }
+        int s = Math.max(0, Math.min(colorCount - 1, slot));
+        colors.set(s, colorId.trim());
+        StringBuilder part = new StringBuilder(type + "-" + id);
+        for (int i=0; i<colorCount; i++) part.append("-").append(colors.get(i));
+        return setFigurePart(figure, type, part.toString());
     }
 
     private String visualCategoryName(String type) {
