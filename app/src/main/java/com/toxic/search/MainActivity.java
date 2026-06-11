@@ -3760,12 +3760,13 @@ private int loadingProgressFor(String message) {
         scroll.setNestedScrollingEnabled(true);
         scroll.setOnTouchListener((v, event) -> {
             ViewParent parent = v.getParent();
-            if (parent != null) {
-                if (event.getAction() == MotionEvent.ACTION_DOWN || event.getAction() == MotionEvent.ACTION_MOVE) {
-                    parent.requestDisallowInterceptTouchEvent(true);
-                } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                    parent.requestDisallowInterceptTouchEvent(false);
-                }
+            if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
+            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                // Mantém a rolagem presa nesta área de cores; não solta o gesto para a rolagem geral.
+                v.postDelayed(() -> {
+                    ViewParent p = v.getParent();
+                    if (p != null) p.requestDisallowInterceptTouchEvent(false);
+                }, 180L);
             }
             return false;
         });
@@ -4024,7 +4025,7 @@ private int loadingProgressFor(String message) {
         LinearLayout subRow = new LinearLayout(this);
         subRow.setOrientation(LinearLayout.HORIZONTAL);
         subRow.setGravity(Gravity.LEFT);
-        subRow.setPadding(dp(20), 0, dp(20), 0);
+        subRow.setPadding(dp(32), 0, dp(20), 0);
         subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-2, dp(50)));
         LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-1, dp(52));
         subLp.topMargin = dp(6);
@@ -4371,6 +4372,17 @@ private int loadingProgressFor(String message) {
         HorizontalScrollView horizontal = new HorizontalScrollView(this);
         horizontal.setHorizontalScrollBarEnabled(false);
         horizontal.setFillViewport(true);
+        horizontal.setOnTouchListener((v, event) -> {
+            ViewParent parent = v.getParent();
+            if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
+            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.postDelayed(() -> {
+                    ViewParent p = v.getParent();
+                    if (p != null) p.requestDisallowInterceptTouchEvent(false);
+                }, 180L);
+            }
+            return false;
+        });
         LinearLayout columns = new LinearLayout(this);
         columns.setOrientation(LinearLayout.HORIZONTAL);
         columns.setGravity(Gravity.CENTER);
@@ -4644,27 +4656,31 @@ private int loadingProgressFor(String message) {
         return groups.length > 0 ? groups[0] : null;
     }
 
+    private String visualIconResource(String name) {
+        return "android.resource://" + getPackageName() + "/drawable/" + name;
+    }
+
     private String categoryIconUrl(String type) {
         return categoryIconUrl(type, false);
     }
 
     private String categoryIconUrl(String type, boolean sub) {
-        if ("hd".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/body.png";
-        if ("hr".equals(type)) return sub ? "https://lite.habbonews.net/ferramentas/visuais/hair-sn.png" : "https://lite.habbonews.net/ferramentas/visuais/hair.png";
-        if ("ha".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/hats.png";
-        if ("he".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/hair-accessories.png";
-        if ("ea".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/glasses.png";
-        if ("fa".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/moustaches.png";
-        if ("ch".equals(type)) return sub ? "https://lite.habbonews.net/ferramentas/visuais/top.png" : "https://lite.habbonews.net/ferramentas/visuais/tops.png";
-        if ("ca".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/chest.png";
-        if ("cc".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/jackets.png";
-        if ("cp".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/accessories.png";
-        if ("pt".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/pets.png";
-        if ("mc".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/misc.png";
-        if ("lg".equals(type)) return sub ? "https://lite.habbonews.net/ferramentas/visuais/bottoms-sn.png" : "https://lite.habbonews.net/ferramentas/visuais/bottoms.png";
-        if ("sh".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/shoes.png";
-        if ("wa".equals(type)) return "https://lite.habbonews.net/ferramentas/visuais/belts.png";
-        return "https://lite.habbonews.net/ferramentas/visuais/misc.png";
+        if ("hd".equals(type)) return visualIconResource("body");
+        if ("hr".equals(type)) return sub ? visualIconResource("hair_sn") : visualIconResource("hair");
+        if ("ha".equals(type)) return visualIconResource("hats");
+        if ("he".equals(type)) return visualIconResource("hair_accessories");
+        if ("ea".equals(type)) return visualIconResource("glasses");
+        if ("fa".equals(type)) return visualIconResource("moustaches");
+        if ("ch".equals(type)) return sub ? visualIconResource("top") : visualIconResource("tops");
+        if ("ca".equals(type)) return visualIconResource("chest");
+        if ("cc".equals(type)) return visualIconResource("jackets");
+        if ("cp".equals(type)) return visualIconResource("accessories");
+        if ("pt".equals(type)) return visualIconResource("pets");
+        if ("mc".equals(type)) return visualIconResource("misc");
+        if ("lg".equals(type)) return sub ? visualIconResource("bottoms_sn") : visualIconResource("bottoms");
+        if ("sh".equals(type)) return visualIconResource("shoes");
+        if ("wa".equals(type)) return visualIconResource("belts");
+        return visualIconResource("misc");
     }
 
     private View visualIconTab(String url, boolean active, int size) {
@@ -4684,8 +4700,8 @@ private int loadingProgressFor(String message) {
 
     private float visualItemScale(String type) {
         if ("hd".equals(type)) return 1.02f;
-        if ("hr".equals(type)) return 1.58f;
-        if ("ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)) return 1.30f;
+        if ("hr".equals(type) || "ha".equals(type) || "he".equals(type) || "ea".equals(type)) return 1.58f;
+        if ("fa".equals(type)) return 1.30f;
         if ("lg".equals(type)) return 1.48f;
         if ("sh".equals(type)) return 1.82f;
         if ("ch".equals(type) || "ca".equals(type) || "cc".equals(type) || "cp".equals(type)) return 1.34f;
@@ -4694,8 +4710,8 @@ private int loadingProgressFor(String message) {
     }
 
     private int visualItemOffsetDp(String type) {
-        if ("hr".equals(type)) return 18;
-        if ("ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)) return 4;
+        if ("hr".equals(type) || "ha".equals(type) || "he".equals(type) || "ea".equals(type)) return 18;
+        if ("fa".equals(type)) return 4;
         if ("ch".equals(type) || "cp".equals(type) || "ca".equals(type)) return -10;
         if ("cc".equals(type)) return -14;
         if ("lg".equals(type)) return -22;
