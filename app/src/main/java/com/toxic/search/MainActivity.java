@@ -3809,7 +3809,6 @@ private int loadingProgressFor(String message) {
 
         Runnable updatePreview = () -> Glide.with(MainActivity.this)
                 .load(avatarFull(currentFigure[0], 2))
-                .placeholder(R.drawable.avatar_placeholder)
                 .into(preview);
         updatePreview.run();
 
