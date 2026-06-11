@@ -3981,7 +3981,7 @@ private int loadingProgressFor(String message) {
         }
     }
 
-    private void renderVisualItems    private void renderVisualItems(LinearLayout area, LinearLayout colors, String[] currentFigure, String[] gender, String[] currentType, JSONObject data, Runnable updatePreview) {
+    private void renderVisualItems(LinearLayout area, LinearLayout colors, String[] currentFigure, String[] gender, String[] currentType, JSONObject data, Runnable updatePreview) {
         if (area == null) return;
         area.removeAllViews();
         if (colors != null) colors.removeAllViews();
@@ -4051,7 +4051,7 @@ private int loadingProgressFor(String message) {
         if (selected != null) renderVisualColors(colors, currentFigure, currentType[0], selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
     }
 
-    private View visualItemCell    private View visualItemCell(String label, String type, String id, String figure, boolean remove) {
+    private View visualItemCell(String label, String type, String id, String figure, boolean remove) {
         FrameLayout box = new FrameLayout(this);
         box.setPadding(dp(4), dp(4), dp(4), dp(4));
         box.setClipChildren(true);
@@ -4079,7 +4079,7 @@ private int loadingProgressFor(String message) {
         return box;
     }
 
-    private void renderVisualColors    private void renderVisualColors(LinearLayout colors, String[] currentFigure, String type, JSONObject item, Runnable updatePreview, Runnable refreshItems) {
+    private void renderVisualColors(LinearLayout colors, String[] currentFigure, String type, JSONObject item, Runnable updatePreview, Runnable refreshItems) {
         if (colors == null || item == null) return;
         colors.removeAllViews();
         if (!item.optBoolean("colorable", false)) return;
@@ -4123,7 +4123,7 @@ private int loadingProgressFor(String message) {
         }
     }
 
-    private JSONObject visualCategory    private JSONObject visualCategory(JSONObject data, String type) {
+    private JSONObject visualCategory(JSONObject data, String type) {
         if (data == null) return null;
         JSONObject cats = data.optJSONObject("categories");
         if (cats == null) return null;
