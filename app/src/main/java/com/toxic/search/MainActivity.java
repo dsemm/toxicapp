@@ -1904,6 +1904,12 @@ public class MainActivity extends Activity {
                         if (!roFig.isEmpty()) photo.put("roomOwnerFigureString", roFig);
                     } catch(Exception ignored) {}
                 }
+
+                case "visual_item_info": return "Item information";
+                case "loading_item_info": return "Loading HabboDex information...";
+                case "item_name": return "Item name";
+                case "collection": return "Collection";
+                case "image": return "Image";
             }
         }
     }
@@ -3764,6 +3770,7 @@ private int loadingProgressFor(String message) {
         final String[] currentFigure = {DEFAULT_VISUAL_FIGURE};
         final String[] currentGender = {"M"};
         final String[] currentType = {"hd"};
+        final int[] visualDirection = {2};
         final Runnable[] refreshAll = new Runnable[1];
 
         LinearLayout nickRow = new LinearLayout(this);
@@ -3808,10 +3815,13 @@ private int loadingProgressFor(String message) {
         itemScroll.setScrollbarFadingEnabled(false);
         itemScroll.setNestedScrollingEnabled(true);
         itemScroll.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN || event.getAction() == MotionEvent.ACTION_MOVE) {
-                v.getParent().requestDisallowInterceptTouchEvent(true);
-            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                v.getParent().requestDisallowInterceptTouchEvent(false);
+            ViewParent parent = v.getParent();
+            if (parent != null) {
+                if (event.getAction() == MotionEvent.ACTION_DOWN || event.getAction() == MotionEvent.ACTION_MOVE) {
+                    parent.requestDisallowInterceptTouchEvent(true);
+                } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                    parent.requestDisallowInterceptTouchEvent(false);
+                }
             }
             return false;
         });
@@ -3820,7 +3830,7 @@ private int loadingProgressFor(String message) {
         itemsArea.setOrientation(LinearLayout.VERTICAL);
         itemScroll.addView(itemsArea, new ScrollView.LayoutParams(-1, -2));
         itemScroll.setBackground(round(Color.argb(lightTheme ? 18 : 44, 0, 0, 0), dp(20), Color.argb(lightTheme ? 30 : 35, 255,255,255), 1));
-        wrap.addView(itemScroll, lp(-1, dp(250), 0, 0, 0, 10));
+        wrap.addView(itemScroll, lp(-1, dp(310), 0, 0, 0, 10));
 
         LinearLayout colorPanel = new LinearLayout(this);
         colorPanel.setOrientation(LinearLayout.VERTICAL);
@@ -3829,9 +3839,32 @@ private int loadingProgressFor(String message) {
         wrap.addView(colorPanel, lp(-1, -2, 0, 6, 0, 10));
 
         Runnable updatePreview = () -> Glide.with(MainActivity.this)
-                .load(avatarFull(currentFigure[0], 2))
+                .load(avatarFull(currentFigure[0], visualDirection[0]))
                 .into(preview);
         updatePreview.run();
+
+        LinearLayout visualRotateRow = new LinearLayout(this);
+        visualRotateRow.setOrientation(LinearLayout.HORIZONTAL);
+        visualRotateRow.setGravity(Gravity.CENTER);
+        TextView visualLeft = dialogButton("‹");
+        TextView visualRight = dialogButton("›");
+        visualLeft.setTextSize(24);
+        visualRight.setTextSize(24);
+        visualRotateRow.addView(visualLeft, new LinearLayout.LayoutParams(0, dp(44), 1));
+        LinearLayout.LayoutParams vrp = new LinearLayout.LayoutParams(0, dp(44), 1);
+        vrp.leftMargin = dp(10);
+        visualRotateRow.addView(visualRight, vrp);
+        wrap.addView(visualRotateRow, lp(-1, dp(44), 0, 0, 0, 12));
+
+        visualLeft.setOnClickListener(v -> {
+            visualDirection[0] = visualDirection[0] - 1;
+            if (visualDirection[0] < 0) visualDirection[0] = 7;
+            updatePreview.run();
+        });
+        visualRight.setOnClickListener(v -> {
+            visualDirection[0] = (visualDirection[0] + 1) % 8;
+            updatePreview.run();
+        });
 
         final JSONObject[] figureDataRef = {visualFigureDataCache};
 
@@ -3938,16 +3971,20 @@ private int loadingProgressFor(String message) {
 
         HorizontalScrollView mainScroll = new HorizontalScrollView(this);
         mainScroll.setHorizontalScrollBarEnabled(false);
+        mainScroll.setFillViewport(true);
         LinearLayout mainRow = new LinearLayout(this);
         mainRow.setOrientation(LinearLayout.HORIZONTAL);
-        mainScroll.addView(mainRow, new HorizontalScrollView.LayoutParams(-2, dp(50)));
+        mainRow.setGravity(Gravity.CENTER);
+        mainScroll.addView(mainRow, new HorizontalScrollView.LayoutParams(-1, dp(50)));
         tabs.addView(mainScroll, new LinearLayout.LayoutParams(-1, dp(52)));
 
         HorizontalScrollView subScroll = new HorizontalScrollView(this);
         subScroll.setHorizontalScrollBarEnabled(false);
+        subScroll.setFillViewport(true);
         LinearLayout subRow = new LinearLayout(this);
         subRow.setOrientation(LinearLayout.HORIZONTAL);
-        subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-2, dp(50)));
+        subRow.setGravity(Gravity.CENTER);
+        subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-1, dp(50)));
         LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-1, dp(52));
         subLp.topMargin = dp(6);
         tabs.addView(subScroll, subLp);
@@ -4044,12 +4081,12 @@ private int loadingProgressFor(String message) {
             });
             row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            area.addView(row, lp(-1, dp(60), 0, dp(8), 0, 4));
-            row.addView(remove, new LinearLayout.LayoutParams(0, dp(56), 1));
+            area.addView(row, lp(-1, dp(58), 0, dp(8), 0, 4));
+            row.addView(remove, new LinearLayout.LayoutParams(0, dp(54), 1));
             shown = 1;
         }
 
-        for (int i=0; i<items.length() && shown < 121; i++) {
+        for (int i=0; i<items.length(); i++) {
             JSONObject item = items.optJSONObject(i);
             if (item == null || !item.optBoolean("selectable", true)) continue;
             String g = firstText(item, "gender");
@@ -4058,7 +4095,7 @@ private int loadingProgressFor(String message) {
             if (shown % perRow == 0 || row == null) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                area.addView(row, lp(-1, dp(60), 0, shown == 0 ? dp(8) : 0, 0, 4));
+                area.addView(row, lp(-1, dp(58), 0, shown == 0 ? dp(8) : 0, 0, 4));
             }
             final JSONObject finalItem = item;
             final String itemId = firstText(item, "id");
@@ -4070,14 +4107,15 @@ private int loadingProgressFor(String message) {
                 renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
                 renderVisualColors(colors, currentFigure, uiType, finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
             });
-            row.addView(cell, new LinearLayout.LayoutParams(0, dp(56), 1));
+            attachVisualItemLongPress(cell, itemType, itemId, previewFigure);
+            row.addView(cell, new LinearLayout.LayoutParams(0, dp(54), 1));
             shown++;
         }
 
         if (row != null) {
             while (row.getChildCount() < perRow) {
                 Space sp = new Space(this);
-                row.addView(sp, new LinearLayout.LayoutParams(0, dp(56), 1));
+                row.addView(sp, new LinearLayout.LayoutParams(0, dp(54), 1));
             }
         }
 
@@ -4085,33 +4123,166 @@ private int loadingProgressFor(String message) {
         if (selected != null) renderVisualColors(colors, currentFigure, uiType, selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
     }
 
+
+    private void attachVisualItemLongPress(final View cell, final String type, final String itemId, final String previewFigure) {
+        if (cell == null) return;
+        final boolean[] triggered = {false};
+        final float[] downX = {0f};
+        final float[] downY = {0f};
+        final Runnable[] pending = new Runnable[1];
+
+        cell.setOnTouchListener((v, event) -> {
+            int action = event.getAction();
+            if (action == MotionEvent.ACTION_DOWN) {
+                triggered[0] = false;
+                downX[0] = event.getX();
+                downY[0] = event.getY();
+                pending[0] = () -> {
+                    triggered[0] = true;
+                    try { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); } catch(Exception ignored) {}
+                    showVisualItemInfoDialog(type, itemId, previewFigure);
+                };
+                uiHandler.postDelayed(pending[0], 2000L);
+                return false;
+            }
+
+            if (action == MotionEvent.ACTION_MOVE) {
+                float dx = Math.abs(event.getX() - downX[0]);
+                float dy = Math.abs(event.getY() - downY[0]);
+                if (dx > dp(12) || dy > dp(12)) {
+                    if (pending[0] != null) uiHandler.removeCallbacks(pending[0]);
+                }
+                return triggered[0];
+            }
+
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (pending[0] != null) uiHandler.removeCallbacks(pending[0]);
+                return triggered[0];
+            }
+
+            return false;
+        });
+    }
+
+    private void showVisualItemInfoDialog(final String type, final String itemId, final String previewFigure) {
+        final Dialog dialog = new Dialog(this);
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(18), dp(18), dp(18), dp(18));
+        wrap.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
+        dialog.setContentView(wrap);
+
+        TextView title = habboText(t("visual_item_info"), 20, true);
+        title.setGravity(Gravity.CENTER);
+        wrap.addView(title, lp(-1, -2, 0, 0, 0, 12));
+
+        ImageView image = new ImageView(this);
+        image.setAdjustViewBounds(true);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setBackground(round(lightTheme ? Color.rgb(248,248,248) : Color.argb(22,255,255,255), dp(18), lightTheme ? Color.rgb(220,220,220) : Color.argb(35,255,255,255), 1));
+        wrap.addView(image, lp(-1, dp(130), 0, 0, 0, 12));
+        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).into(image);
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        wrap.addView(info, lp(-1, -2, 0, 0, 0, 12));
+
+        TextView loading = text(t("loading_item_info"), 14, themeTextColor(), false);
+        loading.setGravity(Gravity.CENTER);
+        info.addView(loading, lp(-1, -2, 0, 4, 0, 4));
+
+        TextView close = dialogButton(t("close"));
+        wrap.addView(close, lp(-1, dp(46), 0, 4, 0, 0));
+        close.setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(w.getAttributes());
+            params.width = (int)(getResources().getDisplayMetrics().widthPixels * 0.90f);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            w.setAttributes(params);
+        }
+
+        executor.execute(() -> {
+            JSONObject found = null;
+            try {
+                JSONObject payload = unwrap(getJson(habbodexFigureUrl(previewFigure)));
+                ArrayList<JSONObject> clothes = normalizeClothingEntries(payload);
+                for (JSONObject o : clothes) {
+                    String slot = firstText(o, "_slot", "type", "partType", "category");
+                    if (type.equals(slot)) { found = o; break; }
+                }
+                if (found == null && !clothes.isEmpty()) found = clothes.get(0);
+            } catch(Exception ignored) {}
+
+            final JSONObject itemInfo = found;
+            runOnUiThread(() -> {
+                info.removeAllViews();
+
+                String code = firstText(itemInfo, "code", "classname", "className", "id");
+                String name = clothingName(itemInfo, code.isEmpty() ? (type + "-" + itemId) : code);
+                String collection = clothingLineName(itemInfo, "");
+                String icon = firstText(itemInfo, "iconUrl", "imageUrl", "url", "thumbnail");
+                if (icon.isEmpty() && !code.isEmpty()) icon = "https://habbodex.com/images/furni/" + enc(code) + "/" + enc(code) + "_icon.png";
+                if (!icon.isEmpty()) Glide.with(MainActivity.this).load(icon).into(image);
+
+                info.addView(visualItemInfoRow("HabboDex", code.isEmpty() ? (type + "-" + itemId) : code));
+                info.addView(visualItemInfoRow(t("item_name"), name.isEmpty() ? (type + "-" + itemId) : name));
+                info.addView(visualItemInfoRow(t("collection"), collection.isEmpty() ? "-" : collection));
+                info.addView(visualItemInfoRow(t("image"), icon.isEmpty() ? "-" : icon));
+            });
+        });
+    }
+
+    private LinearLayout visualItemInfoRow(String label, String value) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(12), dp(9), dp(12), dp(9));
+        row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(22,255,255,255), dp(14), lightTheme ? Color.rgb(222,222,222) : Color.argb(30,255,255,255), 1));
+        row.setLayoutParams(lp(-1, -2, 0, 0, 0, 8));
+
+        TextView l = text(label, 12, themeMutedColor(), true);
+        l.setGravity(Gravity.LEFT);
+        row.addView(l, lp(-1, -2, 0, 0, 0, 2));
+
+        TextView v = text(value == null ? "" : value, 14, themeTextColor(), false);
+        v.setGravity(Gravity.LEFT);
+        v.setMaxLines(3);
+        v.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(v, lp(-1, -2, 0, 0, 0, 0));
+        return row;
+    }
+
     private View visualItemCell(String label, String type, String id, String figure, boolean remove, boolean selected) {
         FrameLayout outer = new FrameLayout(this);
         outer.setPadding(dp(4), dp(4), dp(4), dp(4));
         int selectedStroke = Color.rgb(188, 74, 255);
-        int normalStroke = Color.argb(lightTheme ? 22 : 18, 255, 255, 255);
-        int fill = selected ? Color.argb(lightTheme ? 70 : 68, 168, 76, 255) : Color.argb(lightTheme ? 18 : 26, 255, 255, 255);
-        outer.setBackground(round(fill, dp(13), selected ? selectedStroke : normalStroke, selected ? 2 : 1));
+        int normalStroke = Color.argb(lightTheme ? 24 : 20, 255, 255, 255);
+        int fill = selected ? Color.argb(lightTheme ? 72 : 70, 168, 76, 255) : Color.argb(lightTheme ? 18 : 26, 255, 255, 255);
+        outer.setBackground(round(fill, dp(12), selected ? selectedStroke : normalStroke, selected ? 2 : 1));
         if (Build.VERSION.SDK_INT >= 21 && selected) outer.setElevation(dp(4));
 
         FrameLayout box = new FrameLayout(this);
         box.setClipChildren(true);
         box.setClipToPadding(true);
         box.setBackground(round(Color.TRANSPARENT, dp(10), Color.TRANSPARENT, 0));
-        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(54), dp(54), Gravity.CENTER);
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER);
         outer.addView(box, bp);
 
         ImageView img = new ImageView(this);
         img.setAdjustViewBounds(false);
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);
         img.setPadding(0, 0, 0, 0);
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(52), dp(74), Gravity.CENTER);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(50), dp(76), Gravity.CENTER);
         box.addView(img, ip);
 
         if (remove) {
             Glide.with(MainActivity.this).load("https://lite.habbonews.net/ferramentas/visuais/removable.png").into(img);
-            img.setScaleX(0.62f);
-            img.setScaleY(0.62f);
+            img.setScaleX(0.60f);
+            img.setScaleY(0.60f);
         } else if (figure != null && !figure.isEmpty()) {
             img.setScaleX(visualItemScale(type));
             img.setScaleY(visualItemScale(type));
@@ -4125,26 +4296,40 @@ private int loadingProgressFor(String message) {
     private void renderVisualColors(LinearLayout colors, String[] currentFigure, String type, JSONObject item, Runnable updatePreview, Runnable refreshItems) {
         if (colors == null || item == null) return;
         colors.removeAllViews();
-        if (!item.optBoolean("colorable", false)) return;
-        JSONArray arr = item.optJSONArray("colors");
-        if (arr == null || arr.length() == 0) return;
 
+        JSONArray arr = item.optJSONArray("colors");
         final String itemType = getVisualItemTypeForUiCategory(type);
+        if (!item.optBoolean("colorable", false) || arr == null || arr.length() == 0) {
+            colors.setAlpha(0.32f);
+            colors.setEnabled(false);
+            return;
+        }
+
+        colors.setAlpha(1f);
+        colors.setEnabled(true);
+
         int count = Math.max(1, Math.min(2, item.optInt("colorCount", 1)));
         ArrayList<String> activeColors = figurePartColors(currentFigure[0], itemType);
 
+        HorizontalScrollView colorScroll = new HorizontalScrollView(this);
+        colorScroll.setHorizontalScrollBarEnabled(false);
+        colorScroll.setFillViewport(true);
+        colorScroll.setPadding(0, 0, 0, 0);
         LinearLayout columns = new LinearLayout(this);
         columns.setOrientation(LinearLayout.HORIZONTAL);
-        colors.addView(columns, lp(-1, -2, 0, 0, 0, 0));
+        columns.setGravity(Gravity.CENTER);
+        colorScroll.addView(columns, new HorizontalScrollView.LayoutParams(-2, -2));
+        colors.addView(colorScroll, lp(-1, -2, 0, 0, 0, 0));
 
         for (int slot=0; slot<count; slot++) {
             final int colorSlot = slot;
             LinearLayout column = new LinearLayout(this);
             column.setOrientation(LinearLayout.VERTICAL);
+            column.setGravity(Gravity.CENTER_HORIZONTAL);
             column.setPadding(0, 0, 0, 0);
 
-            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? -1 : 0, -2, count == 1 ? 0 : 1);
-            if (slot > 0) colLp.leftMargin = dp(8);
+            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? -2 : dp(150), -2);
+            if (slot > 0) colLp.leftMargin = dp(10);
             columns.addView(column, colLp);
 
             int perRow = count == 1 ? 13 : 6;
@@ -4159,13 +4344,14 @@ private int loadingProgressFor(String message) {
                 if (shown % perRow == 0 || row == null) {
                     row = new LinearLayout(this);
                     row.setOrientation(LinearLayout.HORIZONTAL);
-                    column.addView(row, lp(-1, dp(24), 0, 0, 0, 1));
+                    row.setGravity(Gravity.CENTER);
+                    column.addView(row, lp(-2, dp(27), 0, 0, 0, 1));
                 }
                 String colorId = firstText(c, "id");
                 String hex = firstText(c, "hex");
                 boolean club = c.optBoolean("isClub", false) || c.optBoolean("club", false) || "1".equals(firstText(c, "club")) || "2".equals(firstText(c, "club"));
                 View sw = visualColorCell(hex, club, colorId.equals(activeColor));
-                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(18), dp(18));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(20), dp(20));
                 cp.rightMargin = dp(3);
                 cp.topMargin = dp(3);
                 row.addView(sw, cp);
@@ -4182,7 +4368,8 @@ private int loadingProgressFor(String message) {
 
     private View visualColorCell(String hex, boolean club, boolean active) {
         FrameLayout box = new FrameLayout(this);
-        int stroke = active ? Color.argb(235, 255, 255, 255) : Color.argb(72, 255, 255, 255);
+        box.setAlpha(active ? 1f : 0.86f);
+        int stroke = active ? Color.argb(235, 255, 255, 255) : Color.argb(82, 255, 255, 255);
         box.setBackground(round(colorFromHex(hex), dp(5), stroke, active ? 2 : 1));
         if (Build.VERSION.SDK_INT >= 21 && active) box.setElevation(dp(4));
         if (club) {
@@ -4190,7 +4377,7 @@ private int loadingProgressFor(String message) {
             hc.setImageResource(R.drawable.hcmini);
             hc.setAdjustViewBounds(true);
             hc.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(18), dp(9), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(20), dp(10), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
             hp.bottomMargin = 0;
             box.addView(hc, hp);
         }
@@ -4409,18 +4596,22 @@ private int loadingProgressFor(String message) {
 
     private float visualItemScale(String type) {
         if ("hd".equals(type)) return 1.02f;
-        if ("hr".equals(type) || "ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)) return 1.18f;
-        if ("lg".equals(type) || "sh".equals(type)) return 1.48f;
+        if ("hr".equals(type)) return 1.58f;
+        if ("ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)) return 1.30f;
+        if ("lg".equals(type)) return 1.48f;
+        if ("sh".equals(type)) return 1.82f;
         if ("ch".equals(type) || "ca".equals(type) || "cc".equals(type) || "cp".equals(type)) return 1.34f;
         if ("wa".equals(type) || "pt".equals(type) || "mc".equals(type)) return 1.34f;
         return 1.15f;
     }
 
     private int visualItemOffsetDp(String type) {
+        if ("hr".equals(type)) return 18;
+        if ("ha".equals(type) || "he".equals(type) || "ea".equals(type) || "fa".equals(type)) return 4;
         if ("ch".equals(type) || "cp".equals(type) || "ca".equals(type)) return -10;
         if ("cc".equals(type)) return -14;
         if ("lg".equals(type)) return -22;
-        if ("sh".equals(type)) return -24;
+        if ("sh".equals(type)) return -14;
         if ("wa".equals(type)) return -16;
         if ("pt".equals(type)) return -20;
         if ("mc".equals(type)) return -14;
@@ -6067,6 +6258,12 @@ private int loadingProgressFor(String message) {
             case "cat_face": return "Rosto";
             case "cat_coats": return "Casacos";
             case "cat_prints": return "Estampas";
+
+            case "visual_item_info": return "Informações do item";
+            case "loading_item_info": return "Carregando informações do HabboDex...";
+            case "item_name": return "Nome do item";
+            case "collection": return "Coleção";
+            case "image": return "Imagem";
         }
         return key;
     }
