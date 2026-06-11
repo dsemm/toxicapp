@@ -3785,6 +3785,19 @@ private int loadingProgressFor(String message) {
         nickRow.addView(loadNick, loadLp);
         wrap.addView(nickRow, lp(-1, dp(46), 0, 0, 0, 10));
 
+        nickInput.setOnKeyListener((v, keyCode, event) -> {
+            if (keyCode == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_UP) {
+                loadNick.performClick();
+                try {
+                    InputMethodManager imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+                    if (imm != null) imm.hideSoftInputFromWindow(nickInput.getWindowToken(), 0);
+                } catch(Exception ignored) {}
+                nickInput.clearFocus();
+                return true;
+            }
+            return false;
+        });
+
         LinearLayout catTabs = new LinearLayout(this);
         catTabs.setOrientation(LinearLayout.VERTICAL);
         catTabs.setPadding(0, 0, 0, 0);
@@ -3829,6 +3842,11 @@ private int loadingProgressFor(String message) {
         };
 
         loadNick.setOnClickListener(v -> {
+            try {
+                InputMethodManager imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) imm.hideSoftInputFromWindow(nickInput.getWindowToken(), 0);
+            } catch(Exception ignored) {}
+            nickInput.clearFocus();
             String nick = nickInput.getText().toString().trim();
             if (nick.isEmpty()) {
                 toast(t("type_nick_toast"));
@@ -4026,8 +4044,8 @@ private int loadingProgressFor(String message) {
             });
             row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            area.addView(row, lp(-1, dp(66), 0, dp(10), 0, 2));
-            row.addView(remove, new LinearLayout.LayoutParams(0, dp(62), 1));
+            area.addView(row, lp(-1, dp(60), 0, dp(8), 0, 4));
+            row.addView(remove, new LinearLayout.LayoutParams(0, dp(56), 1));
             shown = 1;
         }
 
@@ -4040,11 +4058,11 @@ private int loadingProgressFor(String message) {
             if (shown % perRow == 0 || row == null) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                area.addView(row, lp(-1, dp(66), 0, shown == 0 ? dp(10) : 0, 0, 2));
+                area.addView(row, lp(-1, dp(60), 0, shown == 0 ? dp(8) : 0, 0, 4));
             }
             final JSONObject finalItem = item;
             final String itemId = firstText(item, "id");
-            String previewFigure = applyFigureItem(currentFigure[0], itemType, item, null);
+            String previewFigure = applyFigureItem(visualPreviewBaseFigure(gender[0], itemType), itemType, item, null);
             View cell = visualItemCell("", itemType, itemId, previewFigure, false, itemId.equals(currentId));
             cell.setOnClickListener(v -> {
                 currentFigure[0] = applyFigureItem(currentFigure[0], itemType, finalItem, null);
@@ -4052,14 +4070,14 @@ private int loadingProgressFor(String message) {
                 renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
                 renderVisualColors(colors, currentFigure, uiType, finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
             });
-            row.addView(cell, new LinearLayout.LayoutParams(0, dp(62), 1));
+            row.addView(cell, new LinearLayout.LayoutParams(0, dp(56), 1));
             shown++;
         }
 
         if (row != null) {
             while (row.getChildCount() < perRow) {
                 Space sp = new Space(this);
-                row.addView(sp, new LinearLayout.LayoutParams(0, dp(62), 1));
+                row.addView(sp, new LinearLayout.LayoutParams(0, dp(56), 1));
             }
         }
 
@@ -4069,31 +4087,31 @@ private int loadingProgressFor(String message) {
 
     private View visualItemCell(String label, String type, String id, String figure, boolean remove, boolean selected) {
         FrameLayout outer = new FrameLayout(this);
-        outer.setPadding(dp(3), dp(3), dp(3), dp(3));
-        int selectedStroke = Color.rgb(183, 67, 255);
-        int normalStroke = Color.argb(lightTheme ? 36 : 26, 255, 255, 255);
-        int fill = selected ? Color.argb(lightTheme ? 82 : 76, 171, 77, 255) : Color.argb(lightTheme ? 24 : 38, 255, 255, 255);
-        outer.setBackground(round(fill, dp(14), selected ? selectedStroke : normalStroke, selected ? 2 : 1));
-        if (Build.VERSION.SDK_INT >= 21 && selected) outer.setElevation(dp(5));
+        outer.setPadding(dp(4), dp(4), dp(4), dp(4));
+        int selectedStroke = Color.rgb(188, 74, 255);
+        int normalStroke = Color.argb(lightTheme ? 22 : 18, 255, 255, 255);
+        int fill = selected ? Color.argb(lightTheme ? 70 : 68, 168, 76, 255) : Color.argb(lightTheme ? 18 : 26, 255, 255, 255);
+        outer.setBackground(round(fill, dp(13), selected ? selectedStroke : normalStroke, selected ? 2 : 1));
+        if (Build.VERSION.SDK_INT >= 21 && selected) outer.setElevation(dp(4));
 
         FrameLayout box = new FrameLayout(this);
         box.setClipChildren(true);
         box.setClipToPadding(true);
-        box.setBackground(round(Color.argb(lightTheme ? 28 : 30, 0, 0, 0), dp(11), Color.TRANSPARENT, 0));
-        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER);
+        box.setBackground(round(Color.TRANSPARENT, dp(10), Color.TRANSPARENT, 0));
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(54), dp(54), Gravity.CENTER);
         outer.addView(box, bp);
 
         ImageView img = new ImageView(this);
         img.setAdjustViewBounds(false);
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);
         img.setPadding(0, 0, 0, 0);
-        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(54), dp(74), Gravity.CENTER);
+        FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(52), dp(74), Gravity.CENTER);
         box.addView(img, ip);
 
         if (remove) {
             Glide.with(MainActivity.this).load("https://lite.habbonews.net/ferramentas/visuais/removable.png").into(img);
-            img.setScaleX(0.70f);
-            img.setScaleY(0.70f);
+            img.setScaleX(0.62f);
+            img.setScaleY(0.62f);
         } else if (figure != null && !figure.isEmpty()) {
             img.setScaleX(visualItemScale(type));
             img.setScaleY(visualItemScale(type));
@@ -4113,40 +4131,48 @@ private int loadingProgressFor(String message) {
 
         final String itemType = getVisualItemTypeForUiCategory(type);
         int count = Math.max(1, Math.min(2, item.optInt("colorCount", 1)));
+        ArrayList<String> activeColors = figurePartColors(currentFigure[0], itemType);
+
+        LinearLayout columns = new LinearLayout(this);
+        columns.setOrientation(LinearLayout.HORIZONTAL);
+        colors.addView(columns, lp(-1, -2, 0, 0, 0, 0));
+
         for (int slot=0; slot<count; slot++) {
             final int colorSlot = slot;
-            TextView title = text(count == 1 ? t("available_colors") : (t("available_colors") + " " + (slot + 1)), 12, themeMutedColor(), true);
-            title.setGravity(Gravity.LEFT);
-            LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
-            titleLp.setMargins(0, slot == 0 ? 0 : dp(8), 0, dp(6));
-            colors.addView(title, titleLp);
+            LinearLayout column = new LinearLayout(this);
+            column.setOrientation(LinearLayout.VERTICAL);
+            column.setPadding(0, 0, 0, 0);
 
-            LinearLayout grid = new LinearLayout(this);
-            grid.setOrientation(LinearLayout.VERTICAL);
-            colors.addView(grid, lp(-1, -2, 0, 0, 0, 2));
+            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? -1 : 0, -2, count == 1 ? 0 : 1);
+            if (slot > 0) colLp.leftMargin = dp(8);
+            columns.addView(column, colLp);
 
-            int perRow = 12;
+            int perRow = count == 1 ? 13 : 6;
+            int max = Math.min(arr.length(), count == 1 ? 104 : 96);
             LinearLayout row = null;
             int shown = 0;
-            int max = Math.min(arr.length(), 120);
+            String activeColor = activeColors.size() > slot ? activeColors.get(slot) : "";
+
             for (int i=0; i<max; i++) {
                 JSONObject c = arr.optJSONObject(i);
                 if (c == null || !c.optBoolean("selectable", true)) continue;
                 if (shown % perRow == 0 || row == null) {
                     row = new LinearLayout(this);
                     row.setOrientation(LinearLayout.HORIZONTAL);
-                    grid.addView(row, lp(-1, dp(31), 0, 0, 0, 2));
+                    column.addView(row, lp(-1, dp(24), 0, 0, 0, 1));
                 }
                 String colorId = firstText(c, "id");
                 String hex = firstText(c, "hex");
                 boolean club = c.optBoolean("isClub", false) || c.optBoolean("club", false) || "1".equals(firstText(c, "club")) || "2".equals(firstText(c, "club"));
-                View sw = visualColorCell(hex, club);
-                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(22), dp(26));
-                cp.rightMargin = dp(5);
+                View sw = visualColorCell(hex, club, colorId.equals(activeColor));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(18), dp(18));
+                cp.rightMargin = dp(3);
+                cp.topMargin = dp(3);
                 row.addView(sw, cp);
                 sw.setOnClickListener(v -> {
                     currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], itemType, item, colorId, colorSlot);
                     if (updatePreview != null) updatePreview.run();
+                    renderVisualColors(colors, currentFigure, type, item, updatePreview, refreshItems);
                     if (refreshItems != null) refreshItems.run();
                 });
                 shown++;
@@ -4154,16 +4180,18 @@ private int loadingProgressFor(String message) {
         }
     }
 
-    private View visualColorCell(String hex, boolean club) {
+    private View visualColorCell(String hex, boolean club, boolean active) {
         FrameLayout box = new FrameLayout(this);
-        box.setBackground(round(colorFromHex(hex), dp(4), Color.rgb(104, 98, 92), 1));
+        int stroke = active ? Color.argb(235, 255, 255, 255) : Color.argb(72, 255, 255, 255);
+        box.setBackground(round(colorFromHex(hex), dp(5), stroke, active ? 2 : 1));
+        if (Build.VERSION.SDK_INT >= 21 && active) box.setElevation(dp(4));
         if (club) {
             ImageView hc = new ImageView(this);
             hc.setImageResource(R.drawable.hcmini);
             hc.setAdjustViewBounds(true);
             hc.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(16), dp(11), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-            hp.bottomMargin = dp(1);
+            FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(18), dp(9), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            hp.bottomMargin = 0;
             box.addView(hc, hp);
         }
         return box;
@@ -4270,6 +4298,22 @@ private int loadingProgressFor(String message) {
         if (g.startsWith("F")) return "F";
         if (g.startsWith("M")) return "M";
         return fallback == null ? "M" : fallback;
+    }
+
+    private String visualPreviewBaseFigure(String gender, String itemType) {
+        String base = "F".equalsIgnoreCase(gender) ? DEFAULT_VISUAL_FIGURE_FEMALE : DEFAULT_VISUAL_FIGURE_MALE;
+        // A página usa a figure padrão para a miniatura dos itens, não o visual carregado por nick.
+        return base;
+    }
+
+    private ArrayList<String> figurePartColors(String figure, String type) {
+        ArrayList<String> out = new ArrayList<>();
+        String old = figurePart(figure, type);
+        if (old != null && !old.isEmpty()) {
+            String[] bits = old.split("-");
+            for (int i=2; i<bits.length; i++) if (!bits[i].trim().isEmpty()) out.add(bits[i].trim());
+        }
+        return out;
     }
 
     private String getVisualItemTypeForUiCategory(String type) {
