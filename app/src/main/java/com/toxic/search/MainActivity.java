@@ -76,6 +76,10 @@ public class MainActivity extends Activity {
     private static final String PREF_FAVORITES = "favorite_profiles";
     private static final String PREF_NOTIFY_FAVORITE_ONLINE = "notify_favorite_online";
     private static final String PREF_FAVORITE_ONLINE_STATES = "favorite_online_states";
+    private static final String PREF_VISUAL_EDITOR_FIGURE = "visual_editor_figure";
+    private static final String PREF_VISUAL_EDITOR_GENDER = "visual_editor_gender";
+    private static final String PREF_VISUAL_EDITOR_TYPE = "visual_editor_type";
+    private static final String PREF_VISUAL_EDITOR_DIRECTION = "visual_editor_direction";
     private static final int MAX_FAVORITES = 12;
     private static final String PREF_TUTORIAL_SHOWN = "tutorial_shown";
     private static final long PROFILE_REFRESH_COOLDOWN_MS = 60L * 1000L;
@@ -138,7 +142,7 @@ public class MainActivity extends Activity {
     private final int muted = Color.argb(178, 255, 255, 255);
     private Typeface habboFont;
     private boolean lightTheme = false;
-    private boolean notifyFavoriteOnline = false;
+    private boolean notifyFavoriteOnline = true;
     private final ConcurrentHashMap<String, Boolean> favoriteOnlineStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> favoriteOnlineLastToast = new ConcurrentHashMap<>();
     private Runnable favoriteOnlineWatcher = null;
@@ -177,7 +181,8 @@ public class MainActivity extends Activity {
         }
         loadOpenedProfilesHistory();
         loadFavoriteProfiles();
-        notifyFavoriteOnline = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_NOTIFY_FAVORITE_ONLINE, false);
+        notifyFavoriteOnline = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_NOTIFY_FAVORITE_ONLINE, true);
+        loadVisualEditorState();
         adFreeUntilMs = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(PREF_AD_FREE_UNTIL_MS, 0L);
         buildUi();
         MobileAds.initialize(this, initializationStatus -> {});
@@ -3632,6 +3637,15 @@ private int loadingProgressFor(String message) {
         visualEditorCachedGender = "M";
         visualEditorCachedType = "hd";
         visualEditorCachedDirection = 2;
+        try {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .remove(PREF_VISUAL_EDITOR_FIGURE)
+                .remove(PREF_VISUAL_EDITOR_GENDER)
+                .remove(PREF_VISUAL_EDITOR_TYPE)
+                .remove(PREF_VISUAL_EDITOR_DIRECTION)
+                .remove(PREF_FAVORITE_ONLINE_STATES)
+                .apply();
+        } catch(Exception ignored) {}
 
         try { Glide.get(this).clearMemory(); } catch (Exception ignored) {}
 
@@ -3641,6 +3655,7 @@ private int loadingProgressFor(String message) {
             deleteContents(getCacheDir(), false);
             if (Build.VERSION.SDK_INT >= 21) deleteContents(getCodeCacheDir(), false);
             try { File ext = getExternalCacheDir(); if (ext != null) deleteContents(ext, false); } catch(Exception ignored) {}
+            deleteContents(favoriteHeadCacheDir(), true);
 
             try { profileCacheDir().mkdirs(); } catch(Exception ignored) {}
 
@@ -3856,6 +3871,30 @@ private int loadingProgressFor(String message) {
         });
     }
 
+    private void loadVisualEditorState() {
+        try {
+            SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+            visualEditorCachedFigure = sp.getString(PREF_VISUAL_EDITOR_FIGURE, DEFAULT_VISUAL_FIGURE);
+            visualEditorCachedGender = sp.getString(PREF_VISUAL_EDITOR_GENDER, "M");
+            visualEditorCachedType = sp.getString(PREF_VISUAL_EDITOR_TYPE, "hd");
+            visualEditorCachedDirection = sp.getInt(PREF_VISUAL_EDITOR_DIRECTION, 2);
+            if (visualEditorCachedFigure == null || visualEditorCachedFigure.trim().isEmpty()) visualEditorCachedFigure = DEFAULT_VISUAL_FIGURE;
+            if (visualEditorCachedGender == null || visualEditorCachedGender.trim().isEmpty()) visualEditorCachedGender = "M";
+            if (visualEditorCachedType == null || visualEditorCachedType.trim().isEmpty()) visualEditorCachedType = "hd";
+        } catch(Exception ignored) {}
+    }
+
+    private void saveVisualEditorState() {
+        try {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putString(PREF_VISUAL_EDITOR_FIGURE, visualEditorCachedFigure == null ? DEFAULT_VISUAL_FIGURE : visualEditorCachedFigure)
+                    .putString(PREF_VISUAL_EDITOR_GENDER, visualEditorCachedGender == null ? "M" : visualEditorCachedGender)
+                    .putString(PREF_VISUAL_EDITOR_TYPE, visualEditorCachedType == null ? "hd" : visualEditorCachedType)
+                    .putInt(PREF_VISUAL_EDITOR_DIRECTION, visualEditorCachedDirection)
+                    .apply();
+        } catch(Exception ignored) {}
+    }
+
     private String avatarMedium(String figure, int direction) {
         return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=" + direction + "&head_direction=" + direction + "&gesture=std&action=std";
     }
@@ -3984,10 +4023,10 @@ private int loadingProgressFor(String message) {
             visualEditorCachedGender = currentGender[0];
             visualEditorCachedType = currentType[0];
             visualEditorCachedDirection = visualDirection[0];
+            saveVisualEditorState();
             Glide.with(MainActivity.this)
                 .load(avatarFull(currentFigure[0], visualDirection[0]))
                 .diskCacheStrategy(DiskCacheStrategy.NONE)
-                .skipMemoryCache(true)
                 .placeholder(R.drawable.pre_load)
                 .error(R.drawable.pre_load)
                 .into(preview);
@@ -4248,9 +4287,9 @@ private int loadingProgressFor(String message) {
             View cell = visualItemCell("", itemType, itemId, previewFigure, false, itemId.equals(currentId));
             cell.setOnClickListener(v -> {
                 currentFigure[0] = applyFigureItem(currentFigure[0], itemType, finalItem, null);
+                markVisualItemSelected(area, cell);
                 if (updatePreview != null) updatePreview.run();
-                renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
-                renderVisualColors(colors, currentFigure, uiType, finalItem, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
+                renderVisualColors(colors, currentFigure, uiType, finalItem, updatePreview, null);
             });
             attachVisualItemLongPress(cell, itemType, itemId, previewFigure);
             LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(cellSize, cellSize);
@@ -4261,6 +4300,26 @@ private int loadingProgressFor(String message) {
 
         JSONObject selected = findVisualItemByFigure(category, currentFigure[0], itemType);
         if (selected != null) renderVisualColors(colors, currentFigure, uiType, selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
+    }
+
+    private void markVisualItemSelected(View root, View selectedCell) {
+        if (root == null) return;
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i=0; i<group.getChildCount(); i++) markVisualItemSelected(group.getChildAt(i), selectedCell);
+        }
+        if (root instanceof FrameLayout && root.getTag() instanceof String && ((String)root.getTag()).startsWith("visual_item_cell:")) {
+            applyVisualItemCellStyle(root, root == selectedCell);
+        }
+    }
+
+    private void applyVisualItemCellStyle(View cell, boolean selected) {
+        if (cell == null) return;
+        int selectedStroke = Color.rgb(188, 74, 255);
+        int normalStroke = Color.argb(lightTheme ? 24 : 20, 255, 255, 255);
+        int fill = selected ? Color.argb(lightTheme ? 72 : 70, 168, 76, 255) : Color.argb(lightTheme ? 18 : 26, 255, 255, 255);
+        cell.setBackground(round(fill, dp(12), selected ? selectedStroke : normalStroke, selected ? 2 : 1));
+        if (Build.VERSION.SDK_INT >= 21) cell.setElevation(selected ? dp(4) : 0);
     }
 
     private void attachVisualItemLongPress(final View cell, final String type, final String itemId, final String previewFigure) {
@@ -4321,7 +4380,7 @@ private int loadingProgressFor(String message) {
         avatarImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
         avatarImage.setBackground(round(lightTheme ? Color.rgb(248,248,248) : Color.argb(22,255,255,255), dp(18), lightTheme ? Color.rgb(220,220,220) : Color.argb(35,255,255,255), 1));
         wrap.addView(avatarImage, lp(-1, dp(150), 0, 0, 0, 12));
-        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).diskCacheStrategy(DiskCacheStrategy.NONE).skipMemoryCache(true).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(avatarImage);
+        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).diskCacheStrategy(DiskCacheStrategy.NONE).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(avatarImage);
 
         LinearLayout info = new LinearLayout(this);
         info.setOrientation(LinearLayout.VERTICAL);
@@ -4415,11 +4474,8 @@ private int loadingProgressFor(String message) {
     private View visualItemCell(String label, String type, String id, String figure, boolean remove, boolean selected) {
         FrameLayout outer = new FrameLayout(this);
         outer.setPadding(dp(4), dp(4), dp(4), dp(4));
-        int selectedStroke = Color.rgb(188, 74, 255);
-        int normalStroke = Color.argb(lightTheme ? 24 : 20, 255, 255, 255);
-        int fill = selected ? Color.argb(lightTheme ? 72 : 70, 168, 76, 255) : Color.argb(lightTheme ? 18 : 26, 255, 255, 255);
-        outer.setBackground(round(fill, dp(12), selected ? selectedStroke : normalStroke, selected ? 2 : 1));
-        if (Build.VERSION.SDK_INT >= 21 && selected) outer.setElevation(dp(4));
+        outer.setTag("visual_item_cell:" + type + ":" + id);
+        applyVisualItemCellStyle(outer, selected);
 
         FrameLayout box = new FrameLayout(this);
         box.setClipChildren(true);
@@ -4443,7 +4499,7 @@ private int loadingProgressFor(String message) {
             img.setScaleX(visualItemScale(type));
             img.setScaleY(visualItemScale(type));
             img.setTranslationY(dp(visualItemOffsetDp(type)));
-            Glide.with(MainActivity.this).load(avatarFull(figure, 2)).diskCacheStrategy(DiskCacheStrategy.NONE).skipMemoryCache(true).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(img);
+            Glide.with(MainActivity.this).load(avatarFull(figure, 2)).diskCacheStrategy(DiskCacheStrategy.NONE).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(img);
         }
 
         return outer;
@@ -4513,7 +4569,7 @@ private int loadingProgressFor(String message) {
             column.setPadding(0, 0, 0, 0);
             vertical.addView(column, new ScrollView.LayoutParams(-1, -2));
 
-            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? -1 : dp(156), dp(116));
+            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? dp(304) : dp(156), dp(116));
             if (slot > 0) colLp.leftMargin = dp(10);
             columns.addView(vertical, colLp);
 
@@ -4564,6 +4620,7 @@ private int loadingProgressFor(String message) {
                     if (event.getAction() == MotionEvent.ACTION_UP) {
                         if (!colorCellMoved[0]) {
                             currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], itemType, item, colorId, colorSlot);
+                            markVisualColorSelected(vertical, view);
                             if (updatePreview != null) updatePreview.run();
                         }
                         return true;
@@ -4573,6 +4630,39 @@ private int loadingProgressFor(String message) {
                 shown++;
             }
         }
+    }
+
+    private String normalizeVisualHex(String hex) {
+        String h = hex == null ? "ffffff" : hex.replace("#", "").trim();
+        if (!h.matches("(?i)[0-9a-f]{6}")) return "ffffff";
+        return h.toLowerCase(Locale.ROOT);
+    }
+
+    private void markVisualColorSelected(View root, View selectedCell) {
+        if (root == null) return;
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i=0; i<group.getChildCount(); i++) markVisualColorSelected(group.getChildAt(i), selectedCell);
+        }
+        if (root instanceof FrameLayout && root.getTag() instanceof String && ((String)root.getTag()).startsWith("visual_color:")) {
+            applyVisualColorCellStyle((FrameLayout)root, root == selectedCell);
+        }
+    }
+
+    private void applyVisualColorCellStyle(FrameLayout box, boolean active) {
+        if (box == null) return;
+        Object raw = box.getTag();
+        String hex = "ffffff";
+        if (raw instanceof String) {
+            String s = (String)raw;
+            int idx = s.indexOf(':');
+            if (idx >= 0 && idx + 1 < s.length()) hex = s.substring(idx + 1);
+        }
+        box.setAlpha(active ? 1f : 0.86f);
+        int stroke = active ? Color.argb(245, 255, 255, 255) : Color.argb(82, 255, 255, 255);
+        box.setBackground(round(colorFromHex(hex), dp(5), stroke, active ? 2 : 1));
+        box.setTranslationY(active ? -dp(2) : 0);
+        if (Build.VERSION.SDK_INT >= 21) box.setElevation(active ? dp(5) : 0);
     }
 
     private void restoreVisualColorScroll(LinearLayout colors, int slot, int scrollX, int scrollY) {
@@ -4648,10 +4738,8 @@ private int loadingProgressFor(String message) {
 
     private View visualColorCell(String hex, boolean club, boolean active) {
         FrameLayout box = new FrameLayout(this);
-        box.setAlpha(active ? 1f : 0.86f);
-        int stroke = active ? Color.argb(235, 255, 255, 255) : Color.argb(82, 255, 255, 255);
-        box.setBackground(round(colorFromHex(hex), dp(5), stroke, active ? 2 : 1));
-        if (Build.VERSION.SDK_INT >= 21 && active) box.setElevation(dp(4));
+        box.setTag("visual_color:" + normalizeVisualHex(hex));
+        applyVisualColorCellStyle(box, active);
         if (club) {
             ImageView hc = new ImageView(this);
             hc.setImageResource(R.drawable.hcmini);
@@ -4975,6 +5063,27 @@ private int loadingProgressFor(String message) {
         title.setGravity(Gravity.CENTER);
         wrap.addView(title, lp(-1, -2, 0, 0, 0, 18));
 
+        LinearLayout favNotifyRow = new LinearLayout(this);
+        favNotifyRow.setOrientation(LinearLayout.HORIZONTAL);
+        favNotifyRow.setGravity(Gravity.CENTER_VERTICAL);
+        favNotifyRow.setPadding(dp(12), dp(10), dp(12), dp(10));
+        favNotifyRow.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
+        TextView favNotifyText = text(t("notify_favorite_online"), 14, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
+        favNotifyText.setGravity(Gravity.CENTER_VERTICAL);
+        favNotifyRow.addView(favNotifyText, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView favNotifyToggle = text("", 1, Color.TRANSPARENT, false);
+        favNotifyToggle.setBackground(new AchievementSwitchDrawable(notifyFavoriteOnline));
+        favNotifyRow.addView(favNotifyToggle, new LinearLayout.LayoutParams(dp(58), dp(34)));
+        wrap.addView(favNotifyRow, lp(-1, -2, 0, 0, 0, 10));
+        favNotifyRow.setOnClickListener(v -> {
+            notifyFavoriteOnline = !notifyFavoriteOnline;
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(PREF_NOTIFY_FAVORITE_ONLINE, notifyFavoriteOnline).apply();
+            favNotifyToggle.setBackground(new AchievementSwitchDrawable(notifyFavoriteOnline));
+            startFavoriteOnlineWatcher();
+            updateFavoriteOnlineAlarm();
+        });
+
+
         TextView hotelTitle = text(t("search_hotel"), 13, themeMutedColor(), true);
         hotelTitle.setGravity(Gravity.CENTER);
         wrap.addView(hotelTitle, lp(-1, -2, 0, 0, 0, 8));
@@ -4985,12 +5094,6 @@ private int loadingProgressFor(String message) {
         addHotelButtonRow(hotelGrid, dialog, "de", "fr", "fi");
         addHotelButtonRow(hotelGrid, dialog, "it", "nl", "tr");
         wrap.addView(hotelGrid, lp(-1, -2, 0, 0, 0, 14));
-
-        TextView info = text(cacheStatsText(), 13, muted, false);
-        info.setGravity(Gravity.CENTER);
-        info.setPadding(dp(10), dp(10), dp(10), dp(10));
-        info.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
-        wrap.addView(info, lp(-1, -2, 0, 0, 0, 14));
 
         LinearLayout themeRow = new LinearLayout(this);
         themeRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -5030,25 +5133,11 @@ private int loadingProgressFor(String message) {
         });
 
 
-        LinearLayout favNotifyRow = new LinearLayout(this);
-        favNotifyRow.setOrientation(LinearLayout.HORIZONTAL);
-        favNotifyRow.setGravity(Gravity.CENTER_VERTICAL);
-        favNotifyRow.setPadding(dp(12), dp(10), dp(12), dp(10));
-        favNotifyRow.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
-        TextView favNotifyText = text(t("notify_favorite_online"), 14, lightTheme ? Color.rgb(33,33,33) : Color.WHITE, true);
-        favNotifyText.setGravity(Gravity.CENTER_VERTICAL);
-        favNotifyRow.addView(favNotifyText, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView favNotifyToggle = text("", 1, Color.TRANSPARENT, false);
-        favNotifyToggle.setBackground(new AchievementSwitchDrawable(notifyFavoriteOnline));
-        favNotifyRow.addView(favNotifyToggle, new LinearLayout.LayoutParams(dp(58), dp(34)));
-        wrap.addView(favNotifyRow, lp(-1, -2, 0, 0, 0, 10));
-        favNotifyRow.setOnClickListener(v -> {
-            notifyFavoriteOnline = !notifyFavoriteOnline;
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(PREF_NOTIFY_FAVORITE_ONLINE, notifyFavoriteOnline).apply();
-            favNotifyToggle.setBackground(new AchievementSwitchDrawable(notifyFavoriteOnline));
-            startFavoriteOnlineWatcher();
-            updateFavoriteOnlineAlarm();
-        });
+        TextView info = text(cacheStatsText(), 13, muted, false);
+        info.setGravity(Gravity.CENTER);
+        info.setPadding(dp(10), dp(10), dp(10), dp(10));
+        info.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(18,255,255,255), dp(14), lightTheme ? Color.rgb(218,218,218) : Color.argb(28,255,255,255), 1));
+        wrap.addView(info, lp(-1, -2, 0, 0, 0, 14));
 
         TextView clear = dialogButton(t("clear_app_cache"));
         clear.setBackground(grad(dp(14), Color.rgb(120, 36, 46), Color.rgb(210, 54, 77)));
@@ -5311,7 +5400,7 @@ private int loadingProgressFor(String message) {
                 case "no_removed_friend_found": return "No removed friends found.";
                 case "light_theme": return "Light theme";
                 case "dark_theme": return "Dark theme";
-                case "clear_app_cache": return "Clear app cache";
+                case "clear_app_cache": return "Clear cache";
                 case "app_cache_cleared": return "App cache cleared.";
                 case "session_profiles": return "Profiles in session";
                 case "app_cache": return "App cache";
@@ -5465,7 +5554,7 @@ private int loadingProgressFor(String message) {
                 case "no_removed_friend_found": return "No se encontraron amigos eliminados.";
                 case "light_theme": return "Tema claro";
                 case "dark_theme": return "Tema oscuro";
-                case "clear_app_cache": return "Limpiar caché de la app";
+                case "clear_app_cache": return "Limpiar caché";
                 case "app_cache_cleared": return "Caché de la app limpiada.";
                 case "session_profiles": return "Perfiles en sesión";
                 case "app_cache": return "Caché de la app";
@@ -5619,7 +5708,7 @@ private int loadingProgressFor(String message) {
                 case "no_removed_friend_found": return "Keine entfernten Freunde gefunden.";
                 case "light_theme": return "Helles Design";
                 case "dark_theme": return "Dunkles Design";
-                case "clear_app_cache": return "App-Cache löschen";
+                case "clear_app_cache": return "Cache löschen";
                 case "app_cache_cleared": return "App-Cache gelöscht.";
                 case "session_profiles": return "Profile in Sitzung";
                 case "app_cache": return "App-Cache";
@@ -5773,7 +5862,7 @@ private int loadingProgressFor(String message) {
                 case "no_removed_friend_found": return "Aucun ami supprimé trouvé.";
                 case "light_theme": return "Thème clair";
                 case "dark_theme": return "Thème sombre";
-                case "clear_app_cache": return "Vider le cache de l’app";
+                case "clear_app_cache": return "Vider le cache";
                 case "app_cache_cleared": return "Cache de l’app vidé.";
                 case "session_profiles": return "Profils dans la session";
                 case "app_cache": return "Cache de l’app";
@@ -5927,7 +6016,7 @@ private int loadingProgressFor(String message) {
                 case "no_removed_friend_found": return "Poistettuja kavereita ei löytynyt.";
                 case "light_theme": return "Vaalea teema";
                 case "dark_theme": return "Tumma teema";
-                case "clear_app_cache": return "Tyhjennä sovelluksen välimuisti";
+                case "clear_app_cache": return "Tyhjennä välimuisti";
                 case "app_cache_cleared": return "Sovelluksen välimuisti tyhjennetty.";
                 case "session_profiles": return "Profiileja istunnossa";
                 case "app_cache": return "Sovelluksen välimuisti";
@@ -6081,7 +6170,7 @@ private int loadingProgressFor(String message) {
                 case "no_removed_friend_found": return "Nessun amico rimosso trovato.";
                 case "light_theme": return "Tema chiaro";
                 case "dark_theme": return "Tema scuro";
-                case "clear_app_cache": return "Cancella cache dell’app";
+                case "clear_app_cache": return "Cancella cache";
                 case "app_cache_cleared": return "Cache dell’app cancellata.";
                 case "session_profiles": return "Profili nella sessione";
                 case "app_cache": return "Cache dell’app";
@@ -6235,7 +6324,7 @@ private int loadingProgressFor(String message) {
                 case "no_removed_friend_found": return "Geen verwijderde vrienden gevonden.";
                 case "light_theme": return "Licht thema";
                 case "dark_theme": return "Donker thema";
-                case "clear_app_cache": return "App-cache wissen";
+                case "clear_app_cache": return "Cache wissen";
                 case "app_cache_cleared": return "App-cache gewist.";
                 case "session_profiles": return "Profielen in sessie";
                 case "app_cache": return "App-cache";
@@ -6388,7 +6477,7 @@ private int loadingProgressFor(String message) {
                 case "no_removed_friend_found": return "Kaldırılan arkadaş bulunamadı.";
                 case "light_theme": return "Açık tema";
                 case "dark_theme": return "Koyu tema";
-                case "clear_app_cache": return "Uygulama önbelleğini temizle";
+                case "clear_app_cache": return "Önbelleği temizle";
                 case "app_cache_cleared": return "Uygulama önbelleği temizlendi.";
                 case "session_profiles": return "Oturumdaki profiller";
                 case "app_cache": return "Uygulama önbelleği";
@@ -6541,7 +6630,7 @@ private int loadingProgressFor(String message) {
             case "no_removed_friend_found": return "Nenhum amigo removido encontrado.";
             case "light_theme": return "Tema claro";
             case "dark_theme": return "Tema escuro";
-            case "clear_app_cache": return "Limpar cache do app";
+            case "clear_app_cache": return "Limpar cache";
             case "app_cache_cleared": return "Cache do app limpo.";
             case "session_profiles": return "Perfis na sessão";
             case "app_cache": return "Cache do app";
@@ -7088,7 +7177,37 @@ private int loadingProgressFor(String message) {
         }
     }
 
-    private Bitmap loadNotificationHeadBitmap(FavoriteStatus st) {
+    private File favoriteHeadCacheDir() {
+        File dir = new File(getCacheDir(), "favorite_heads");
+        try { dir.mkdirs(); } catch(Exception ignored) {}
+        return dir;
+    }
+
+    private File favoriteHeadCacheFile(String hotelKey, String nick) {
+        String key = favoriteKey(hotelKey, nick);
+        if (key == null || key.trim().isEmpty()) key = "unknown";
+        return new File(favoriteHeadCacheDir(), Math.abs(key.hashCode()) + ".png");
+    }
+
+    private void deleteFavoriteHeadCache(String hotelKey, String nick) {
+        try {
+            File f = favoriteHeadCacheFile(hotelKey, nick);
+            if (f.exists()) f.delete();
+        } catch(Exception ignored) {}
+    }
+
+    private void cacheFavoriteHeadAsync(FavoriteStatus st) {
+        if (st == null || st.nick == null || st.nick.trim().isEmpty()) return;
+        executor.execute(() -> {
+            try {
+                Bitmap b = downloadFavoriteHeadBitmap(st);
+                if (b != null) saveFavoriteHeadBitmap(st.hotelKey, st.nick, b);
+            } catch(Exception ignored) {}
+        });
+    }
+
+    private Bitmap downloadFavoriteHeadBitmap(FavoriteStatus st) {
+        HttpURLConnection c = null;
         try {
             if (st == null) return null;
             String url = "";
@@ -7097,16 +7216,48 @@ private int loadingProgressFor(String message) {
             } else if (st.nick != null && !st.nick.trim().isEmpty()) {
                 url = avatarHeadByNameForHotel(st.nick, st.hotelKey);
             }
-            if (url.isEmpty()) return BitmapFactory.decodeResource(getResources(), R.drawable.pre_load_head);
-            HttpURLConnection c = (HttpURLConnection)new URL(url).openConnection();
+            if (url.isEmpty()) return null;
+            c = (HttpURLConnection)new URL(url).openConnection();
             c.setConnectTimeout(10000);
             c.setReadTimeout(15000);
-            try {
-                Bitmap b = BitmapFactory.decodeStream(c.getInputStream());
-                return b != null ? b : BitmapFactory.decodeResource(getResources(), R.drawable.pre_load_head);
-            } finally {
-                try { c.disconnect(); } catch(Exception ignored) {}
+            return BitmapFactory.decodeStream(c.getInputStream());
+        } catch(Exception ignored) {
+            return null;
+        } finally {
+            try { if (c != null) c.disconnect(); } catch(Exception ignored) {}
+        }
+    }
+
+    private void saveFavoriteHeadBitmap(String hotelKey, String nick, Bitmap bitmap) {
+        if (bitmap == null) return;
+        try {
+            File f = favoriteHeadCacheFile(hotelKey, nick);
+            FileOutputStream out = new FileOutputStream(f);
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+            out.flush();
+            out.close();
+        } catch(Exception ignored) {}
+    }
+
+    private Bitmap loadFavoriteHeadFromCache(String hotelKey, String nick) {
+        try {
+            File f = favoriteHeadCacheFile(hotelKey, nick);
+            if (f.exists()) return BitmapFactory.decodeFile(f.getAbsolutePath());
+        } catch(Exception ignored) {}
+        return null;
+    }
+
+    private Bitmap loadNotificationHeadBitmap(FavoriteStatus st) {
+        try {
+            if (st == null) return BitmapFactory.decodeResource(getResources(), R.drawable.pre_load_head);
+            Bitmap fresh = downloadFavoriteHeadBitmap(st);
+            if (fresh != null) {
+                saveFavoriteHeadBitmap(st.hotelKey, st.nick, fresh);
+                return fresh;
             }
+            Bitmap cached = loadFavoriteHeadFromCache(st.hotelKey, st.nick);
+            if (cached != null) return cached;
+            return BitmapFactory.decodeResource(getResources(), R.drawable.pre_load_head);
         } catch(Exception ignored) {
             return BitmapFactory.decodeResource(getResources(), R.drawable.pre_load_head);
         }
@@ -7130,15 +7281,13 @@ private int loadingProgressFor(String message) {
             b.setSmallIcon(R.drawable.notification_image)
              .setContentTitle(t("favorites"))
              .setContentText(tr("favorite_online_banner", st.nick))
+             .setWhen(System.currentTimeMillis())
+             .setShowWhen(true)
              .setPriority(Notification.PRIORITY_HIGH)
              .setContentIntent(pi)
-             .setAutoCancel(true);
-            if (largeIcon != null) {
-                b.setLargeIcon(largeIcon);
-                b.setStyle(new Notification.BigPictureStyle().bigPicture(largeIcon).setSummaryText(tr("favorite_online_banner", st.nick)));
-            } else {
-                b.setStyle(new Notification.BigTextStyle().bigText(tr("favorite_online_banner", st.nick)));
-            }
+             .setAutoCancel(true)
+             .setStyle(new Notification.BigTextStyle().bigText(tr("favorite_online_banner", st.nick)));
+            if (largeIcon != null) b.setLargeIcon(largeIcon);
             nm.notify(Math.abs(favoriteKey(st.hotelKey, st.nick).hashCode()), b.build());
         } catch(Exception ignored) {}
     }
@@ -7237,6 +7386,7 @@ private int loadingProgressFor(String message) {
         for (int i = favoriteProfiles.size() - 1; i >= 0; i--) {
             ProfileHistoryItem item = favoriteProfiles.get(i);
             if (favoriteKey(item.hotelKey, item.nick).equals(key)) {
+                deleteFavoriteHeadCache(item.hotelKey, item.nick);
                 favoriteProfiles.remove(i);
                 saveFavoriteProfiles();
                 toast(t("favorite_removed"));
@@ -7324,7 +7474,10 @@ private int loadingProgressFor(String message) {
         remove.setOnClickListener(v -> {
             for (int i = favoriteProfiles.size() - 1; i >= 0; i--) {
                 ProfileHistoryItem f = favoriteProfiles.get(i);
-                if (favoriteKey(f.hotelKey, f.nick).equals(favoriteKey(item.hotelKey, item.nick))) favoriteProfiles.remove(i);
+                if (favoriteKey(f.hotelKey, f.nick).equals(favoriteKey(item.hotelKey, item.nick))) {
+                    deleteFavoriteHeadCache(f.hotelKey, f.nick);
+                    favoriteProfiles.remove(i);
+                }
             }
             saveFavoriteProfiles();
             if (refresh != null) refresh.run();
@@ -7341,6 +7494,7 @@ private int loadingProgressFor(String message) {
         executor.execute(() -> {
             FavoriteStatus st = fetchFavoriteStatus(item);
             if (st == null) return;
+            cacheFavoriteHeadAsync(st);
             Boolean old = favoriteOnlineStates.put(key, st.online);
             setStoredFavoriteOnlineState(key, st.online);
             if (old == null || old.booleanValue() != st.online) {
@@ -7526,31 +7680,68 @@ private int loadingProgressFor(String message) {
         }
 
 
+        private static File favoriteHeadCacheDirStatic(Context context) {
+            File dir = new File(context.getCacheDir(), "favorite_heads");
+            try { dir.mkdirs(); } catch(Exception ignored) {}
+            return dir;
+        }
+
+        private static File favoriteHeadCacheFileStatic(Context context, String hotelKey, String nick) {
+            String key = (normalizeHotelKeyStatic(hotelKey) + ":" + normalizeNickKeyStatic(nick));
+            return new File(favoriteHeadCacheDirStatic(context), Math.abs(key.hashCode()) + ".png");
+        }
+
+        private static void saveFavoriteHeadBitmapStatic(Context context, FavoriteStatus st, Bitmap bitmap) {
+            if (context == null || st == null || bitmap == null) return;
+            try {
+                FileOutputStream out = new FileOutputStream(favoriteHeadCacheFileStatic(context, st.hotelKey, st.nick));
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+                out.flush();
+                out.close();
+            } catch(Exception ignored) {}
+        }
+
+        private static Bitmap loadFavoriteHeadFromCacheStatic(Context context, FavoriteStatus st) {
+            try {
+                if (context == null || st == null) return null;
+                File f = favoriteHeadCacheFileStatic(context, st.hotelKey, st.nick);
+                if (f.exists()) return BitmapFactory.decodeFile(f.getAbsolutePath());
+            } catch(Exception ignored) {}
+            return null;
+        }
+
         private static Bitmap loadNotificationHeadBitmapStatic(Context context, FavoriteStatus st) {
             HttpURLConnection c = null;
             try {
-                if (st == null) return context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head);
+                if (context == null || st == null) return null;
                 String url;
                 if (st.figure != null && !st.figure.trim().isEmpty()) {
                     url = "https://" + hotelDomainStatic(st.hotelKey) + "/habbo-imaging/avatarimage?figure=" + URLEncoder.encode(st.figure, "UTF-8") + "&size=m&direction=2&head_direction=2&headonly=1";
                 } else if (st.nick != null && !st.nick.trim().isEmpty()) {
                     url = "https://" + hotelDomainStatic(st.hotelKey) + "/habbo-imaging/avatarimage?user=" + URLEncoder.encode(st.nick, "UTF-8") + "&size=m&direction=2&head_direction=2&headonly=1";
                 } else {
-                    return context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head);
+                    Bitmap cached = loadFavoriteHeadFromCacheStatic(context, st);
+                    return cached != null ? cached : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head);
                 }
                 c = (HttpURLConnection)new URL(url).openConnection();
                 c.setConnectTimeout(10000);
                 c.setReadTimeout(15000);
                 Bitmap b = BitmapFactory.decodeStream(c.getInputStream());
-                return b != null ? b : (context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head));
+                if (b != null) {
+                    saveFavoriteHeadBitmapStatic(context, st, b);
+                    return b;
+                }
+                Bitmap cached = loadFavoriteHeadFromCacheStatic(context, st);
+                return cached != null ? cached : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head);
             } catch(Exception ignored) {
-                return context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head);
+                Bitmap cached = loadFavoriteHeadFromCacheStatic(context, st);
+                return cached != null ? cached : (context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head));
             } finally {
                 try { if (c != null) c.disconnect(); } catch(Exception ignored) {}
             }
         }
 
-        private static void showFavoriteOnlineSystemNotificationStatic(Context context, FavoriteStatus st) {
+        private static void showFavoriteOnlineSystemNotificationStatic        private static void showFavoriteOnlineSystemNotificationStatic(Context context, FavoriteStatus st) {
             try {
                 NotificationManager nm = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
                 if (nm == null || st == null) return;
@@ -7568,15 +7759,13 @@ private int loadingProgressFor(String message) {
                 b.setSmallIcon(R.drawable.notification_image)
                  .setContentTitle("Favoritos")
                  .setContentText(msg)
+                 .setWhen(System.currentTimeMillis())
+                 .setShowWhen(true)
                  .setPriority(Notification.PRIORITY_HIGH)
                  .setContentIntent(pi)
-                 .setAutoCancel(true);
-                if (largeIcon != null) {
-                    b.setLargeIcon(largeIcon);
-                    b.setStyle(new Notification.BigPictureStyle().bigPicture(largeIcon).setSummaryText(msg));
-                } else {
-                    b.setStyle(new Notification.BigTextStyle().bigText(msg));
-                }
+                 .setAutoCancel(true)
+                 .setStyle(new Notification.BigTextStyle().bigText(msg));
+                if (largeIcon != null) b.setLargeIcon(largeIcon);
                 nm.notify(Math.abs((st.hotelKey + ":" + st.nick).hashCode()), b.build());
             } catch(Exception ignored) {}
         }
