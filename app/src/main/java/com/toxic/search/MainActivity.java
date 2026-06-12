@@ -2438,7 +2438,6 @@ public class MainActivity extends Activity {
         hp.bottomMargin = dp(-2);
         headWrap.addView(head, hp);
         if (!fig.isEmpty()) loadHeadImage(head, avatarHead(fig));
-        bindProfileHeadPreviewHold(head, n, currentHotelKey, fig);
 
         if (isToday(date)) {
             TextView novo = text(newBadgeLabel(), 9, Color.WHITE, true);
@@ -2467,7 +2466,17 @@ public class MainActivity extends Activity {
         card.addView(d, lp(-1,-2,0,0,0,0));
 
         final String fname = n;
-        card.setOnClickListener(v -> { setSearchTextProgrammatically(fname); search(); });
+        if (removed) {
+            card.setOnClickListener(v -> {
+                setSearchTextProgrammatically(fname);
+                search();
+            });
+        } else {
+            bindProfileCardOpenAndHold(card, fname, currentHotelKey, fig, () -> {
+                setSearchTextProgrammatically(fname);
+                search();
+            });
+        }
         return card;
     }
 
@@ -3765,6 +3774,7 @@ private int loadingProgressFor(String message) {
 
         nav.addView(bottomNavItem("visuals", selectedTab == 1, () -> {
             if (selectedTab == 1) return;
+            maybeShowProfileInterstitial();
             showVisualEditorDialog();
             if (activeDialog != null) uiHandler.postDelayed(() -> {
                 try { activeDialog.dismiss(); } catch (Exception ignored) {}
@@ -5479,6 +5489,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Added to favorites.";
                 case "favorite_removed": return "Removed from favorites.";
                 case "favorite_limit_reached": return "Favorite limit reached: %s.";
+                case "open_full_profile": return "Open full profile";
                 case "hide_badges": return "Hide achievements";
                 case "time_ago": return "%s %s ago";
                 case "ago_second": return "second";
@@ -5633,6 +5644,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Añadido a favoritos.";
                 case "favorite_removed": return "Eliminado de favoritos.";
                 case "favorite_limit_reached": return "Límite de favoritos alcanzado: %s.";
+                case "open_full_profile": return "Abrir perfil completo";
                 case "hide_badges": return "Ocultar logros";
                 case "time_ago": return "hace %s %s";
                 case "ago_second": return "segundo";
@@ -5787,6 +5799,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Zu Favoriten hinzugefügt.";
                 case "favorite_removed": return "Aus Favoriten entfernt.";
                 case "favorite_limit_reached": return "Favoritenlimit erreicht: %s.";
+                case "open_full_profile": return "Vollständiges Profil öffnen";
                 case "hide_badges": return "Erfolge ausblenden";
                 case "time_ago": return "vor %s %s";
                 case "ago_second": return "Sekunde";
@@ -5941,6 +5954,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Ajouté aux favoris.";
                 case "favorite_removed": return "Retiré des favoris.";
                 case "favorite_limit_reached": return "Limite de favoris atteinte : %s.";
+                case "open_full_profile": return "Ouvrir le profil complet";
                 case "hide_badges": return "Masquer les succès";
                 case "time_ago": return "il y a %s %s";
                 case "ago_second": return "seconde";
@@ -6095,6 +6109,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Lisätty suosikkeihin.";
                 case "favorite_removed": return "Poistettu suosikeista.";
                 case "favorite_limit_reached": return "Suosikkiraja täynnä: %s.";
+                case "open_full_profile": return "Avaa koko profiili";
                 case "hide_badges": return "Piilota saavutukset";
                 case "time_ago": return "%s %s sitten";
                 case "ago_second": return "sekunti";
@@ -6249,6 +6264,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Aggiunto ai preferiti.";
                 case "favorite_removed": return "Rimosso dai preferiti.";
                 case "favorite_limit_reached": return "Limite preferiti raggiunto: %s.";
+                case "open_full_profile": return "Apri profilo completo";
                 case "hide_badges": return "Nascondi risultati";
                 case "time_ago": return "%s %s fa";
                 case "ago_second": return "secondo";
@@ -6402,6 +6418,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_online_banner": return "%s is net online gekomen!";
                 case "favorite_added": return "Toegevoegd aan favorieten.";
                 case "favorite_removed": return "Verwijderd uit favorieten.";
+                case "open_full_profile": return "Volledig profiel openen";
                 case "hide_badges": return "Prestaties verbergen";
                 case "time_ago": return "%s %s geleden";
                 case "ago_second": return "seconde";
@@ -6556,6 +6573,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_added": return "Favorilere eklendi.";
                 case "favorite_removed": return "Favorilerden kaldırıldı.";
                 case "favorite_limit_reached": return "Favori sınırına ulaşıldı: %s.";
+                case "open_full_profile": return "Tam profili aç";
                 case "hide_badges": return "Başarıları gizle";
                 case "time_ago": return "%s %s önce";
                 case "ago_second": return "saniye";
@@ -6709,6 +6727,7 @@ private int loadingProgressFor(String message) {
             case "favorite_added": return "Adicionado aos favoritos.";
             case "favorite_removed": return "Removido dos favoritos.";
             case "favorite_limit_reached": return "Limite de favoritos atingido: %s.";
+            case "open_full_profile": return "Abrir perfil completo";
             case "hide_badges": return "Ocultar conquistas";
             case "time_ago": return "há %s %s";
             case "ago_second": return "segundo";
@@ -6899,7 +6918,7 @@ private int loadingProgressFor(String message) {
             }
         });
 
-        row.setOnClickListener(v -> openProfileListItem(item, dialog));
+        bindProfileCardOpenAndHold(row, item.nick, item.hotelKey, item.figure, () -> openProfileListItem(item, dialog));
         return row;
     }
 
@@ -7584,7 +7603,7 @@ private int loadingProgressFor(String message) {
         row.addView(head, new LinearLayout.LayoutParams(dp(54), dp(56)));
         if (!item.figure.isEmpty()) loadHeadImage(head, avatarHead(item.figure));
         else loadHeadImage(head, avatarHeadByNameForHotel(item.nick, item.hotelKey));
-        if (showOnlineState) bindProfileHeadPreviewHold(head, item.nick, item.hotelKey, item.figure);
+
 
         LinearLayout mid = new LinearLayout(this);
         mid.setOrientation(LinearLayout.VERTICAL);
@@ -7619,13 +7638,21 @@ private int loadingProgressFor(String message) {
 
 
     private void bindProfileHeadPreviewHold(final View target, final String nick, final String hotelKey, final String fallbackFigure) {
+        bindProfileCardOpenAndHold(target, nick, hotelKey, fallbackFigure, null);
+    }
+
+    private void bindProfileCardOpenAndHold(final View target, final String nick, final String hotelKey, final String fallbackFigure, final Runnable openAction) {
         if (target == null) return;
         target.setClickable(true);
         final Runnable[] holdTask = new Runnable[1];
         final boolean[] fired = {false};
+        final float[] downX = {0f};
+        final float[] downY = {0f};
         target.setOnTouchListener((v, event) -> {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN) {
+                downX[0] = event.getX();
+                downY[0] = event.getY();
                 fired[0] = false;
                 if (holdTask[0] != null) uiHandler.removeCallbacks(holdTask[0]);
                 holdTask[0] = () -> {
@@ -7635,7 +7662,20 @@ private int loadingProgressFor(String message) {
                 uiHandler.postDelayed(holdTask[0], 1500L);
                 return true;
             }
-            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_OUTSIDE) {
+            if (action == MotionEvent.ACTION_MOVE) {
+                float dx = Math.abs(event.getX() - downX[0]);
+                float dy = Math.abs(event.getY() - downY[0]);
+                if (dx > dp(12) || dy > dp(12)) {
+                    if (holdTask[0] != null) uiHandler.removeCallbacks(holdTask[0]);
+                }
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP) {
+                if (holdTask[0] != null) uiHandler.removeCallbacks(holdTask[0]);
+                if (!fired[0] && openAction != null) openAction.run();
+                return true;
+            }
+            if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_OUTSIDE) {
                 if (holdTask[0] != null) uiHandler.removeCallbacks(holdTask[0]);
                 return true;
             }
@@ -7664,6 +7704,16 @@ private int loadingProgressFor(String message) {
         if (!initialFigure.isEmpty()) loadAvatarImage(avatar, avatarFull(initialFigure, 2));
         else loadAvatarImage(avatar, avatarHeadByNameForHotel(nick, hotelKey));
 
+        TextView favoriteBtn = text("", 22, Color.WHITE, true);
+        favoriteBtn.setGravity(Gravity.CENTER);
+        favoriteBtn.setPadding(0, 0, 0, 0);
+        ProfileResult initialProfile = miniProfileResult(nick, initialFigure, hotelKey);
+        favoriteBtn.setBackground(new FavoriteStarDrawable(isFavoriteProfile(initialProfile)));
+        FrameLayout.LayoutParams favLp = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.TOP | Gravity.RIGHT);
+        favLp.topMargin = dp(8);
+        favLp.rightMargin = dp(8);
+        avatarWrap.addView(favoriteBtn, favLp);
+
         TextView name = habboText(nick == null || nick.trim().isEmpty() ? t("profile") : nick.trim(), 24, true);
         name.setGravity(Gravity.CENTER);
         rootDialog.addView(name, lp(-1, -2, 0, 0, 0, 8));
@@ -7673,15 +7723,39 @@ private int loadingProgressFor(String message) {
         motto.setTextColor(lightTheme ? Color.rgb(70,70,70) : Color.argb(220,255,255,255));
         motto.setMaxLines(3);
         motto.setEllipsize(TextUtils.TruncateAt.END);
-        rootDialog.addView(motto, lp(-1, -2, 0, 0, 0, 12));
+        rootDialog.addView(motto, lp(-1, -2, 0, 0, 0, 10));
+
+        LinearLayout badges = new LinearLayout(this);
+        badges.setGravity(Gravity.CENTER);
+        badges.setOrientation(LinearLayout.HORIZONTAL);
+        rootDialog.addView(badges, lp(-1, -2, 0, 0, 0, 10));
 
         LinearLayout stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.VERTICAL);
-        rootDialog.addView(stats, lp(-1, -2, 0, 0, 0, 0));
+        rootDialog.addView(stats, lp(-1, -2, 0, 0, 0, 12));
 
-        stats.addView(statRow("status_offline", t("status"), "—"));
-        stats.addView(statRow("clock", t("last_login"), "—"));
-        stats.addView(statRow("calendar", t("creation"), "—"));
+        stats.addView(miniStatRow("status_offline", t("status"), "—", "", false));
+        stats.addView(miniStatRow("clock", t("last_login"), "—", "", false));
+        stats.addView(miniStatRow("calendar", t("creation"), "—", "", false));
+
+        TextView openFull = dialogButton(t("open_full_profile"));
+        openFull.setBackground(grad(dp(14), purple2, purple));
+        rootDialog.addView(openFull, lp(-1, dp(48), 0, 0, 0, 0));
+        openFull.setOnClickListener(v -> {
+            dialog.dismiss();
+            openMiniProfileFull(nick, hotelKey);
+        });
+
+        final MiniProfilePreview[] loaded = new MiniProfilePreview[1];
+        favoriteBtn.setOnClickListener(v -> {
+            MiniProfilePreview data = loaded[0];
+            String favNick = data != null && data.nick != null && !data.nick.trim().isEmpty() ? data.nick : nick;
+            String favFig = data != null && data.figure != null && !data.figure.trim().isEmpty() ? data.figure : fallbackFigure;
+            String favHotel = data != null && data.hotelKey != null && !data.hotelKey.trim().isEmpty() ? data.hotelKey : hotelKey;
+            ProfileResult pr = miniProfileResult(favNick, favFig, favHotel);
+            toggleFavoriteProfile(pr);
+            favoriteBtn.setBackground(new FavoriteStarDrawable(isFavoriteProfile(pr)));
+        });
 
         dialog.show();
         Window w = dialog.getWindow();
@@ -7699,17 +7773,60 @@ private int loadingProgressFor(String message) {
             runOnUiThread(() -> {
                 try {
                     if (!dialog.isShowing() || data == null) return;
+                    loaded[0] = data;
                     if (data.figure != null && !data.figure.trim().isEmpty()) loadAvatarImage(avatar, avatarFull(data.figure, 2));
                     name.setText(data.nick == null || data.nick.trim().isEmpty() ? nick : data.nick);
                     String mission = data.motto == null || data.motto.trim().isEmpty() ? "—" : data.motto.trim();
                     motto.setText(mission);
+
+                    ProfileResult pr = miniProfileResult(data.nick, data.figure, data.hotelKey);
+                    favoriteBtn.setBackground(new FavoriteStarDrawable(isFavoriteProfile(pr)));
+
+                    badges.removeAllViews();
+                    if (data.privateProfile) badges.addView(profileBadge(t("private"), "lock", red));
+                    if (data.banned) {
+                        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
+                        bp.leftMargin = dp(8);
+                        badges.addView(profileBadge(t("banned"), "banned", red), bp);
+                    }
+
+                    boolean redBorder = data.privateProfile || data.banned;
                     stats.removeAllViews();
-                    stats.addView(statRow(data.online ? "status_online" : "status_offline", t("status"), data.online ? t("online") : t("offline")));
-                    stats.addView(statRow("clock", t("last_login"), niceDate(data.lastAccess), timeAgoText(data.lastAccess)));
-                    stats.addView(statRow("calendar", t("creation"), niceDateOnly(data.memberSince), timeAgoText(data.memberSince)));
+                    stats.addView(miniStatRow(data.online ? "status_online" : "status_offline", t("status"), data.online ? t("online") : t("offline"), "", redBorder));
+                    stats.addView(miniStatRow("clock", t("last_login"), niceDate(data.lastAccess), timeAgoText(data.lastAccess), redBorder));
+                    stats.addView(miniStatRow("calendar", t("creation"), niceDateOnly(data.memberSince), timeAgoText(data.memberSince), redBorder));
                 } catch(Exception ignored) {}
             });
         });
+    }
+
+    private LinearLayout miniStatRow(String icon, String label, String value, String tooltip, boolean redBorder) {
+        LinearLayout row = statRow(icon, label, value, tooltip);
+        if (redBorder) {
+            row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(18), Color.argb(130, 255, 64, 64), 1));
+        }
+        return row;
+    }
+
+    private ProfileResult miniProfileResult(String nick, String figure, String hotelKey) {
+        ProfileResult pr = new ProfileResult();
+        pr.name = nick == null ? "" : nick.trim();
+        pr.figure = figure == null ? "" : figure.trim();
+        pr.hotelKey = normalizeHotelKey(hotelKey);
+        if (pr.hotelKey.isEmpty()) pr.hotelKey = currentHotelKey;
+        return pr;
+    }
+
+    private void openMiniProfileFull(String nick, String hotelKey) {
+        currentHotelKey = normalizeHotelKey(hotelKey);
+        if (currentHotelKey.isEmpty()) currentHotelKey = defaultHotelForDeviceLocale();
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
+        currentLoadedNick = "";
+        activeSearchToken++;
+        searchInProgress = false;
+        rebuildUiPreservingProfile();
+        setSearchTextProgrammatically(nick == null ? "" : nick.trim());
+        search();
     }
 
     private MiniProfilePreview fetchMiniProfilePreview(String nick, String hotelKey, String fallbackFigure) {
@@ -7719,24 +7836,42 @@ private int loadingProgressFor(String message) {
         out.hotelKey = normalizeHotelKey(hotelKey);
         if (out.hotelKey.isEmpty()) out.hotelKey = currentHotelKey;
         try {
-            JSONObject obj = tryJson("https://" + hotelDomain(out.hotelKey) + "/api/public/users?name=" + enc(out.nick));
-            obj = validProfileObject(obj);
-            if (obj == null) return out;
-            String realNick = firstText(obj, "name", "username", "habboName");
+            JSONObject publicObj = tryJson("https://" + hotelDomain(out.hotelKey) + "/api/public/users?name=" + enc(out.nick));
+            publicObj = validProfileObject(publicObj);
+            JSONObject dexObj = unwrap(tryJson(habbodexProfileByNameUrl(out.nick)));
+            JSONObject base = firstObject(validProfileObject(publicObj), validProfileObject(dexObj));
+            if (base == null) return out;
+
+            String realNick = firstText(base, "name", "username", "habboName");
             if (!realNick.isEmpty()) out.nick = realNick;
-            String fig = firstText(obj, "figureString", "figure", "figure_string");
+
+            String fig = firstText(base, "figureString", "figure", "figure_string");
+            if (fig.isEmpty() && publicObj != null) fig = firstText(publicObj, "figureString", "figure", "figure_string");
             if (!fig.isEmpty()) out.figure = fig;
-            out.motto = firstText(obj, "motto", "mission");
-            out.online = obj.optBoolean("online", optBoolAny(obj, false, "isOnline"));
-            out.memberSince = firstText(obj, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
-            out.lastAccess = firstText(obj, "lastAccessTime", "lastLoginTime", "lastOnline", "lastVisit");
+
+            out.motto = firstText(base, "motto", "mission");
+            if (out.motto.isEmpty() && publicObj != null) out.motto = firstText(publicObj, "motto", "mission");
+
+            out.online = optBoolAny(base, false, "online", "isOnline");
+            if (publicObj != null && publicObj.has("online")) out.online = publicObj.optBoolean("online", out.online);
+
+            out.privateProfile = !optBoolAny(base, true, "profileVisible", "isProfileVisible", "visible");
+            if (publicObj != null && publicObj.has("profileVisible")) out.privateProfile = !publicObj.optBoolean("profileVisible", true);
+
+            out.banned = publicObj != null && isSameProfileObject(base, publicObj) ? false : optBoolTrue(base, "isBanned", "banned", "ban", "is_banned");
+
+            out.memberSince = firstText(base, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
+            if (out.memberSince.isEmpty() && publicObj != null) out.memberSince = firstText(publicObj, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
+
+            out.lastAccess = firstText(base, "lastAccessTime", "lastLoginTime", "lastOnline", "lastVisit");
+            if (out.lastAccess.isEmpty() && publicObj != null) out.lastAccess = firstText(publicObj, "lastAccessTime", "lastLoginTime", "lastOnline", "lastVisit");
         } catch(Exception ignored) {}
         return out;
     }
 
     private static class MiniProfilePreview {
         String nick = "", figure = "", hotelKey = "br", motto = "", lastAccess = "", memberSince = "";
-        boolean online = false;
+        boolean online = false, privateProfile = false, banned = false;
     }
 
     private static class FavoriteStatus {
