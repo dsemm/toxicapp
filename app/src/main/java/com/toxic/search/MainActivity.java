@@ -7692,13 +7692,13 @@ private int loadingProgressFor(String message) {
         dialog.setContentView(rootDialog);
 
         FrameLayout avatarWrap = new FrameLayout(this);
-        avatarWrap.setPadding(dp(8), dp(4), dp(8), dp(4));
-        rootDialog.addView(avatarWrap, lp(-1, dp(250), 0, 0, 0, 12));
+        avatarWrap.setPadding(dp(8), dp(2), dp(8), dp(2));
+        rootDialog.addView(avatarWrap, lp(-1, dp(190), 0, 0, 0, 10));
 
         ImageView avatar = new ImageView(this);
         avatar.setAdjustViewBounds(true);
         avatar.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        avatar.setPadding(dp(22), 0, dp(22), 0);
+        avatar.setPadding(dp(44), 0, dp(44), 0);
         avatarWrap.addView(avatar, new FrameLayout.LayoutParams(-1, -1));
         String initialFigure = fallbackFigure == null ? "" : fallbackFigure.trim();
         if (!initialFigure.isEmpty()) loadAvatarImage(avatar, avatarFull(initialFigure, 2));
@@ -7776,8 +7776,14 @@ private int loadingProgressFor(String message) {
                     loaded[0] = data;
                     if (data.figure != null && !data.figure.trim().isEmpty()) loadAvatarImage(avatar, avatarFull(data.figure, 2));
                     name.setText(data.nick == null || data.nick.trim().isEmpty() ? nick : data.nick);
-                    String mission = data.motto == null || data.motto.trim().isEmpty() ? "—" : data.motto.trim();
-                    motto.setText(mission);
+                    String mission = data.motto == null ? "" : data.motto.trim();
+                    if (mission.isEmpty()) {
+                        motto.setText("");
+                        motto.setVisibility(View.GONE);
+                    } else {
+                        motto.setText(mission);
+                        motto.setVisibility(View.VISIBLE);
+                    }
 
                     ProfileResult pr = miniProfileResult(data.nick, data.figure, data.hotelKey);
                     favoriteBtn.setBackground(new FavoriteStarDrawable(isFavoriteProfile(pr)));
@@ -7801,9 +7807,34 @@ private int loadingProgressFor(String message) {
     }
 
     private LinearLayout miniStatRow(String icon, String label, String value, String tooltip, boolean redBorder) {
-        LinearLayout row = statRow(icon, label, value, tooltip);
-        if (redBorder) {
-            row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(18), Color.argb(130, 255, 64, 64), 1));
+        LinearLayout row = card(dp(18));
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(10), dp(7), dp(10), dp(7));
+        row.setLayoutParams(lp(-1, dp(54), 0, 0, 0, 7));
+        row.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(18), redBorder ? Color.argb(130, 255, 64, 64) : (lightTheme ? Color.rgb(218,218,218) : Color.argb(30,255,255,255)), 1));
+
+        if ("status".equals(icon) || "status_online".equals(icon) || "status_offline".equals(icon)) {
+            ImageView iv = new ImageView(this);
+            iv.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            row.addView(iv, new LinearLayout.LayoutParams(dp(20), dp(20)));
+            boolean onlineStatusIcon = "status_online".equals(icon) || (value != null && value.trim().equalsIgnoreCase(t("online")));
+            Glide.with(this).asGif().load(onlineStatusIcon ? R.drawable.online : R.drawable.offline).into(iv);
+        } else {
+            IconView iv = new IconView(this, icon);
+            row.addView(iv, new LinearLayout.LayoutParams(dp(18), dp(18)));
+        }
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
+        tp.leftMargin = dp(9);
+        row.addView(texts, tp);
+        texts.addView(text(label, 11, Color.argb(190,255,255,255), false));
+        texts.addView(text(value == null || value.isEmpty() || "null".equalsIgnoreCase(value) ? "—" : value, 14, Color.WHITE, true));
+
+        if (tooltip != null && !tooltip.trim().isEmpty() && !"—".equals(tooltip.trim())) {
+            row.setOnClickListener(v -> toast(tooltip));
         }
         return row;
     }
