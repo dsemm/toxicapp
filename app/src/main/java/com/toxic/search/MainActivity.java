@@ -1493,7 +1493,7 @@ public class MainActivity extends Activity {
 
     private void updateProfileAvatar() {
         if (currentAvatarImage != null && currentProfileFigure != null && !currentProfileFigure.isEmpty()) {
-            loadImage(currentAvatarImage, avatarFull(currentProfileFigure, avatarDirection));
+            loadAvatarImage(currentAvatarImage, avatarFull(currentProfileFigure, avatarDirection));
         }
     }
 
@@ -2211,8 +2211,8 @@ public class MainActivity extends Activity {
             ImageView head = new ImageView(this);
             head.setScaleType(ImageView.ScaleType.FIT_CENTER);
             row.addView(head, new LinearLayout.LayoutParams(dp(42), dp(42)));
-            if (figure != null && !figure.isEmpty()) loadImage(head, avatarHead(figure));
-            else loadImage(head, avatarHeadByName(nickToOpen.trim()));
+            if (figure != null && !figure.isEmpty()) loadHeadImage(head, avatarHead(figure));
+            else loadHeadImage(head, avatarHeadByName(nickToOpen.trim()));
         }
 
         LinearLayout texts = new LinearLayout(this);
@@ -2250,7 +2250,7 @@ public class MainActivity extends Activity {
         ImageView head = new ImageView(this);
         head.setScaleType(ImageView.ScaleType.FIT_CENTER);
         row.addView(head, new LinearLayout.LayoutParams(dp(42), dp(42)));
-        loadImage(head, avatarHeadByName(nick));
+        loadHeadImage(head, avatarHeadByName(nick));
 
         TextView name = habboText(nick, 15, true);
         name.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
@@ -2405,7 +2405,7 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-1, dp(62), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         hp.bottomMargin = dp(-2);
         headWrap.addView(head, hp);
-        if (!fig.isEmpty()) loadImage(head, avatarHead(fig));
+        if (!fig.isEmpty()) loadHeadImage(head, avatarHead(fig));
 
         if (isToday(date)) {
             TextView novo = text(newBadgeLabel(), 9, Color.WHITE, true);
@@ -2918,7 +2918,7 @@ public class MainActivity extends Activity {
 
         String name = firstText(user, "name", "username", "habboName");
         String fig = firstText(user, "figureString", "figure", "look");
-        if (!fig.isEmpty()) loadImage(head, avatarHead(fig));
+        if (!fig.isEmpty()) loadHeadImage(head, avatarHead(fig));
 
         if (optBoolAny(user, false, "online", "isOnline")) {
             IconView dot = new IconView(this, "dot");
@@ -3175,7 +3175,35 @@ private int loadingProgressFor(String message) {
     private JSONObject getJson(String u) throws Exception { Object any = getJsonAny(u); if (any instanceof JSONObject) return (JSONObject)any; JSONObject wrap = new JSONObject(); wrap.put("data", any); return wrap; }
     private JSONObject tryJson(String u) { try { return getJson(u); } catch (Exception e) { return null; } }
     private String readAll(InputStream is) throws IOException { if (is == null) return ""; ByteArrayOutputStream out = new ByteArrayOutputStream(); byte[] buf = new byte[4096]; int n; while ((n = is.read(buf)) > 0) out.write(buf,0,n); return out.toString("UTF-8"); }
-    private void loadImage(ImageView view, String url) { if (view == null || url == null || url.trim().isEmpty()) return; String clean = normalizeUrl(url); runOnUiThread(() -> Glide.with(MainActivity.this).load(clean).into(view)); }
+    private void loadImage(ImageView view, String url) { 
+        if (view == null || url == null || url.trim().isEmpty()) return; 
+        String clean = normalizeUrl(url); 
+        runOnUiThread(() -> Glide.with(MainActivity.this).load(clean).into(view)); 
+    }
+
+    private void loadHeadImage(ImageView view, String url) {
+        if (view == null) return;
+        view.setImageResource(R.drawable.pre_load_head);
+        if (url == null || url.trim().isEmpty()) return;
+        String clean = normalizeUrl(url);
+        runOnUiThread(() -> Glide.with(MainActivity.this)
+            .load(clean)
+            .placeholder(R.drawable.pre_load_head)
+            .error(R.drawable.pre_load_head)
+            .into(view));
+    }
+
+    private void loadAvatarImage(ImageView view, String url) {
+        if (view == null) return;
+        view.setImageResource(R.drawable.pre_load);
+        if (url == null || url.trim().isEmpty()) return;
+        String clean = normalizeUrl(url);
+        runOnUiThread(() -> Glide.with(MainActivity.this)
+            .load(clean)
+            .placeholder(R.drawable.pre_load)
+            .error(R.drawable.pre_load)
+            .into(view));
+    }
 
 
     private JSONObject validProfileObject(JSONObject obj) {
@@ -3808,6 +3836,7 @@ private int loadingProgressFor(String message) {
         nickInput.setTextColor(lightTheme ? Color.rgb(33,33,33) : Color.WHITE);
         nickInput.setHintTextColor(lightTheme ? Color.rgb(125,125,125) : Color.argb(150,255,255,255));
         nickInput.setTextSize(14);
+        nickInput.setTypeface(habboFont);
         nickInput.setSingleLine(true);
         nickInput.setHint(t("type_nick"));
         nickInput.setPadding(dp(12), 0, dp(12), 0);
@@ -3837,7 +3866,7 @@ private int loadingProgressFor(String message) {
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setBackground(round(lightTheme ? Color.rgb(250,250,250) : Color.argb(20,255,255,255), dp(20), lightTheme ? Color.rgb(220,220,224) : Color.argb(35,255,255,255), 1));
-        wrap.addView(preview, lp(-1, dp(148), 0, -4, 0, 4));
+        wrap.addView(preview, lp(-1, dp(246), 0, -6, 0, 6));
 
         LinearLayout visualRotateRow = new LinearLayout(this);
         visualRotateRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -3893,7 +3922,9 @@ private int loadingProgressFor(String message) {
         wrap.addView(colorPanel, lp(-1, -2, 0, 6, 0, 10));
 
         Runnable updatePreview = () -> Glide.with(MainActivity.this)
-                .load(avatarMedium(currentFigure[0], visualDirection[0]))
+                .load(avatarFull(currentFigure[0], visualDirection[0]))
+                .placeholder(R.drawable.pre_load)
+                .error(R.drawable.pre_load)
                 .into(preview);
         updatePreview.run();
 
@@ -4024,9 +4055,9 @@ private int loadingProgressFor(String message) {
         subScroll.setFillViewport(true);
         LinearLayout subRow = new LinearLayout(this);
         subRow.setOrientation(LinearLayout.HORIZONTAL);
-        subRow.setGravity(Gravity.LEFT);
-        subRow.setPadding(dp(32), 0, dp(20), 0);
-        subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-2, dp(50)));
+        subRow.setGravity(Gravity.CENTER);
+        subRow.setPadding(0, 0, 0, 0);
+        subScroll.addView(subRow, new HorizontalScrollView.LayoutParams(-1, dp(50)));
         LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-1, dp(52));
         subLp.topMargin = dp(6);
         tabs.addView(subScroll, subLp);
@@ -4184,7 +4215,7 @@ private int loadingProgressFor(String message) {
                     try { v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); } catch(Exception ignored) {}
                     showVisualItemInfoDialog(type, itemId, previewFigure);
                 };
-                uiHandler.postDelayed(pending[0], 2000L);
+                uiHandler.postDelayed(pending[0], 1500L);
                 return false;
             }
 
@@ -4224,7 +4255,7 @@ private int loadingProgressFor(String message) {
         avatarImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
         avatarImage.setBackground(round(lightTheme ? Color.rgb(248,248,248) : Color.argb(22,255,255,255), dp(18), lightTheme ? Color.rgb(220,220,220) : Color.argb(35,255,255,255), 1));
         wrap.addView(avatarImage, lp(-1, dp(150), 0, 0, 0, 12));
-        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).into(avatarImage);
+        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(avatarImage);
 
         LinearLayout info = new LinearLayout(this);
         info.setOrientation(LinearLayout.VERTICAL);
@@ -4346,7 +4377,7 @@ private int loadingProgressFor(String message) {
             img.setScaleX(visualItemScale(type));
             img.setScaleY(visualItemScale(type));
             img.setTranslationY(dp(visualItemOffsetDp(type)));
-            Glide.with(MainActivity.this).load(avatarFull(figure, 2)).into(img);
+            Glide.with(MainActivity.this).load(avatarFull(figure, 2)).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(img);
         }
 
         return outer;
@@ -4430,14 +4461,40 @@ private int loadingProgressFor(String message) {
                 cp.topMargin = dp(2);
                 row.addView(sw, cp);
                 sw.setOnClickListener(v -> {
+                    final int keepColorSlot = colorSlot;
+                    final int keepScrollY = vertical.getScrollY();
+                    final int keepScrollX = horizontal.getScrollX();
                     currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], itemType, item, colorId, colorSlot);
                     if (updatePreview != null) updatePreview.run();
                     renderVisualColors(colors, currentFigure, type, item, updatePreview, refreshItems);
-                    if (refreshItems != null) refreshItems.run();
+                    restoreVisualColorScroll(colors, keepColorSlot, keepScrollX, keepScrollY);
+                    // Mantém a rolagem das cores no mesmo ponto ao trocar cor.
                 });
                 shown++;
             }
         }
+    }
+
+    private void restoreVisualColorScroll(LinearLayout colors, int slot, int scrollX, int scrollY) {
+        if (colors == null) return;
+        colors.postDelayed(() -> {
+            try {
+                if (colors.getChildCount() == 0) return;
+                View h = colors.getChildAt(0);
+                if (h instanceof HorizontalScrollView) {
+                    ((HorizontalScrollView) h).setScrollX(scrollX);
+                    if (((HorizontalScrollView) h).getChildCount() == 0) return;
+                    View colsView = ((HorizontalScrollView) h).getChildAt(0);
+                    if (colsView instanceof LinearLayout) {
+                        LinearLayout cols = (LinearLayout) colsView;
+                        if (slot >= 0 && slot < cols.getChildCount()) {
+                            View v = cols.getChildAt(slot);
+                            if (v instanceof ScrollView) ((ScrollView) v).setScrollY(scrollY);
+                        }
+                    }
+                }
+            } catch(Exception ignored) {}
+        }, 60L);
     }
 
     private void renderDisabledColorPlaceholder(LinearLayout colors) {
@@ -6902,8 +6959,8 @@ private int loadingProgressFor(String message) {
         ImageView head = new ImageView(this);
         head.setScaleType(ImageView.ScaleType.FIT_CENTER);
         row.addView(head, new LinearLayout.LayoutParams(dp(54), dp(56)));
-        if (!item.figure.isEmpty()) loadImage(head, avatarHead(item.figure));
-        else loadImage(head, avatarHeadByNameForHotel(item.nick, item.hotelKey));
+        if (!item.figure.isEmpty()) loadHeadImage(head, avatarHead(item.figure));
+        else loadHeadImage(head, avatarHeadByNameForHotel(item.nick, item.hotelKey));
 
         LinearLayout mid = new LinearLayout(this);
         mid.setOrientation(LinearLayout.VERTICAL);
