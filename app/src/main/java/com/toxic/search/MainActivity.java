@@ -5,6 +5,7 @@ import android.os.*;
 import android.graphics.*;
 import android.graphics.drawable.*;
 import android.content.*;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.net.*;
 import android.text.*;
@@ -13,6 +14,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import org.json.*;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.google.android.gms.ads.AdError;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.FullScreenContentCallback;
@@ -138,6 +140,10 @@ public class MainActivity extends Activity {
     private final ConcurrentHashMap<String, Boolean> favoriteOnlineStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> favoriteOnlineLastToast = new ConcurrentHashMap<>();
     private Runnable favoriteOnlineWatcher = null;
+    private String visualEditorCachedFigure = DEFAULT_VISUAL_FIGURE;
+    private String visualEditorCachedGender = "M";
+    private String visualEditorCachedType = "hd";
+    private int visualEditorCachedDirection = 2;
 
     private interface IntChangeListener {
         void onChange(int value);
@@ -175,8 +181,17 @@ public class MainActivity extends Activity {
         MobileAds.initialize(this, initializationStatus -> {});
         loadInterstitialAd();
         loadRewardedAd();
+        requestFavoriteNotificationPermissionIfNeeded();
         startFavoriteOnlineWatcher();
     }
+    private void requestFavoriteNotificationPermissionIfNeeded() {
+        try {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 2606);
+            }
+        } catch(Exception ignored) {}
+    }
+
     private void applySystemBarsForTheme() {
         getWindow().setStatusBarColor(lightTheme ? Color.WHITE : bg);
         getWindow().setNavigationBarColor(lightTheme ? Color.WHITE : bg);
@@ -3608,6 +3623,12 @@ private int loadingProgressFor(String message) {
     private void clearProfileCache(Runnable done) {
         profileCache.clear();
         profileCacheTimes.clear();
+        visualFigureDataCache = null;
+        visualFigureDataLoadedAt = 0L;
+        visualEditorCachedFigure = DEFAULT_VISUAL_FIGURE;
+        visualEditorCachedGender = "M";
+        visualEditorCachedType = "hd";
+        visualEditorCachedDirection = 2;
 
         try { Glide.get(this).clearMemory(); } catch (Exception ignored) {}
 
@@ -3794,6 +3815,7 @@ private int loadingProgressFor(String message) {
         if (scroll == null) return;
         final float[] lastY = {0f};
         scroll.setNestedScrollingEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setOnTouchListener((v, event) -> {
             ViewParent parent = v.getParent();
             if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
@@ -3802,7 +3824,6 @@ private int loadingProgressFor(String message) {
                 lastY[0] = event.getY();
                 return true;
             }
-
             if (event.getAction() == MotionEvent.ACTION_MOVE) {
                 float y = event.getY();
                 int dy = (int)(lastY[0] - y);
@@ -3811,12 +3832,24 @@ private int loadingProgressFor(String message) {
                 if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
                 return true;
             }
-
             if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
+                if (parent != null) parent.requestDisallowInterceptTouchEvent(false);
                 return true;
             }
             return true;
+        });
+    }
+
+    private void bindColorPanelTouchLock(final View view) {
+        if (view == null) return;
+        view.setOnTouchListener((v, event) -> {
+            ViewParent parent = v.getParent();
+            while (parent != null) {
+                parent.requestDisallowInterceptTouchEvent(true);
+                if (!(parent instanceof View)) break;
+                parent = ((View) parent).getParent();
+            }
+            return false;
         });
     }
 
@@ -3882,31 +3915,31 @@ private int loadingProgressFor(String message) {
             return false;
         });
 
+        FrameLayout visualPreviewFrame = new FrameLayout(this);
+        visualPreviewFrame.setBackground(round(lightTheme ? Color.rgb(252,252,252) : Color.rgb(15, 8, 25), dp(20), lightTheme ? Color.rgb(222,222,226) : Color.argb(22,255,255,255), 1));
+        wrap.addView(visualPreviewFrame, lp(-1, dp(280), 0, 0, 0, 10));
+
         ImageView preview = new ImageView(this);
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setPadding(dp(20), dp(10), dp(20), dp(84));
-        preview.setBackground(round(lightTheme ? Color.rgb(252,252,252) : Color.rgb(15, 8, 25), dp(20), lightTheme ? Color.rgb(222,222,226) : Color.argb(22,255,255,255), 1));
-        wrap.addView(preview, lp(-1, dp(280), 0, 0, 0, 6));
+        visualPreviewFrame.addView(preview, new FrameLayout.LayoutParams(-1, -1));
 
         LinearLayout visualRotateRow = new LinearLayout(this);
         visualRotateRow.setOrientation(LinearLayout.HORIZONTAL);
         visualRotateRow.setGravity(Gravity.CENTER);
-        TextView visualLeft = dialogButton("‹");
-        TextView visualRight = dialogButton("›");
-        visualLeft.setTextSize(22);
-        visualRight.setTextSize(22);
-        LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(dp(54), dp(36));
-        visualRotateRow.addView(visualLeft, vlp);
-        LinearLayout.LayoutParams vrp = new LinearLayout.LayoutParams(dp(54), dp(36));
-        vrp.leftMargin = dp(10);
-        visualRotateRow.addView(visualRight, vrp);
-        wrap.addView(visualRotateRow, lp(-1, dp(36), 0, 0, 0, 10));
+        TextView visualLeft = roundIconButton("‹");
+        TextView visualRight = roundIconButton("›");
+        visualRotateRow.addView(visualLeft);
+        visualRotateRow.addView(visualRight);
+        FrameLayout.LayoutParams vrControls = new FrameLayout.LayoutParams(-2, dp(40), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        vrControls.bottomMargin = dp(10);
+        visualPreviewFrame.addView(visualRotateRow, vrControls);
 
-        final String[] currentFigure = {DEFAULT_VISUAL_FIGURE};
-        final String[] currentGender = {"M"};
-        final String[] currentType = {"hd"};
-        final int[] visualDirection = {2};
+        final String[] currentFigure = {visualEditorCachedFigure == null || visualEditorCachedFigure.trim().isEmpty() ? DEFAULT_VISUAL_FIGURE : visualEditorCachedFigure};
+        final String[] currentGender = {visualEditorCachedGender == null || visualEditorCachedGender.trim().isEmpty() ? "M" : visualEditorCachedGender};
+        final String[] currentType = {visualEditorCachedType == null || visualEditorCachedType.trim().isEmpty() ? "hd" : visualEditorCachedType};
+        final int[] visualDirection = {visualEditorCachedDirection};
         final Runnable[] refreshAll = new Runnable[1];
 
         LinearLayout catTabs = new LinearLayout(this);
@@ -3940,13 +3973,22 @@ private int loadingProgressFor(String message) {
         colorPanel.setOrientation(LinearLayout.VERTICAL);
         colorPanel.setPadding(dp(10), dp(10), dp(10), dp(10));
         colorPanel.setBackground(round(Color.argb(lightTheme ? 24 : 44, 0, 0, 0), dp(20), Color.argb(lightTheme ? 30 : 35, 255,255,255), 1));
+        bindColorPanelTouchLock(colorPanel);
         wrap.addView(colorPanel, lp(-1, -2, 0, 6, 0, 10));
 
-        Runnable updatePreview = () -> Glide.with(MainActivity.this)
+        Runnable updatePreview = () -> {
+            visualEditorCachedFigure = currentFigure[0];
+            visualEditorCachedGender = currentGender[0];
+            visualEditorCachedType = currentType[0];
+            visualEditorCachedDirection = visualDirection[0];
+            Glide.with(MainActivity.this)
                 .load(avatarFull(currentFigure[0], visualDirection[0]))
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                .skipMemoryCache(true)
                 .placeholder(R.drawable.pre_load)
                 .error(R.drawable.pre_load)
                 .into(preview);
+        };
         updatePreview.run();
 
         visualLeft.setOnClickListener(v -> {
@@ -4276,7 +4318,7 @@ private int loadingProgressFor(String message) {
         avatarImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
         avatarImage.setBackground(round(lightTheme ? Color.rgb(248,248,248) : Color.argb(22,255,255,255), dp(18), lightTheme ? Color.rgb(220,220,220) : Color.argb(35,255,255,255), 1));
         wrap.addView(avatarImage, lp(-1, dp(150), 0, 0, 0, 12));
-        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(avatarImage);
+        Glide.with(MainActivity.this).load(avatarFull(previewFigure, 2)).diskCacheStrategy(DiskCacheStrategy.NONE).skipMemoryCache(true).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(avatarImage);
 
         LinearLayout info = new LinearLayout(this);
         info.setOrientation(LinearLayout.VERTICAL);
@@ -4398,7 +4440,7 @@ private int loadingProgressFor(String message) {
             img.setScaleX(visualItemScale(type));
             img.setScaleY(visualItemScale(type));
             img.setTranslationY(dp(visualItemOffsetDp(type)));
-            Glide.with(MainActivity.this).load(avatarFull(figure, 2)).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(img);
+            Glide.with(MainActivity.this).load(avatarFull(figure, 2)).diskCacheStrategy(DiskCacheStrategy.NONE).skipMemoryCache(true).placeholder(R.drawable.pre_load).error(R.drawable.pre_load).into(img);
         }
 
         return outer;
@@ -6878,14 +6920,15 @@ private int loadingProgressFor(String message) {
                 String key = favoriteKey(item.hotelKey, item.nick);
                 FavoriteStatus st = fetchFavoriteStatus(item);
                 if (st == null) continue;
-                boolean wasOnline = Boolean.TRUE.equals(favoriteOnlineStates.get(key));
-                favoriteOnlineStates.put(key, st.online);
-                if (st.online && !wasOnline) {
+
+                Boolean old = favoriteOnlineStates.put(key, st.online);
+                boolean becameOnline = old != null && !old.booleanValue() && st.online;
+                if (becameOnline) {
                     long now = System.currentTimeMillis();
                     Long last = favoriteOnlineLastToast.get(key);
                     if (last == null || now - last > 10L * 60L * 1000L) {
                         favoriteOnlineLastToast.put(key, now);
-                        runOnUiThread(() -> showFavoriteOnlineBanner(st));
+                        runOnUiThread(() -> { showFavoriteOnlineBanner(st); showFavoriteOnlineSystemNotification(st); });
                     }
                 }
             }
@@ -6897,6 +6940,7 @@ private int loadingProgressFor(String message) {
         try {
             String hotel = normalizeHotelKey(item.hotelKey);
             if (hotel.isEmpty()) hotel = "br";
+            // Endpoint oficial usado a cada 1 minuto. Ex.: https://www.habbo.com.br/api/public/users?name=%2CEstrelaa
             JSONObject obj = tryJson("https://" + hotelDomain(hotel) + "/api/public/users?name=" + enc(item.nick));
             obj = validProfileObject(obj);
             if (obj == null) return null;
@@ -6906,11 +6950,34 @@ private int loadingProgressFor(String message) {
             st.figure = firstText(obj, "figureString", "figure", "figure_string");
             if (st.figure.isEmpty()) st.figure = item.figure;
             st.hotelKey = hotel;
-            st.online = optBoolAny(obj, false, "online", "isOnline");
+            st.online = obj.optBoolean("online", optBoolAny(obj, false, "isOnline"));
             return st;
         } catch(Exception ignored) {
             return null;
         }
+    }
+
+    private void showFavoriteOnlineSystemNotification(FavoriteStatus st) {
+        try {
+            if (st == null) return;
+            NotificationManager nm = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            String channelId = "favorite_online";
+            if (Build.VERSION.SDK_INT >= 26) {
+                NotificationChannel ch = new NotificationChannel(channelId, t("favorites"), NotificationManager.IMPORTANCE_DEFAULT);
+                nm.createNotificationChannel(ch);
+            }
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pi = PendingIntent.getActivity(this, 1207, intent, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+            Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, channelId) : new Notification.Builder(this);
+            b.setSmallIcon(android.R.drawable.ic_dialog_info)
+             .setContentTitle(t("favorites"))
+             .setContentText(tr("favorite_online_banner", st.nick))
+             .setContentIntent(pi)
+             .setAutoCancel(true);
+            nm.notify(Math.abs(favoriteKey(st.hotelKey, st.nick).hashCode()), b.build());
+        } catch(Exception ignored) {}
     }
 
     private void showFavoriteOnlineBanner(FavoriteStatus st) {
@@ -7077,11 +7144,6 @@ private int loadingProgressFor(String message) {
         Boolean onlineState = favoriteOnlineStates.get(key);
         if (Boolean.TRUE.equals(onlineState)) {
             row.setBackground(round(Color.argb(lightTheme ? 42 : 52, 73, 230, 160), dp(16), Color.argb(135, 73, 230, 160), 1));
-            TextView online = text(t("favorite_currently_online"), 12, lightTheme ? Color.rgb(15, 120, 78) : Color.rgb(143, 255, 203), true);
-            online.setGravity(Gravity.CENTER_VERTICAL);
-            LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(-2, -2);
-            op.leftMargin = dp(8);
-            row.addView(online, Math.max(1, row.getChildCount() - 1), op);
         }
 
         TextView remove = text("", 18, Color.WHITE, true);
@@ -7151,7 +7213,19 @@ private int loadingProgressFor(String message) {
         TextView name = habboText(item.nick, 16, true);
         name.setMaxLines(1);
         name.setEllipsize(TextUtils.TruncateAt.END);
-        mid.addView(name);
+
+        LinearLayout nameRow = new LinearLayout(this);
+        nameRow.setOrientation(LinearLayout.HORIZONTAL);
+        nameRow.setGravity(Gravity.CENTER_VERTICAL);
+        nameRow.addView(name, new LinearLayout.LayoutParams(-2, -2));
+        if (Boolean.TRUE.equals(favoriteOnlineStates.get(favoriteKey(item.hotelKey, item.nick)))) {
+            TextView online = text(t("favorite_currently_online"), 12, lightTheme ? Color.rgb(15, 120, 78) : Color.rgb(143, 255, 203), true);
+            online.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(-2, -2);
+            op.leftMargin = dp(8);
+            nameRow.addView(online, op);
+        }
+        mid.addView(nameRow);
 
         LinearLayout hotelLine = new LinearLayout(this);
         hotelLine.setGravity(Gravity.CENTER_VERTICAL);
@@ -7767,7 +7841,11 @@ private int loadingProgressFor(String message) {
             Rect b = getBounds();
             RectF hole;
             if (step == 0) {
-                float cx = b.left + b.width() * (7f / 8f);
+                // 4 itens na bottom nav: Home, Visuais, Favoritos, Configurações.
+                // Considera o padding horizontal real da barra inferior para centralizar no botão Configurações.
+                float navLeft = b.left + dp(12);
+                float navWidth = b.width() - dp(24);
+                float cx = navLeft + navWidth * (7f / 8f);
                 float cy = b.bottom - dp(28);
                 hole = new RectF(cx - dp(28), cy - dp(28), cx + dp(28), cy + dp(28));
             } else if (step == 1) {
