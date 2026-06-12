@@ -76,6 +76,7 @@ public class MainActivity extends Activity {
     private static final String PREF_FAVORITES = "favorite_profiles";
     private static final String PREF_NOTIFY_FAVORITE_ONLINE = "notify_favorite_online";
     private static final String PREF_FAVORITE_ONLINE_STATES = "favorite_online_states";
+    private static final int MAX_FAVORITES = 12;
     private static final String PREF_TUTORIAL_SHOWN = "tutorial_shown";
     private static final long PROFILE_REFRESH_COOLDOWN_MS = 60L * 1000L;
     private ScrollView mainScroll;
@@ -4538,15 +4539,36 @@ private int loadingProgressFor(String message) {
                 cp.rightMargin = dp(3);
                 cp.topMargin = dp(2);
                 row.addView(sw, cp);
-                sw.setOnClickListener(v -> {
-                    final int keepColorSlot = colorSlot;
-                    final int keepScrollY = vertical.getScrollY();
-                    final int keepScrollX = horizontal.getScrollX();
-                    currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], itemType, item, colorId, colorSlot);
-                    if (updatePreview != null) updatePreview.run();
-                    renderVisualColors(colors, currentFigure, type, item, updatePreview, refreshItems);
-                    restoreVisualColorScroll(colors, keepColorSlot, keepScrollX, keepScrollY);
-                    // Mantém a rolagem das cores no mesmo ponto ao trocar cor.
+                final float[] colorCellLastY = {0f};
+                final boolean[] colorCellMoved = {false};
+                sw.setOnTouchListener((view, event) -> {
+                    ViewParent parent = view.getParent();
+                    while (parent != null) {
+                        parent.requestDisallowInterceptTouchEvent(true);
+                        if (!(parent instanceof View)) break;
+                        parent = ((View) parent).getParent();
+                    }
+                    if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                        colorCellLastY[0] = event.getRawY();
+                        colorCellMoved[0] = false;
+                        return true;
+                    }
+                    if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                        float y = event.getRawY();
+                        int dy = (int)(colorCellLastY[0] - y);
+                        if (Math.abs(dy) > dp(1)) colorCellMoved[0] = true;
+                        colorCellLastY[0] = y;
+                        vertical.scrollBy(0, dy);
+                        return true;
+                    }
+                    if (event.getAction() == MotionEvent.ACTION_UP) {
+                        if (!colorCellMoved[0]) {
+                            currentFigure[0] = applyFigureItemColorSlot(currentFigure[0], itemType, item, colorId, colorSlot);
+                            if (updatePreview != null) updatePreview.run();
+                        }
+                        return true;
+                    }
+                    return true;
                 });
                 shown++;
             }
@@ -5315,6 +5337,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_online_banner": return "%s just came online!";
                 case "favorite_added": return "Added to favorites.";
                 case "favorite_removed": return "Removed from favorites.";
+                case "favorite_limit_reached": return "Favorite limit reached: %s.";
                 case "hide_badges": return "Hide achievements";
                 case "time_ago": return "%s %s ago";
                 case "ago_second": return "second";
@@ -5468,6 +5491,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_online_banner": return "¡%s acaba de conectarse!";
                 case "favorite_added": return "Añadido a favoritos.";
                 case "favorite_removed": return "Eliminado de favoritos.";
+                case "favorite_limit_reached": return "Límite de favoritos alcanzado: %s.";
                 case "hide_badges": return "Ocultar logros";
                 case "time_ago": return "hace %s %s";
                 case "ago_second": return "segundo";
@@ -5621,6 +5645,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_online_banner": return "%s ist gerade online gegangen!";
                 case "favorite_added": return "Zu Favoriten hinzugefügt.";
                 case "favorite_removed": return "Aus Favoriten entfernt.";
+                case "favorite_limit_reached": return "Favoritenlimit erreicht: %s.";
                 case "hide_badges": return "Erfolge ausblenden";
                 case "time_ago": return "vor %s %s";
                 case "ago_second": return "Sekunde";
@@ -5774,6 +5799,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_online_banner": return "%s vient de se connecter !";
                 case "favorite_added": return "Ajouté aux favoris.";
                 case "favorite_removed": return "Retiré des favoris.";
+                case "favorite_limit_reached": return "Limite de favoris atteinte : %s.";
                 case "hide_badges": return "Masquer les succès";
                 case "time_ago": return "il y a %s %s";
                 case "ago_second": return "seconde";
@@ -5927,6 +5953,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_online_banner": return "%s tuli juuri paikalle!";
                 case "favorite_added": return "Lisätty suosikkeihin.";
                 case "favorite_removed": return "Poistettu suosikeista.";
+                case "favorite_limit_reached": return "Suosikkiraja täynnä: %s.";
                 case "hide_badges": return "Piilota saavutukset";
                 case "time_ago": return "%s %s sitten";
                 case "ago_second": return "sekunti";
@@ -6080,6 +6107,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_online_banner": return "%s è appena andato online!";
                 case "favorite_added": return "Aggiunto ai preferiti.";
                 case "favorite_removed": return "Rimosso dai preferiti.";
+                case "favorite_limit_reached": return "Limite preferiti raggiunto: %s.";
                 case "hide_badges": return "Nascondi risultati";
                 case "time_ago": return "%s %s fa";
                 case "ago_second": return "secondo";
@@ -6386,6 +6414,7 @@ private int loadingProgressFor(String message) {
                 case "favorite_online_banner": return "%s az önce çevrimiçi oldu!";
                 case "favorite_added": return "Favorilere eklendi.";
                 case "favorite_removed": return "Favorilerden kaldırıldı.";
+                case "favorite_limit_reached": return "Favori sınırına ulaşıldı: %s.";
                 case "hide_badges": return "Başarıları gizle";
                 case "time_ago": return "%s %s önce";
                 case "ago_second": return "saniye";
@@ -6538,6 +6567,7 @@ private int loadingProgressFor(String message) {
             case "favorite_online_banner": return "%s acabou de ficar online!";
             case "favorite_added": return "Adicionado aos favoritos.";
             case "favorite_removed": return "Removido dos favoritos.";
+            case "favorite_limit_reached": return "Limite de favoritos atingido: %s.";
             case "hide_badges": return "Ocultar conquistas";
             case "time_ago": return "há %s %s";
             case "ago_second": return "segundo";
@@ -7067,17 +7097,18 @@ private int loadingProgressFor(String message) {
             } else if (st.nick != null && !st.nick.trim().isEmpty()) {
                 url = avatarHeadByNameForHotel(st.nick, st.hotelKey);
             }
-            if (url.isEmpty()) return null;
+            if (url.isEmpty()) return BitmapFactory.decodeResource(getResources(), R.drawable.pre_load_head);
             HttpURLConnection c = (HttpURLConnection)new URL(url).openConnection();
             c.setConnectTimeout(10000);
             c.setReadTimeout(15000);
             try {
-                return BitmapFactory.decodeStream(c.getInputStream());
+                Bitmap b = BitmapFactory.decodeStream(c.getInputStream());
+                return b != null ? b : BitmapFactory.decodeResource(getResources(), R.drawable.pre_load_head);
             } finally {
                 try { c.disconnect(); } catch(Exception ignored) {}
             }
         } catch(Exception ignored) {
-            return null;
+            return BitmapFactory.decodeResource(getResources(), R.drawable.pre_load_head);
         }
     }
 
@@ -7099,11 +7130,15 @@ private int loadingProgressFor(String message) {
             b.setSmallIcon(R.drawable.notification_image)
              .setContentTitle(t("favorites"))
              .setContentText(tr("favorite_online_banner", st.nick))
-             .setStyle(new Notification.BigTextStyle().bigText(tr("favorite_online_banner", st.nick)))
              .setPriority(Notification.PRIORITY_HIGH)
              .setContentIntent(pi)
              .setAutoCancel(true);
-            if (largeIcon != null) b.setLargeIcon(largeIcon);
+            if (largeIcon != null) {
+                b.setLargeIcon(largeIcon);
+                b.setStyle(new Notification.BigPictureStyle().bigPicture(largeIcon).setSummaryText(tr("favorite_online_banner", st.nick)));
+            } else {
+                b.setStyle(new Notification.BigTextStyle().bigText(tr("favorite_online_banner", st.nick)));
+            }
             nm.notify(Math.abs(favoriteKey(st.hotelKey, st.nick).hashCode()), b.build());
         } catch(Exception ignored) {}
     }
@@ -7153,7 +7188,7 @@ private int loadingProgressFor(String message) {
         if (raw == null || raw.trim().isEmpty()) return;
         try {
             JSONArray arr = new JSONArray(raw);
-            for (int i = 0; i < arr.length() && favoriteProfiles.size() < 100; i++) {
+            for (int i = 0; i < arr.length() && favoriteProfiles.size() < MAX_FAVORITES; i++) {
                 JSONObject o = arr.optJSONObject(i);
                 if (o == null) continue;
                 String nick = o.optString("nick", "").trim();
@@ -7208,8 +7243,12 @@ private int loadingProgressFor(String message) {
                 return;
             }
         }
+        if (favoriteProfiles.size() >= MAX_FAVORITES) {
+            toast(tr("favorite_limit_reached", MAX_FAVORITES));
+            return;
+        }
         favoriteProfiles.add(0, new ProfileHistoryItem(nick.trim(), r.figure, hotel));
-        while (favoriteProfiles.size() > 100) favoriteProfiles.remove(favoriteProfiles.size() - 1);
+        while (favoriteProfiles.size() > MAX_FAVORITES) favoriteProfiles.remove(favoriteProfiles.size() - 1);
         saveFavoriteProfiles();
         toast(t("favorite_added"));
     }
@@ -7487,24 +7526,25 @@ private int loadingProgressFor(String message) {
         }
 
 
-        private static Bitmap loadNotificationHeadBitmapStatic(FavoriteStatus st) {
+        private static Bitmap loadNotificationHeadBitmapStatic(Context context, FavoriteStatus st) {
             HttpURLConnection c = null;
             try {
-                if (st == null) return null;
+                if (st == null) return context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head);
                 String url;
                 if (st.figure != null && !st.figure.trim().isEmpty()) {
                     url = "https://" + hotelDomainStatic(st.hotelKey) + "/habbo-imaging/avatarimage?figure=" + URLEncoder.encode(st.figure, "UTF-8") + "&size=m&direction=2&head_direction=2&headonly=1";
                 } else if (st.nick != null && !st.nick.trim().isEmpty()) {
                     url = "https://" + hotelDomainStatic(st.hotelKey) + "/habbo-imaging/avatarimage?user=" + URLEncoder.encode(st.nick, "UTF-8") + "&size=m&direction=2&head_direction=2&headonly=1";
                 } else {
-                    return null;
+                    return context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head);
                 }
                 c = (HttpURLConnection)new URL(url).openConnection();
                 c.setConnectTimeout(10000);
                 c.setReadTimeout(15000);
-                return BitmapFactory.decodeStream(c.getInputStream());
+                Bitmap b = BitmapFactory.decodeStream(c.getInputStream());
+                return b != null ? b : (context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head));
             } catch(Exception ignored) {
-                return null;
+                return context == null ? null : BitmapFactory.decodeResource(context.getResources(), R.drawable.pre_load_head);
             } finally {
                 try { if (c != null) c.disconnect(); } catch(Exception ignored) {}
             }
@@ -7523,16 +7563,20 @@ private int loadingProgressFor(String message) {
                 open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 PendingIntent pi = PendingIntent.getActivity(context, 1207, open, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
                 String msg = (st.nick == null ? "" : st.nick) + " acabou de ficar online!";
-                Bitmap largeIcon = loadNotificationHeadBitmapStatic(st);
+                Bitmap largeIcon = loadNotificationHeadBitmapStatic(context, st);
                 Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(context, channelId) : new Notification.Builder(context);
                 b.setSmallIcon(R.drawable.notification_image)
                  .setContentTitle("Favoritos")
                  .setContentText(msg)
-                 .setStyle(new Notification.BigTextStyle().bigText(msg))
                  .setPriority(Notification.PRIORITY_HIGH)
                  .setContentIntent(pi)
                  .setAutoCancel(true);
-                if (largeIcon != null) b.setLargeIcon(largeIcon);
+                if (largeIcon != null) {
+                    b.setLargeIcon(largeIcon);
+                    b.setStyle(new Notification.BigPictureStyle().bigPicture(largeIcon).setSummaryText(msg));
+                } else {
+                    b.setStyle(new Notification.BigTextStyle().bigText(msg));
+                }
                 nm.notify(Math.abs((st.hotelKey + ":" + st.nick).hashCode()), b.build());
             } catch(Exception ignored) {}
         }
