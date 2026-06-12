@@ -7486,6 +7486,30 @@ private int loadingProgressFor(String message) {
             }
         }
 
+
+        private static Bitmap loadNotificationHeadBitmapStatic(FavoriteStatus st) {
+            HttpURLConnection c = null;
+            try {
+                if (st == null) return null;
+                String url;
+                if (st.figure != null && !st.figure.trim().isEmpty()) {
+                    url = "https://" + hotelDomainStatic(st.hotelKey) + "/habbo-imaging/avatarimage?figure=" + URLEncoder.encode(st.figure, "UTF-8") + "&size=m&direction=2&head_direction=2&headonly=1";
+                } else if (st.nick != null && !st.nick.trim().isEmpty()) {
+                    url = "https://" + hotelDomainStatic(st.hotelKey) + "/habbo-imaging/avatarimage?user=" + URLEncoder.encode(st.nick, "UTF-8") + "&size=m&direction=2&head_direction=2&headonly=1";
+                } else {
+                    return null;
+                }
+                c = (HttpURLConnection)new URL(url).openConnection();
+                c.setConnectTimeout(10000);
+                c.setReadTimeout(15000);
+                return BitmapFactory.decodeStream(c.getInputStream());
+            } catch(Exception ignored) {
+                return null;
+            } finally {
+                try { if (c != null) c.disconnect(); } catch(Exception ignored) {}
+            }
+        }
+
         private static void showFavoriteOnlineSystemNotificationStatic(Context context, FavoriteStatus st) {
             try {
                 NotificationManager nm = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
