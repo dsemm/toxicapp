@@ -150,6 +150,7 @@ public class MainActivity extends Activity {
     private String visualEditorCachedGender = "M";
     private String visualEditorCachedType = "hd";
     private int visualEditorCachedDirection = 2;
+    private final Map<String, View> visualItemViewsSessionCache = new HashMap<>();
 
     private interface IntChangeListener {
         void onChange(int value);
@@ -592,7 +593,7 @@ public class MainActivity extends Activity {
         topLogo.setAdjustViewBounds(true);
         topLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         topLogo.setImageResource(R.drawable.toxic_top_logo);
-        root.addView(topLogo, lp(-1, dp(83), 52, -6, 52, 0));
+        root.addView(topLogo, lp(-1, dp(75), 64, 0, 64, 4));
 
         LinearLayout subtitleRow = new LinearLayout(this);
         subtitleRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -3637,6 +3638,7 @@ private int loadingProgressFor(String message) {
         visualEditorCachedGender = "M";
         visualEditorCachedType = "hd";
         visualEditorCachedDirection = 2;
+        visualItemViewsSessionCache.clear();
         try {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .remove(PREF_VISUAL_EDITOR_FIGURE)
@@ -4228,22 +4230,47 @@ private int loadingProgressFor(String message) {
 
     private void renderVisualItems(LinearLayout area, LinearLayout colors, String[] currentFigure, String[] gender, String[] currentType, JSONObject data, Runnable updatePreview) {
         if (area == null) return;
-        area.removeAllViews();
         if (colors != null) colors.removeAllViews();
 
         String uiType = currentType[0];
         String itemType = getVisualItemTypeForUiCategory(uiType);
         JSONObject category = visualCategory(data, itemType);
         if (category == null) {
+            area.removeAllViews();
             area.addView(centerNote(t("cannot_load_visuals")));
             return;
         }
 
         JSONArray items = category.optJSONArray("items");
         if (items == null || items.length() == 0) {
+            area.removeAllViews();
             area.addView(centerNote(t("no_items_found")));
             return;
         }
+
+        String cacheKey = currentHotelKey + "|" + uiType + "|" + itemType + "|" + gender[0];
+        View cached = visualItemViewsSessionCache.get(cacheKey);
+        if (cached != null) {
+            try {
+                if (cached.getParent() instanceof ViewGroup) ((ViewGroup) cached.getParent()).removeView(cached);
+                area.removeAllViews();
+                area.addView(cached);
+                syncVisualItemSelection(cached, figurePartId(currentFigure[0], itemType), currentFigure[0], itemType);
+                JSONObject selected = findVisualItemByFigure(category, currentFigure[0], itemType);
+                if (selected != null) renderVisualColors(colors, currentFigure, uiType, selected, updatePreview, null);
+                return;
+            } catch(Exception ignored) {
+                visualItemViewsSessionCache.remove(cacheKey);
+            }
+        }
+
+        area.removeAllViews();
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(0, 0, 0, 0);
+        area.addView(container, new LinearLayout.LayoutParams(-1, -2));
+        visualItemViewsSessionCache.put(cacheKey, container);
 
         int perRow = 5;
         LinearLayout row = null;
@@ -4257,12 +4284,13 @@ private int loadingProgressFor(String message) {
             remove.setOnClickListener(v -> {
                 currentFigure[0] = removeFigurePart(currentFigure[0], itemType);
                 if (updatePreview != null) updatePreview.run();
+                visualItemViewsSessionCache.remove(cacheKey);
                 renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview);
             });
             row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER);
-            area.addView(row, lp(-1, dp(62), 0, dp(8), 0, 4));
+            container.addView(row, lp(-1, dp(62), 0, dp(8), 0, 4));
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(cellSize, cellSize);
             rp.rightMargin = gap;
             row.addView(remove, rp);
@@ -4279,7 +4307,7 @@ private int loadingProgressFor(String message) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setGravity(Gravity.CENTER);
-                area.addView(row, lp(-1, dp(62), 0, shown == 0 ? dp(8) : 0, 0, 4));
+                container.addView(row, lp(-1, dp(62), 0, shown == 0 ? dp(8) : 0, 0, 4));
             }
             final JSONObject finalItem = item;
             final String itemId = firstText(item, "id");
@@ -4287,7 +4315,7 @@ private int loadingProgressFor(String message) {
             View cell = visualItemCell("", itemType, itemId, previewFigure, false, itemId.equals(currentId));
             cell.setOnClickListener(v -> {
                 currentFigure[0] = applyFigureItem(currentFigure[0], itemType, finalItem, null);
-                markVisualItemSelected(area, cell);
+                markVisualItemSelected(container, cell);
                 if (updatePreview != null) updatePreview.run();
                 renderVisualColors(colors, currentFigure, uiType, finalItem, updatePreview, null);
             });
@@ -4299,7 +4327,23 @@ private int loadingProgressFor(String message) {
         }
 
         JSONObject selected = findVisualItemByFigure(category, currentFigure[0], itemType);
-        if (selected != null) renderVisualColors(colors, currentFigure, uiType, selected, updatePreview, () -> renderVisualItems(area, colors, currentFigure, gender, currentType, data, updatePreview));
+        if (selected != null) renderVisualColors(colors, currentFigure, uiType, selected, updatePreview, null);
+    }
+
+    private void syncVisualItemSelection(View root, String currentId, String currentFigure, String itemType) {
+        if (root == null) return;
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i=0; i<group.getChildCount(); i++) syncVisualItemSelection(group.getChildAt(i), currentId, currentFigure, itemType);
+        }
+        if (root instanceof FrameLayout && root.getTag() instanceof String) {
+            String tag = (String)root.getTag();
+            if (tag.startsWith("visual_item_cell:" + itemType + ":")) {
+                String id = tag.substring(("visual_item_cell:" + itemType + ":").length());
+                boolean selected = (currentId == null ? "" : currentId).equals(id);
+                applyVisualItemCellStyle(root, selected);
+            }
+        }
     }
 
     private void markVisualItemSelected(View root, View selectedCell) {
@@ -5053,7 +5097,7 @@ private int loadingProgressFor(String message) {
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(18), dp(34), dp(18), dp(82));
         wrap.setBackgroundColor(Color.TRANSPARENT);
-        dialogScroll.addView(wrap, new ScrollView.LayoutParams(-1, -2));
+        dialogScroll.addView(wrap, new ScrollView.LayoutParams(-1, -1));
         full.addView(dialogScroll, new FrameLayout.LayoutParams(-1, -1));
 
         addBottomNavigation(full, 3, dialog);
@@ -5098,17 +5142,17 @@ private int loadingProgressFor(String message) {
         LinearLayout themeRow = new LinearLayout(this);
         themeRow.setOrientation(LinearLayout.HORIZONTAL);
         themeRow.setGravity(Gravity.CENTER);
-        TextView lightBtn = dialogButton(t("light_theme"));
-        TextView darkBtn = dialogButton(t("dark_theme"));
-        lightBtn.setBackground(lightTheme ? grad(dp(14), purple2, purple) : round(Color.rgb(250,250,250), dp(14), Color.rgb(218,218,218), 1));
-        darkBtn.setBackground(!lightTheme ? grad(dp(14), purple2, purple) : round(Color.rgb(250,250,250), dp(14), Color.rgb(218,218,218), 1));
-        lightBtn.setTextColor(lightTheme ? Color.WHITE : Color.rgb(33,33,33));
-        darkBtn.setTextColor(!lightTheme ? Color.WHITE : Color.rgb(33,33,33));
-        LinearLayout.LayoutParams th1 = new LinearLayout.LayoutParams(0, dp(48), 1); th1.rightMargin = dp(6);
-        LinearLayout.LayoutParams th2 = new LinearLayout.LayoutParams(0, dp(48), 1); th2.leftMargin = dp(6);
+        TextView lightBtn = text("", 1, Color.TRANSPARENT, false);
+        TextView darkBtn = text("", 1, Color.TRANSPARENT, false);
+        lightBtn.setGravity(Gravity.CENTER);
+        darkBtn.setGravity(Gravity.CENTER);
+        lightBtn.setBackground(new ThemeIconButtonDrawable(true, lightTheme));
+        darkBtn.setBackground(new ThemeIconButtonDrawable(false, !lightTheme));
+        LinearLayout.LayoutParams th1 = new LinearLayout.LayoutParams(dp(54), dp(54)); th1.rightMargin = dp(8);
+        LinearLayout.LayoutParams th2 = new LinearLayout.LayoutParams(dp(54), dp(54)); th2.leftMargin = dp(8);
         themeRow.addView(lightBtn, th1);
         themeRow.addView(darkBtn, th2);
-        wrap.addView(themeRow, lp(-1, dp(48), 0, 0, 0, 10));
+        wrap.addView(themeRow, lp(-1, dp(58), 0, 0, 0, 10));
         lightBtn.setOnClickListener(v -> {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "light").apply();
             lightTheme = true;
@@ -5132,6 +5176,9 @@ private int loadingProgressFor(String message) {
             }, 120L);
         });
 
+
+        Space cacheBottomSpacer = new Space(this);
+        wrap.addView(cacheBottomSpacer, new LinearLayout.LayoutParams(-1, 0, 1));
 
         TextView info = text(cacheStatsText(), 13, muted, false);
         info.setGravity(Gravity.CENTER);
@@ -6827,7 +6874,7 @@ private int loadingProgressFor(String message) {
     }
 
     private LinearLayout openedProfileHistoryRow(ProfileHistoryItem item, Dialog dialog) {
-        LinearLayout row = profileListRowBase(item);
+        LinearLayout row = profileListRowBase(item, false);
 
         TextView remove = text("", 18, Color.WHITE, true);
         remove.setGravity(Gravity.CENTER);
@@ -7458,7 +7505,7 @@ private int loadingProgressFor(String message) {
     }
 
     private LinearLayout favoriteProfileRow(ProfileHistoryItem item, Dialog dialog, Runnable refresh) {
-        LinearLayout row = profileListRowBase(item);
+        LinearLayout row = profileListRowBase(item, true);
         String key = favoriteKey(item.hotelKey, item.nick);
         Boolean onlineState = favoriteOnlineStates.get(key);
         if (Boolean.TRUE.equals(onlineState)) {
@@ -7516,6 +7563,10 @@ private int loadingProgressFor(String message) {
     }
 
     private LinearLayout profileListRowBase(ProfileHistoryItem item) {
+        return profileListRowBase(item, true);
+    }
+
+    private LinearLayout profileListRowBase(ProfileHistoryItem item, boolean showOnlineState) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -7542,7 +7593,7 @@ private int loadingProgressFor(String message) {
         nameRow.setOrientation(LinearLayout.HORIZONTAL);
         nameRow.setGravity(Gravity.CENTER_VERTICAL);
         nameRow.addView(name, new LinearLayout.LayoutParams(-2, -2));
-        if (Boolean.TRUE.equals(favoriteOnlineStates.get(favoriteKey(item.hotelKey, item.nick)))) {
+        if (showOnlineState && Boolean.TRUE.equals(favoriteOnlineStates.get(favoriteKey(item.hotelKey, item.nick)))) {
             TextView online = text(t("favorite_currently_online"), 12, lightTheme ? Color.rgb(15, 120, 78) : Color.rgb(143, 255, 203), true);
             online.setGravity(Gravity.CENTER_VERTICAL);
             LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(-2, -2);
@@ -7923,39 +7974,23 @@ private int loadingProgressFor(String message) {
             p.setColor(color);
 
             if ("home".equals(type)) {
-                float sw = m * .92f;
-                float sh = m * .76f;
-                float hx = cx - sw / 2f;
-                float hy = cy - sh / 2f + m * .04f;
-
-                Path house = new Path();
-                house.moveTo(cx, hy + sh*.08f);
-                house.lineTo(hx + sw*.14f, hy + sh*.42f);
-                house.lineTo(hx + sw*.24f, hy + sh*.42f);
-                house.lineTo(hx + sw*.24f, hy + sh*.80f);
-                house.quadTo(hx + sw*.24f, hy + sh*.88f, hx + sw*.32f, hy + sh*.88f);
-                house.lineTo(hx + sw*.45f, hy + sh*.88f);
-                house.lineTo(hx + sw*.45f, hy + sh*.62f);
-                house.quadTo(hx + sw*.45f, hy + sh*.57f, hx + sw*.50f, hy + sh*.57f);
-                house.quadTo(hx + sw*.55f, hy + sh*.57f, hx + sw*.55f, hy + sh*.62f);
-                house.lineTo(hx + sw*.55f, hy + sh*.88f);
-                house.lineTo(hx + sw*.68f, hy + sh*.88f);
-                house.quadTo(hx + sw*.76f, hy + sh*.88f, hx + sw*.76f, hy + sh*.80f);
-                house.lineTo(hx + sw*.76f, hy + sh*.42f);
-                house.lineTo(hx + sw*.86f, hy + sh*.42f);
-                house.close();
-
+                // Ícone de lupa personalizado para a tela de busca/perfil.
+                float lensR = m * .28f;
+                float lx = cx - m * .08f;
+                float ly = cy - m * .08f;
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                p.setStrokeJoin(Paint.Join.ROUND);
+                p.setStrokeWidth(Math.max(2.4f, m * .085f));
+                p.setColor(color);
+                c.drawCircle(lx, ly, lensR, p);
+                c.drawLine(lx + lensR*.68f, ly + lensR*.68f, cx + m*.34f, cy + m*.34f, p);
                 if (selected) {
-                    p.setStyle(Paint.Style.FILL);
-                    p.setColor(color);
-                    c.drawPath(house, p);
-                } else {
-                    p.setStyle(Paint.Style.STROKE);
-                    p.setStrokeWidth(Math.max(2f, m * .075f));
-                    p.setColor(color);
-                    c.drawPath(house, p);
+                    p.setStrokeWidth(Math.max(1.6f, m * .045f));
+                    p.setColor(Color.argb(105, 255,255,255));
+                    c.drawCircle(lx, ly, lensR*.63f, p);
                 }
-            } else if ("visuals".equals(type)) {
+            } else if ("visuals".equals(type)) {            } else if ("visuals".equals(type)) {
                 // Ícone de camiseta minimalista para o provador de visuais.
                 Path shirt = new Path();
                 shirt.moveTo(x + w*.27f, y + h*.28f);
@@ -8367,6 +8402,64 @@ private int loadingProgressFor(String message) {
     }
 
 
+
+    public class ThemeIconButtonDrawable extends Drawable {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        boolean sun;
+        boolean selected;
+        ThemeIconButtonDrawable(boolean sun, boolean selected) {
+            this.sun = sun;
+            this.selected = selected;
+        }
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            RectF r = new RectF(b.left + dp(1), b.top + dp(1), b.right - dp(1), b.bottom - dp(1));
+            float rad = dp(16);
+            p.setStyle(Paint.Style.FILL);
+            if (selected) {
+                LinearGradient g = new LinearGradient(r.left, r.top, r.right, r.bottom, purple2, purple, Shader.TileMode.CLAMP);
+                p.setShader(g);
+                c.drawRoundRect(r, rad, rad, p);
+                p.setShader(null);
+            } else {
+                p.setColor(lightTheme ? Color.rgb(250,250,250) : Color.rgb(24, 16, 34));
+                c.drawRoundRect(r, rad, rad, p);
+            }
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1));
+            p.setColor(selected ? Color.argb(115,255,255,255) : (lightTheme ? Color.rgb(218,218,218) : Color.argb(72,255,255,255)));
+            c.drawRoundRect(r, rad, rad, p);
+
+            float cx = r.centerX();
+            float cy = r.centerY();
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setColor(selected ? Color.WHITE : (lightTheme ? Color.rgb(54,54,62) : Color.argb(225,255,255,255)));
+
+            if (sun) {
+                p.setStyle(Paint.Style.FILL);
+                c.drawCircle(cx, cy, dp(7), p);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(dp(2));
+                for (int i=0; i<8; i++) {
+                    double a = i * Math.PI / 4.0;
+                    float x1 = cx + (float)Math.cos(a) * dp(13);
+                    float y1 = cy + (float)Math.sin(a) * dp(13);
+                    float x2 = cx + (float)Math.cos(a) * dp(18);
+                    float y2 = cy + (float)Math.sin(a) * dp(18);
+                    c.drawLine(x1, y1, x2, y2, p);
+                }
+            } else {
+                p.setStyle(Paint.Style.FILL);
+                c.drawCircle(cx - dp(2), cy, dp(13), p);
+                p.setColor(selected ? purple : (lightTheme ? Color.rgb(250,250,250) : Color.rgb(24, 16, 34)));
+                c.drawCircle(cx + dp(4), cy - dp(3), dp(12), p);
+            }
+        }
+        @Override public void setAlpha(int a){p.setAlpha(a);}
+        @Override public void setColorFilter(android.graphics.ColorFilter f){p.setColorFilter(f);}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    }
 
     public class TutorialOverlayDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
