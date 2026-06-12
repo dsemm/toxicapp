@@ -8452,9 +8452,9 @@ private int loadingProgressFor(String message) {
 
             if (sun) {
                 p.setStyle(Paint.Style.FILL);
-                c.drawCircle(cx, cy, dp(5.2f), p);
+                c.drawCircle(cx, cy, (dp(5) + Math.max(1, dp(1) / 5)), p);
                 p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(dp(1.7f));
+                p.setStrokeWidth((dp(1) + Math.max(1, dp(1) / 2)));
                 for (int i=0; i<8; i++) {
                     double a = i * Math.PI / 4.0;
                     float x1 = cx + (float)Math.cos(a) * dp(10);
@@ -8465,9 +8465,9 @@ private int loadingProgressFor(String message) {
                 }
             } else {
                 p.setStyle(Paint.Style.FILL);
-                c.drawCircle(cx - dp(1), cy + dp(1), dp(10.5f), p);
+                c.drawCircle(cx - dp(1), cy + dp(1), (dp(10) + Math.max(1, dp(1) / 2)), p);
                 p.setColor(selected ? purple : (lightTheme ? Color.rgb(250,250,250) : Color.rgb(40, 28, 54)));
-                c.drawCircle(cx + dp(4), cy - dp(3), dp(10.2f), p);
+                c.drawCircle(cx + dp(4), cy - dp(3), (dp(10) + Math.max(1, dp(1) / 5)), p);
             }
         }
         @Override public void setAlpha(int a){p.setAlpha(a);}
