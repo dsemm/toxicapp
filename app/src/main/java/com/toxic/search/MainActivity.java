@@ -5148,12 +5148,13 @@ private int loadingProgressFor(String message) {
         darkBtn.setGravity(Gravity.CENTER);
         lightBtn.setBackground(new ThemeIconButtonDrawable(true, lightTheme));
         darkBtn.setBackground(new ThemeIconButtonDrawable(false, !lightTheme));
-        LinearLayout.LayoutParams th1 = new LinearLayout.LayoutParams(dp(54), dp(54)); th1.rightMargin = dp(8);
-        LinearLayout.LayoutParams th2 = new LinearLayout.LayoutParams(dp(54), dp(54)); th2.leftMargin = dp(8);
+        LinearLayout.LayoutParams th1 = new LinearLayout.LayoutParams(dp(46), dp(46)); th1.rightMargin = dp(7);
+        LinearLayout.LayoutParams th2 = new LinearLayout.LayoutParams(dp(46), dp(46)); th2.leftMargin = dp(7);
         themeRow.addView(lightBtn, th1);
         themeRow.addView(darkBtn, th2);
-        wrap.addView(themeRow, lp(-1, dp(58), 0, 0, 0, 10));
+        wrap.addView(themeRow, lp(-1, dp(50), 0, 0, 0, 10));
         lightBtn.setOnClickListener(v -> {
+            if (lightTheme) return;
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "light").apply();
             lightTheme = true;
             openingSplashShownThisSession = true;
@@ -5165,6 +5166,7 @@ private int loadingProgressFor(String message) {
             }, 120L);
         });
         darkBtn.setOnClickListener(v -> {
+            if (!lightTheme) return;
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("theme", "dark").apply();
             lightTheme = false;
             openingSplashShownThisSession = true;
@@ -7974,49 +7976,59 @@ private int loadingProgressFor(String message) {
             p.setColor(color);
 
             if ("home".equals(type)) {
-                // Ícone de lupa personalizado para a tela de busca/perfil.
-                float lensR = m * .28f;
-                float lx = cx - m * .08f;
-                float ly = cy - m * .08f;
+                // Ícone de lupa mais encorpado, com proporção compatível aos outros botões.
+                float lensR = m * .225f;
+                float lx = cx - m * .070f;
+                float ly = cy - m * .070f;
+                float stroke = Math.max(3.1f, m * .105f);
+
                 p.setStyle(Paint.Style.STROKE);
                 p.setStrokeCap(Paint.Cap.ROUND);
                 p.setStrokeJoin(Paint.Join.ROUND);
-                p.setStrokeWidth(Math.max(2.4f, m * .085f));
+                p.setStrokeWidth(stroke);
                 p.setColor(color);
                 c.drawCircle(lx, ly, lensR, p);
-                c.drawLine(lx + lensR*.68f, ly + lensR*.68f, cx + m*.34f, cy + m*.34f, p);
+
+                Path handle = new Path();
+                handle.moveTo(lx + lensR * .64f, ly + lensR * .64f);
+                handle.lineTo(cx + m * .265f, cy + m * .265f);
+                c.drawPath(handle, p);
+
                 if (selected) {
-                    p.setStrokeWidth(Math.max(1.6f, m * .045f));
-                    p.setColor(Color.argb(105, 255,255,255));
-                    c.drawCircle(lx, ly, lensR*.63f, p);
+                    p.setStrokeWidth(Math.max(1.8f, m * .048f));
+                    p.setColor(Color.argb(132, 255, 235, 255));
+                    c.drawCircle(lx, ly, lensR * .62f, p);
                 }
-            } else if ("visuals".equals(type)) {            } else if ("visuals".equals(type)) {
+            } else if ("visuals".equals(type)) {
                 // Ícone de camiseta minimalista para o provador de visuais.
                 Path shirt = new Path();
                 shirt.moveTo(x + w*.27f, y + h*.28f);
                 shirt.lineTo(x + w*.39f, y + h*.20f);
                 shirt.quadTo(x + w*.50f, y + h*.28f, x + w*.61f, y + h*.20f);
                 shirt.lineTo(x + w*.73f, y + h*.28f);
-                shirt.lineTo(x + w*.86f, y + h*.43f);
-                shirt.lineTo(x + w*.75f, y + h*.55f);
-                shirt.lineTo(x + w*.70f, y + h*.49f);
-                shirt.lineTo(x + w*.70f, y + h*.80f);
-                shirt.lineTo(x + w*.30f, y + h*.80f);
-                shirt.lineTo(x + w*.30f, y + h*.49f);
-                shirt.lineTo(x + w*.25f, y + h*.55f);
-                shirt.lineTo(x + w*.14f, y + h*.43f);
+                shirt.lineTo(x + w*.84f, y + h*.43f);
+                shirt.lineTo(x + w*.73f, y + h*.53f);
+                shirt.lineTo(x + w*.70f, y + h*.84f);
+                shirt.quadTo(x + w*.70f, y + h*.90f, x + w*.64f, y + h*.90f);
+                shirt.lineTo(x + w*.36f, y + h*.90f);
+                shirt.quadTo(x + w*.30f, y + h*.90f, x + w*.30f, y + h*.84f);
+                shirt.lineTo(x + w*.27f, y + h*.53f);
+                shirt.lineTo(x + w*.16f, y + h*.43f);
                 shirt.close();
+
                 if (selected) {
                     p.setStyle(Paint.Style.FILL);
                     p.setColor(color);
                     c.drawPath(shirt, p);
                 } else {
                     p.setStyle(Paint.Style.STROKE);
-                    p.setStrokeWidth(Math.max(2f, m * .075f));
+                    p.setStrokeWidth(Math.max(2f, m * .072f));
+                    p.setStrokeJoin(Paint.Join.ROUND);
+                    p.setStrokeCap(Paint.Cap.ROUND);
                     p.setColor(color);
                     c.drawPath(shirt, p);
                 }
-            } else if ("heart".equals(type)) {
+            } else if ("heart".equals(type)) {            } else if ("heart".equals(type)) {
                 Path heart = new Path();
                 heart.moveTo(cx, cy + m*.27f);
                 heart.cubicTo(cx - m*.40f, cy + m*.02f, cx - m*.34f, cy - m*.25f, cx - m*.16f, cy - m*.25f);
@@ -8414,7 +8426,8 @@ private int loadingProgressFor(String message) {
         @Override public void draw(Canvas c) {
             Rect b = getBounds();
             RectF r = new RectF(b.left + dp(1), b.top + dp(1), b.right - dp(1), b.bottom - dp(1));
-            float rad = dp(16);
+            float rad = dp(14);
+
             p.setStyle(Paint.Style.FILL);
             if (selected) {
                 LinearGradient g = new LinearGradient(r.left, r.top, r.right, r.bottom, purple2, purple, Shader.TileMode.CLAMP);
@@ -8422,38 +8435,39 @@ private int loadingProgressFor(String message) {
                 c.drawRoundRect(r, rad, rad, p);
                 p.setShader(null);
             } else {
-                p.setColor(lightTheme ? Color.rgb(250,250,250) : Color.rgb(24, 16, 34));
+                p.setColor(lightTheme ? Color.rgb(250,250,250) : Color.argb(34, 255,255,255));
                 c.drawRoundRect(r, rad, rad, p);
             }
+
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(dp(1));
-            p.setColor(selected ? Color.argb(115,255,255,255) : (lightTheme ? Color.rgb(218,218,218) : Color.argb(72,255,255,255)));
+            p.setColor(selected ? Color.argb(120,255,255,255) : (lightTheme ? Color.rgb(218,218,218) : Color.argb(30,255,255,255)));
             c.drawRoundRect(r, rad, rad, p);
 
             float cx = r.centerX();
             float cy = r.centerY();
             p.setStrokeCap(Paint.Cap.ROUND);
             p.setStrokeJoin(Paint.Join.ROUND);
-            p.setColor(selected ? Color.WHITE : (lightTheme ? Color.rgb(54,54,62) : Color.argb(225,255,255,255)));
+            p.setColor(selected ? Color.WHITE : (lightTheme ? Color.rgb(54,54,62) : Color.argb(220,255,255,255)));
 
             if (sun) {
                 p.setStyle(Paint.Style.FILL);
-                c.drawCircle(cx, cy, dp(7), p);
+                c.drawCircle(cx, cy, dp(5.2f), p);
                 p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(dp(2));
+                p.setStrokeWidth(dp(1.7f));
                 for (int i=0; i<8; i++) {
                     double a = i * Math.PI / 4.0;
-                    float x1 = cx + (float)Math.cos(a) * dp(13);
-                    float y1 = cy + (float)Math.sin(a) * dp(13);
-                    float x2 = cx + (float)Math.cos(a) * dp(18);
-                    float y2 = cy + (float)Math.sin(a) * dp(18);
+                    float x1 = cx + (float)Math.cos(a) * dp(10);
+                    float y1 = cy + (float)Math.sin(a) * dp(10);
+                    float x2 = cx + (float)Math.cos(a) * dp(14);
+                    float y2 = cy + (float)Math.sin(a) * dp(14);
                     c.drawLine(x1, y1, x2, y2, p);
                 }
             } else {
                 p.setStyle(Paint.Style.FILL);
-                c.drawCircle(cx - dp(2), cy, dp(13), p);
-                p.setColor(selected ? purple : (lightTheme ? Color.rgb(250,250,250) : Color.rgb(24, 16, 34)));
-                c.drawCircle(cx + dp(4), cy - dp(3), dp(12), p);
+                c.drawCircle(cx - dp(1), cy + dp(1), dp(10.5f), p);
+                p.setColor(selected ? purple : (lightTheme ? Color.rgb(250,250,250) : Color.rgb(40, 28, 54)));
+                c.drawCircle(cx + dp(4), cy - dp(3), dp(10.2f), p);
             }
         }
         @Override public void setAlpha(int a){p.setAlpha(a);}
@@ -8461,7 +8475,7 @@ private int loadingProgressFor(String message) {
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
 
-    public class TutorialOverlayDrawable extends Drawable {
+    public class TutorialOverlayDrawable    public class TutorialOverlayDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         int step;
         TutorialOverlayDrawable(int s) { step = s; }
