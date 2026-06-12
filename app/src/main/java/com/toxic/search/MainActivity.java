@@ -2438,6 +2438,7 @@ public class MainActivity extends Activity {
         hp.bottomMargin = dp(-2);
         headWrap.addView(head, hp);
         if (!fig.isEmpty()) loadHeadImage(head, avatarHead(fig));
+        bindProfileHeadPreviewHold(head, n, currentHotelKey, fig);
 
         if (isToday(date)) {
             TextView novo = text(newBadgeLabel(), 9, Color.WHITE, true);
@@ -7583,6 +7584,7 @@ private int loadingProgressFor(String message) {
         row.addView(head, new LinearLayout.LayoutParams(dp(54), dp(56)));
         if (!item.figure.isEmpty()) loadHeadImage(head, avatarHead(item.figure));
         else loadHeadImage(head, avatarHeadByNameForHotel(item.nick, item.hotelKey));
+        if (showOnlineState) bindProfileHeadPreviewHold(head, item.nick, item.hotelKey, item.figure);
 
         LinearLayout mid = new LinearLayout(this);
         mid.setOrientation(LinearLayout.VERTICAL);
@@ -7613,6 +7615,128 @@ private int loadingProgressFor(String message) {
         hotelLine.addView(flag, new LinearLayout.LayoutParams(dp(24), dp(16)));
         mid.addView(hotelLine, new LinearLayout.LayoutParams(-1, -2));
         return row;
+    }
+
+
+    private void bindProfileHeadPreviewHold(final View target, final String nick, final String hotelKey, final String fallbackFigure) {
+        if (target == null) return;
+        target.setClickable(true);
+        final Runnable[] holdTask = new Runnable[1];
+        final boolean[] fired = {false};
+        target.setOnTouchListener((v, event) -> {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                fired[0] = false;
+                if (holdTask[0] != null) uiHandler.removeCallbacks(holdTask[0]);
+                holdTask[0] = () -> {
+                    fired[0] = true;
+                    showMiniProfilePreviewDialog(nick, hotelKey, fallbackFigure);
+                };
+                uiHandler.postDelayed(holdTask[0], 1500L);
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_OUTSIDE) {
+                if (holdTask[0] != null) uiHandler.removeCallbacks(holdTask[0]);
+                return true;
+            }
+            return true;
+        });
+    }
+
+    private void showMiniProfilePreviewDialog(final String nick, final String hotelKey, final String fallbackFigure) {
+        final Dialog dialog = new Dialog(this);
+        LinearLayout rootDialog = new LinearLayout(this);
+        rootDialog.setOrientation(LinearLayout.VERTICAL);
+        rootDialog.setPadding(dp(18), dp(18), dp(18), dp(18));
+        rootDialog.setBackground(round(dialogFillColor(), dp(22), dialogStrokeColor(), 1));
+        dialog.setContentView(rootDialog);
+
+        FrameLayout avatarWrap = new FrameLayout(this);
+        avatarWrap.setPadding(dp(8), dp(4), dp(8), dp(4));
+        rootDialog.addView(avatarWrap, lp(-1, dp(250), 0, 0, 0, 12));
+
+        ImageView avatar = new ImageView(this);
+        avatar.setAdjustViewBounds(true);
+        avatar.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        avatar.setPadding(dp(22), 0, dp(22), 0);
+        avatarWrap.addView(avatar, new FrameLayout.LayoutParams(-1, -1));
+        String initialFigure = fallbackFigure == null ? "" : fallbackFigure.trim();
+        if (!initialFigure.isEmpty()) loadAvatarImage(avatar, avatarFull(initialFigure, 2));
+        else loadAvatarImage(avatar, avatarHeadByNameForHotel(nick, hotelKey));
+
+        TextView name = habboText(nick == null || nick.trim().isEmpty() ? t("profile") : nick.trim(), 24, true);
+        name.setGravity(Gravity.CENTER);
+        rootDialog.addView(name, lp(-1, -2, 0, 0, 0, 8));
+
+        TextView motto = habboText(t("generic_loading"), 15, false);
+        motto.setGravity(Gravity.CENTER);
+        motto.setTextColor(lightTheme ? Color.rgb(70,70,70) : Color.argb(220,255,255,255));
+        motto.setMaxLines(3);
+        motto.setEllipsize(TextUtils.TruncateAt.END);
+        rootDialog.addView(motto, lp(-1, -2, 0, 0, 0, 12));
+
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.VERTICAL);
+        rootDialog.addView(stats, lp(-1, -2, 0, 0, 0, 0));
+
+        stats.addView(statRow("status_offline", t("status"), "—"));
+        stats.addView(statRow("clock", t("last_login"), "—"));
+        stats.addView(statRow("calendar", t("creation"), "—"));
+
+        dialog.show();
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(w.getAttributes());
+            params.width = Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(430));
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            w.setAttributes(params);
+        }
+
+        executor.execute(() -> {
+            MiniProfilePreview data = fetchMiniProfilePreview(nick, hotelKey, fallbackFigure);
+            runOnUiThread(() -> {
+                try {
+                    if (!dialog.isShowing() || data == null) return;
+                    if (data.figure != null && !data.figure.trim().isEmpty()) loadAvatarImage(avatar, avatarFull(data.figure, 2));
+                    name.setText(data.nick == null || data.nick.trim().isEmpty() ? nick : data.nick);
+                    String mission = data.motto == null || data.motto.trim().isEmpty() ? "—" : data.motto.trim();
+                    motto.setText(mission);
+                    stats.removeAllViews();
+                    stats.addView(statRow(data.online ? "status_online" : "status_offline", t("status"), data.online ? t("online") : t("offline")));
+                    stats.addView(statRow("clock", t("last_login"), niceDate(data.lastAccess), timeAgoText(data.lastAccess)));
+                    stats.addView(statRow("calendar", t("creation"), niceDateOnly(data.memberSince), timeAgoText(data.memberSince)));
+                } catch(Exception ignored) {}
+            });
+        });
+    }
+
+    private MiniProfilePreview fetchMiniProfilePreview(String nick, String hotelKey, String fallbackFigure) {
+        MiniProfilePreview out = new MiniProfilePreview();
+        out.nick = nick == null ? "" : nick.trim();
+        out.figure = fallbackFigure == null ? "" : fallbackFigure.trim();
+        out.hotelKey = normalizeHotelKey(hotelKey);
+        if (out.hotelKey.isEmpty()) out.hotelKey = currentHotelKey;
+        try {
+            JSONObject obj = tryJson("https://" + hotelDomain(out.hotelKey) + "/api/public/users?name=" + enc(out.nick));
+            obj = validProfileObject(obj);
+            if (obj == null) return out;
+            String realNick = firstText(obj, "name", "username", "habboName");
+            if (!realNick.isEmpty()) out.nick = realNick;
+            String fig = firstText(obj, "figureString", "figure", "figure_string");
+            if (!fig.isEmpty()) out.figure = fig;
+            out.motto = firstText(obj, "motto", "mission");
+            out.online = obj.optBoolean("online", optBoolAny(obj, false, "isOnline"));
+            out.memberSince = firstText(obj, "memberSince", "creationTime", "createdAt", "registeredAt", "created_at", "registerDate", "registrationDate");
+            out.lastAccess = firstText(obj, "lastAccessTime", "lastLoginTime", "lastOnline", "lastVisit");
+        } catch(Exception ignored) {}
+        return out;
+    }
+
+    private static class MiniProfilePreview {
+        String nick = "", figure = "", hotelKey = "br", motto = "", lastAccess = "", memberSince = "";
+        boolean online = false;
     }
 
     private static class FavoriteStatus {
@@ -8167,28 +8291,28 @@ private int loadingProgressFor(String message) {
         @Override public void draw(Canvas c) {
             Rect b = getBounds();
             float cx = b.centerX(), cy = b.centerY(), m = Math.min(b.width(), b.height());
+            int color = bottomNavIconColor(active);
 
             Path heart = new Path();
-            heart.moveTo(cx, cy + m * .30f);
-            heart.cubicTo(cx - m*.42f, cy + m*.02f, cx - m*.38f, cy - m*.28f, cx - m*.17f, cy - m*.30f);
-            heart.cubicTo(cx - m*.05f, cy - m*.31f, cx, cy - m*.22f, cx, cy - m*.16f);
-            heart.cubicTo(cx, cy - m*.22f, cx + m*.05f, cy - m*.31f, cx + m*.17f, cy - m*.30f);
-            heart.cubicTo(cx + m*.38f, cy - m*.28f, cx + m*.42f, cy + m*.02f, cx, cy + m*.30f);
+            heart.moveTo(cx, cy + m*.27f);
+            heart.cubicTo(cx - m*.40f, cy + m*.02f, cx - m*.34f, cy - m*.25f, cx - m*.16f, cy - m*.25f);
+            heart.cubicTo(cx - m*.06f, cy - m*.25f, cx, cy - m*.17f, cx, cy - m*.12f);
+            heart.cubicTo(cx, cy - m*.17f, cx + m*.06f, cy - m*.25f, cx + m*.16f, cy - m*.25f);
+            heart.cubicTo(cx + m*.34f, cy - m*.25f, cx + m*.40f, cy + m*.02f, cx, cy + m*.27f);
             heart.close();
 
-            int iconColor = lightTheme ? Color.rgb(33,33,33) : Color.WHITE;
-
             p.setShader(null);
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(active ? iconColor : (lightTheme ? Color.argb(44,33,33,33) : Color.argb(42,255,255,255)));
-            c.drawPath(heart, p);
-
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(Math.max(2f, m*.055f));
             p.setStrokeJoin(Paint.Join.ROUND);
             p.setStrokeCap(Paint.Cap.ROUND);
-            p.setColor(iconColor);
-            c.drawPath(heart, p);
+            p.setColor(color);
+            if (active) {
+                p.setStyle(Paint.Style.FILL);
+                c.drawPath(heart, p);
+            } else {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(Math.max(2.1f, m * .078f));
+                c.drawPath(heart, p);
+            }
         }
 
         @Override public void setAlpha(int a){p.setAlpha(a);}
