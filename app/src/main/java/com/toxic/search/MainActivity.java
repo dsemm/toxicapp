@@ -7998,49 +7998,38 @@ private int loadingProgressFor(String message) {
                 // O cabo começa fora da borda da lente para não sobrepor as linhas.
                 c.drawLine(lx + lensR * .82f, ly + lensR * .82f, cx + m * .265f, cy + m * .265f, p);
             } else if ("visuals".equals(type)) {
-                // Camiseta em escala menor, alinhada com os demais ícones.
-                float ix = cx - m * .285f;
-                float iy = cy - m * .265f;
-                float iw = m * .57f;
-                float ih = m * .62f;
-
+                // Ícone de camiseta minimalista para o provador de visuais.
                 Path shirt = new Path();
-                shirt.moveTo(ix + iw*.25f, iy + ih*.22f);
-                shirt.lineTo(ix + iw*.38f, iy + ih*.10f);
-                shirt.quadTo(ix + iw*.50f, iy + ih*.20f, ix + iw*.62f, iy + ih*.10f);
-                shirt.lineTo(ix + iw*.75f, iy + ih*.22f);
-                shirt.lineTo(ix + iw*.88f, iy + ih*.40f);
-                shirt.lineTo(ix + iw*.76f, iy + ih*.51f);
-                shirt.lineTo(ix + iw*.72f, iy + ih*.86f);
-                shirt.quadTo(ix + iw*.72f, iy + ih*.92f, ix + iw*.66f, iy + ih*.92f);
-                shirt.lineTo(ix + iw*.34f, iy + ih*.92f);
-                shirt.quadTo(ix + iw*.28f, iy + ih*.92f, ix + iw*.28f, iy + ih*.86f);
-                shirt.lineTo(ix + iw*.24f, iy + ih*.51f);
-                shirt.lineTo(ix + iw*.12f, iy + ih*.40f);
+                shirt.moveTo(x + w*.27f, y + h*.28f);
+                shirt.lineTo(x + w*.39f, y + h*.20f);
+                shirt.quadTo(x + w*.50f, y + h*.28f, x + w*.61f, y + h*.20f);
+                shirt.lineTo(x + w*.73f, y + h*.28f);
+                shirt.lineTo(x + w*.86f, y + h*.43f);
+                shirt.lineTo(x + w*.75f, y + h*.55f);
+                shirt.lineTo(x + w*.70f, y + h*.49f);
+                shirt.lineTo(x + w*.70f, y + h*.80f);
+                shirt.lineTo(x + w*.30f, y + h*.80f);
+                shirt.lineTo(x + w*.30f, y + h*.49f);
+                shirt.lineTo(x + w*.25f, y + h*.55f);
+                shirt.lineTo(x + w*.14f, y + h*.43f);
                 shirt.close();
-
                 if (selected) {
                     p.setStyle(Paint.Style.FILL);
                     p.setColor(color);
                     c.drawPath(shirt, p);
                 } else {
                     p.setStyle(Paint.Style.STROKE);
-                    p.setStrokeWidth(Math.max(2f, m * .070f));
-                    p.setStrokeJoin(Paint.Join.ROUND);
-                    p.setStrokeCap(Paint.Cap.ROUND);
+                    p.setStrokeWidth(Math.max(2f, m * .075f));
                     p.setColor(color);
                     c.drawPath(shirt, p);
                 }
             } else if ("heart".equals(type)) {
                 Path heart = new Path();
-                float hr = m * .92f;
-                float hx = cx - hr * .50f;
-                float hy = cy - hr * .47f;
-                heart.moveTo(cx, hy + hr*.78f);
-                heart.cubicTo(hx + hr*.10f, hy + hr*.48f, hx + hr*.12f, hy + hr*.18f, hx + hr*.34f, hy + hr*.18f);
-                heart.cubicTo(hx + hr*.44f, hy + hr*.18f, hx + hr*.50f, hy + hr*.27f, cx, hy + hr*.36f);
-                heart.cubicTo(hx + hr*.50f, hy + hr*.27f, hx + hr*.56f, hy + hr*.18f, hx + hr*.66f, hy + hr*.18f);
-                heart.cubicTo(hx + hr*.88f, hy + hr*.18f, hx + hr*.90f, hy + hr*.48f, cx, hy + hr*.78f);
+                heart.moveTo(cx, cy + m*.27f);
+                heart.cubicTo(cx - m*.40f, cy + m*.02f, cx - m*.34f, cy - m*.25f, cx - m*.16f, cy - m*.25f);
+                heart.cubicTo(cx - m*.06f, cy - m*.25f, cx, cy - m*.17f, cx, cy - m*.12f);
+                heart.cubicTo(cx, cy - m*.17f, cx + m*.06f, cy - m*.25f, cx + m*.16f, cy - m*.25f);
+                heart.cubicTo(cx + m*.34f, cy - m*.25f, cx + m*.40f, cy + m*.02f, cx, cy + m*.27f);
                 heart.close();
                 if (selected) {
                     p.setStyle(Paint.Style.FILL);
