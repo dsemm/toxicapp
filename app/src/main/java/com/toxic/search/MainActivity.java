@@ -4461,6 +4461,7 @@ private int loadingProgressFor(String message) {
 
         colors.setAlpha(0.88f);
         colors.setEnabled(true);
+        bindColorPanelTouchLock(colors);
 
         int count = Math.max(1, Math.min(2, item.optInt("colorCount", 1)));
         ArrayList<String> activeColors = figurePartColors(currentFigure[0], itemType);
@@ -4468,10 +4469,28 @@ private int loadingProgressFor(String message) {
         HorizontalScrollView horizontal = new HorizontalScrollView(this);
         horizontal.setHorizontalScrollBarEnabled(false);
         horizontal.setFillViewport(true);
+        final float[] colorAreaLastY = {0f};
         horizontal.setOnTouchListener((v, event) -> {
             ViewParent parent = v.getParent();
-            if (parent != null) parent.requestDisallowInterceptTouchEvent(true);
-            return false;
+            while (parent != null) {
+                parent.requestDisallowInterceptTouchEvent(true);
+                if (!(parent instanceof View)) break;
+                parent = ((View) parent).getParent();
+            }
+
+            ScrollView target = findColorScrollTarget(horizontal, event.getX());
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                colorAreaLastY[0] = event.getY();
+                return true;
+            }
+            if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                float y = event.getY();
+                int dy = (int)(colorAreaLastY[0] - y);
+                colorAreaLastY[0] = y;
+                if (target != null) target.scrollBy(0, dy);
+                return true;
+            }
+            return true;
         });
         LinearLayout columns = new LinearLayout(this);
         columns.setOrientation(LinearLayout.HORIZONTAL);
@@ -4491,9 +4510,9 @@ private int loadingProgressFor(String message) {
             column.setOrientation(LinearLayout.VERTICAL);
             column.setGravity(Gravity.LEFT);
             column.setPadding(0, 0, 0, 0);
-            vertical.addView(column, new ScrollView.LayoutParams(-2, -2));
+            vertical.addView(column, new ScrollView.LayoutParams(-1, -2));
 
-            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? dp(304) : dp(142), dp(116));
+            LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(count == 1 ? -1 : dp(156), dp(116));
             if (slot > 0) colLp.leftMargin = dp(10);
             columns.addView(vertical, colLp);
 
@@ -4554,6 +4573,29 @@ private int loadingProgressFor(String message) {
                 }
             } catch(Exception ignored) {}
         }, 60L);
+    }
+
+    private ScrollView findColorScrollTarget(HorizontalScrollView horizontal, float x) {
+        try {
+            if (horizontal == null || horizontal.getChildCount() == 0) return null;
+            View child = horizontal.getChildAt(0);
+            if (!(child instanceof LinearLayout)) return null;
+            LinearLayout columns = (LinearLayout) child;
+            if (columns.getChildCount() == 0) return null;
+
+            float absoluteX = x + horizontal.getScrollX();
+            for (int i = 0; i < columns.getChildCount(); i++) {
+                View v = columns.getChildAt(i);
+                if (v instanceof ScrollView && absoluteX >= v.getLeft() && absoluteX <= v.getRight()) {
+                    return (ScrollView) v;
+                }
+            }
+            for (int i = 0; i < columns.getChildCount(); i++) {
+                View v = columns.getChildAt(i);
+                if (v instanceof ScrollView) return (ScrollView) v;
+            }
+        } catch(Exception ignored) {}
+        return null;
     }
 
     private void renderDisabledColorPlaceholder(LinearLayout colors) {
@@ -5270,7 +5312,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "No favorite profiles yet.";
                 case "favorite_currently_online": return "Currently online!";
                 case "notify_favorite_online": return "Notify when a favorite comes online";
-                case "favorite_online_banner": return "Your favorite %s just came online!";
+                case "favorite_online_banner": return "%s just came online!";
                 case "favorite_added": return "Added to favorites.";
                 case "favorite_removed": return "Removed from favorites.";
                 case "hide_badges": return "Hide achievements";
@@ -5423,7 +5465,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Aún no hay perfiles favoritos.";
                 case "favorite_currently_online": return "¡Actualmente en línea!";
                 case "notify_favorite_online": return "Notificar cuando un favorito se conecte";
-                case "favorite_online_banner": return "¡Tu favorito %s acaba de conectarse!";
+                case "favorite_online_banner": return "¡%s acaba de conectarse!";
                 case "favorite_added": return "Añadido a favoritos.";
                 case "favorite_removed": return "Eliminado de favoritos.";
                 case "hide_badges": return "Ocultar logros";
@@ -5576,7 +5618,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Noch keine favorisierten Profile.";
                 case "favorite_currently_online": return "Gerade online!";
                 case "notify_favorite_online": return "Benachrichtigen, wenn ein Favorit online geht";
-                case "favorite_online_banner": return "Dein Favorit %s ist gerade online gegangen!";
+                case "favorite_online_banner": return "%s ist gerade online gegangen!";
                 case "favorite_added": return "Zu Favoriten hinzugefügt.";
                 case "favorite_removed": return "Aus Favoriten entfernt.";
                 case "hide_badges": return "Erfolge ausblenden";
@@ -5729,7 +5771,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Aucun profil favori pour le moment.";
                 case "favorite_currently_online": return "Actuellement en ligne !";
                 case "notify_favorite_online": return "Notifier quand un favori passe en ligne";
-                case "favorite_online_banner": return "Ton favori %s vient de se connecter !";
+                case "favorite_online_banner": return "%s vient de se connecter !";
                 case "favorite_added": return "Ajouté aux favoris.";
                 case "favorite_removed": return "Retiré des favoris.";
                 case "hide_badges": return "Masquer les succès";
@@ -5882,7 +5924,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Ei vielä suosikkiprofiileja.";
                 case "favorite_currently_online": return "Tällä hetkellä paikalla!";
                 case "notify_favorite_online": return "Ilmoita, kun suosikki tulee paikalle";
-                case "favorite_online_banner": return "Suosikkisi %s tuli juuri paikalle!";
+                case "favorite_online_banner": return "%s tuli juuri paikalle!";
                 case "favorite_added": return "Lisätty suosikkeihin.";
                 case "favorite_removed": return "Poistettu suosikeista.";
                 case "hide_badges": return "Piilota saavutukset";
@@ -6035,7 +6077,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Nessun profilo preferito ancora.";
                 case "favorite_currently_online": return "Attualmente online!";
                 case "notify_favorite_online": return "Avvisa quando un preferito va online";
-                case "favorite_online_banner": return "Il tuo preferito %s è appena andato online!";
+                case "favorite_online_banner": return "%s è appena andato online!";
                 case "favorite_added": return "Aggiunto ai preferiti.";
                 case "favorite_removed": return "Rimosso dai preferiti.";
                 case "hide_badges": return "Nascondi risultati";
@@ -6188,7 +6230,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Nog geen favoriete profielen.";
                 case "favorite_currently_online": return "Momenteel online!";
                 case "notify_favorite_online": return "Melden wanneer een favoriet online komt";
-                case "favorite_online_banner": return "Je favoriet %s is net online gekomen!";
+                case "favorite_online_banner": return "%s is net online gekomen!";
                 case "favorite_added": return "Toegevoegd aan favorieten.";
                 case "favorite_removed": return "Verwijderd uit favorieten.";
                 case "hide_badges": return "Prestaties verbergen";
@@ -6341,7 +6383,7 @@ private int loadingProgressFor(String message) {
                 case "no_favorites": return "Henüz favori profil yok.";
                 case "favorite_currently_online": return "Şu anda çevrimiçi!";
                 case "notify_favorite_online": return "Bir favori çevrimiçi olunca bildir";
-                case "favorite_online_banner": return "Favorin %s az önce çevrimiçi oldu!";
+                case "favorite_online_banner": return "%s az önce çevrimiçi oldu!";
                 case "favorite_added": return "Favorilere eklendi.";
                 case "favorite_removed": return "Favorilerden kaldırıldı.";
                 case "hide_badges": return "Başarıları gizle";
@@ -6493,7 +6535,7 @@ private int loadingProgressFor(String message) {
             case "no_favorites": return "Nenhum perfil favoritado ainda.";
             case "favorite_currently_online": return "Atualmente online!";
             case "notify_favorite_online": return "Notificar quando um favorito ficar online";
-            case "favorite_online_banner": return "Seu favorito %s acabou de ficar online!";
+            case "favorite_online_banner": return "%s acabou de ficar online!";
             case "favorite_added": return "Adicionado aos favoritos.";
             case "favorite_removed": return "Removido dos favoritos.";
             case "hide_badges": return "Ocultar conquistas";
@@ -7016,6 +7058,29 @@ private int loadingProgressFor(String message) {
         }
     }
 
+    private Bitmap loadNotificationHeadBitmap(FavoriteStatus st) {
+        try {
+            if (st == null) return null;
+            String url = "";
+            if (st.figure != null && !st.figure.trim().isEmpty()) {
+                url = "https://" + hotelDomain(st.hotelKey) + "/habbo-imaging/avatarimage?figure=" + enc(st.figure) + "&size=m&direction=2&head_direction=2&headonly=1";
+            } else if (st.nick != null && !st.nick.trim().isEmpty()) {
+                url = avatarHeadByNameForHotel(st.nick, st.hotelKey);
+            }
+            if (url.isEmpty()) return null;
+            HttpURLConnection c = (HttpURLConnection)new URL(url).openConnection();
+            c.setConnectTimeout(10000);
+            c.setReadTimeout(15000);
+            try {
+                return BitmapFactory.decodeStream(c.getInputStream());
+            } finally {
+                try { c.disconnect(); } catch(Exception ignored) {}
+            }
+        } catch(Exception ignored) {
+            return null;
+        }
+    }
+
     private void showFavoriteOnlineSystemNotification(FavoriteStatus st) {
         try {
             if (st == null) return;
@@ -7029,13 +7094,16 @@ private int loadingProgressFor(String message) {
             Intent intent = new Intent(this, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             PendingIntent pi = PendingIntent.getActivity(this, 1207, intent, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+            Bitmap largeIcon = loadNotificationHeadBitmap(st);
             Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, channelId) : new Notification.Builder(this);
-            b.setSmallIcon(android.R.drawable.ic_dialog_info)
+            b.setSmallIcon(R.drawable.notification_image)
              .setContentTitle(t("favorites"))
              .setContentText(tr("favorite_online_banner", st.nick))
+             .setStyle(new Notification.BigTextStyle().bigText(tr("favorite_online_banner", st.nick)))
              .setPriority(Notification.PRIORITY_HIGH)
              .setContentIntent(pi)
              .setAutoCancel(true);
+            if (largeIcon != null) b.setLargeIcon(largeIcon);
             nm.notify(Math.abs(favoriteKey(st.hotelKey, st.nick).hashCode()), b.build());
         } catch(Exception ignored) {}
     }
@@ -7430,15 +7498,17 @@ private int loadingProgressFor(String message) {
                 Intent open = new Intent(context, MainActivity.class);
                 open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 PendingIntent pi = PendingIntent.getActivity(context, 1207, open, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
-                String msg = "Seu favorito " + (st.nick == null ? "" : st.nick) + " acabou de ficar online!";
+                String msg = (st.nick == null ? "" : st.nick) + " acabou de ficar online!";
+                Bitmap largeIcon = loadNotificationHeadBitmapStatic(st);
                 Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(context, channelId) : new Notification.Builder(context);
-                b.setSmallIcon(android.R.drawable.ic_dialog_info)
+                b.setSmallIcon(R.drawable.notification_image)
                  .setContentTitle("Favoritos")
                  .setContentText(msg)
                  .setStyle(new Notification.BigTextStyle().bigText(msg))
                  .setPriority(Notification.PRIORITY_HIGH)
                  .setContentIntent(pi)
                  .setAutoCancel(true);
+                if (largeIcon != null) b.setLargeIcon(largeIcon);
                 nm.notify(Math.abs((st.hotelKey + ":" + st.nick).hashCode()), b.build());
             } catch(Exception ignored) {}
         }
