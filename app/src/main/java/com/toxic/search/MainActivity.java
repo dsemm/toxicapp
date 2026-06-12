@@ -1539,7 +1539,7 @@ public class MainActivity extends Activity {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         resultWrap.addView(wrap, lp(-1, -2, 0, 0, 0, 18));
-        wrap.addView(statRow("status", t("status"), r.online ? t("online") : t("offline")));
+        wrap.addView(statRow(r.online ? "status_online" : "status_offline", t("status"), r.online ? t("online") : t("offline")));
         wrap.addView(statRow("clock", t("last_login"), niceDate(r.lastAccess), timeAgoText(r.lastAccess)));
         wrap.addView(statRow("calendar", t("creation"), niceDateOnly(r.memberSince), timeAgoText(r.memberSince)));
         wrap.addView(statRow("friends", t("friends"), String.valueOf(r.friends.size())));
@@ -1563,11 +1563,12 @@ public class MainActivity extends Activity {
         row.setPadding(dp(10), dp(7), dp(10), dp(7));
         LinearLayout.LayoutParams rp = lp(-1, dp(54), 0, 0, 0, 7);
         row.setLayoutParams(rp);
-        if ("status".equals(icon)) {
+        if ("status".equals(icon) || "status_online".equals(icon) || "status_offline".equals(icon)) {
             ImageView iv = new ImageView(this);
             iv.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
             row.addView(iv, new LinearLayout.LayoutParams(dp(20), dp(20)));
-            Glide.with(this).asGif().load("Online".equals(value) ? R.drawable.online : R.drawable.offline).into(iv);
+            boolean onlineStatusIcon = "status_online".equals(icon) || (value != null && value.trim().equalsIgnoreCase(t("online")));
+            Glide.with(this).asGif().load(onlineStatusIcon ? R.drawable.online : R.drawable.offline).into(iv);
         } else {
             IconView iv = new IconView(this, icon);
             row.addView(iv, new LinearLayout.LayoutParams(dp(18), dp(18)));
@@ -3814,6 +3815,7 @@ private int loadingProgressFor(String message) {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         box.setPadding(dp(12), dp(14), dp(12), dp(14));
+        box.setMinimumHeight(dp(300));
         box.setBackground(round(Color.argb(lightTheme ? 22 : 36, 139, 52, 217), dp(18), Color.argb(80, 139, 52, 217), 1));
 
         ProgressBar spinner = new ProgressBar(this);
@@ -3821,12 +3823,12 @@ private int loadingProgressFor(String message) {
         if (Build.VERSION.SDK_INT >= 21) {
             spinner.setIndeterminateTintList(ColorStateList.valueOf(Color.rgb(160, 62, 255)));
         }
-        box.addView(spinner, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        box.addView(spinner, new LinearLayout.LayoutParams(dp(38), dp(38)));
 
         TextView label = text(message == null ? "" : message, 13, lightTheme ? Color.rgb(65, 28, 90) : Color.WHITE, true);
         label.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.topMargin = dp(8);
+        lp.topMargin = dp(10);
         box.addView(label, lp);
         return box;
     }
@@ -4097,7 +4099,7 @@ private int loadingProgressFor(String message) {
         });
 
         if (figureDataRef[0] == null) {
-            itemsArea.addView(visualPurpleLoader(t("loading_visuals")));
+            itemsArea.addView(visualPurpleLoader(t("loading_visuals")), new LinearLayout.LayoutParams(-1, dp(300)));
             loadVisualFigureData(data -> {
                 figureDataRef[0] = data;
                 refreshAll[0].run();
