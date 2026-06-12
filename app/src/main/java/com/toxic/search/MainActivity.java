@@ -3272,7 +3272,7 @@ private int loadingProgressFor(String message) {
 
     private String avatarFull(String figure) { return avatarFull(figure, 2); }
     private String avatarFull(String figure, int direction) { return habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=l&direction=" + direction + "&head_direction=" + direction + "&gesture=std&action=std&headonly=0"); }
-    private String avatarSmall(String figure) { return habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&gesture=sml&action=std&headonly=0"); }
+    private String avatarSmall(String figure) { return habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&gesture=std&action=std&headonly=0"); }
     private String avatarHead(String figure) { return habboImagingUrl("/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=2&head_direction=2&headonly=1"); }
     private String avatarHeadByName(String name) { return avatarHeadByNameForHotel(name, currentHotelKey); }
     private String avatarHeadByNameForHotel(String name, String hotelKey) { return "https://" + hotelDomain(hotelKey) + "/habbo-imaging/avatarimage?user=" + enc(name) + "&size=m&direction=2&head_direction=2&headonly=1"; }
@@ -3982,7 +3982,7 @@ private int loadingProgressFor(String message) {
 
         final String[] currentFigure = {visualEditorCachedFigure == null || visualEditorCachedFigure.trim().isEmpty() ? DEFAULT_VISUAL_FIGURE : visualEditorCachedFigure};
         final String[] currentGender = {visualEditorCachedGender == null || visualEditorCachedGender.trim().isEmpty() ? "M" : visualEditorCachedGender};
-        final String[] currentType = {visualEditorCachedType == null || visualEditorCachedType.trim().isEmpty() ? "hd" : visualEditorCachedType};
+        final String[] currentType = {"hd"};
         final int[] visualDirection = {visualEditorCachedDirection};
         final Runnable[] refreshAll = new Runnable[1];
 
@@ -7976,44 +7976,47 @@ private int loadingProgressFor(String message) {
             p.setColor(color);
 
             if ("home".equals(type)) {
-                // Ícone de lupa mais encorpado, com proporção compatível aos outros botões.
-                float lensR = m * .225f;
-                float lx = cx - m * .070f;
+                // Lupa vetorial: grossa, arredondada, proporcional aos outros ícones e sem círculo interno.
+                float lensR = m * .215f;
+                float lx = cx - m * .075f;
                 float ly = cy - m * .070f;
-                float stroke = Math.max(3.1f, m * .105f);
+                float stroke = Math.max(3.0f, m * .102f);
 
                 p.setStyle(Paint.Style.STROKE);
                 p.setStrokeCap(Paint.Cap.ROUND);
                 p.setStrokeJoin(Paint.Join.ROUND);
+
+                // Leve base escura para dar profundidade sem criar novo círculo interno.
+                p.setStrokeWidth(stroke + Math.max(1.2f, m * .026f));
+                p.setColor(Color.argb(selected ? 105 : 86, 32, 0, 72));
+                c.drawCircle(lx, ly, lensR, p);
+                c.drawLine(lx + lensR * .72f, ly + lensR * .72f, cx + m * .265f, cy + m * .265f, p);
+
                 p.setStrokeWidth(stroke);
                 p.setColor(color);
                 c.drawCircle(lx, ly, lensR, p);
-
-                Path handle = new Path();
-                handle.moveTo(lx + lensR * .64f, ly + lensR * .64f);
-                handle.lineTo(cx + m * .265f, cy + m * .265f);
-                c.drawPath(handle, p);
-
-                if (selected) {
-                    p.setStrokeWidth(Math.max(1.8f, m * .048f));
-                    p.setColor(Color.argb(132, 255, 235, 255));
-                    c.drawCircle(lx, ly, lensR * .62f, p);
-                }
+                // O cabo começa fora da borda da lente para não sobrepor as linhas.
+                c.drawLine(lx + lensR * .82f, ly + lensR * .82f, cx + m * .265f, cy + m * .265f, p);
             } else if ("visuals".equals(type)) {
-                // Ícone de camiseta minimalista para o provador de visuais.
+                // Camiseta em escala menor, alinhada com os demais ícones.
+                float ix = cx - m * .285f;
+                float iy = cy - m * .265f;
+                float iw = m * .57f;
+                float ih = m * .62f;
+
                 Path shirt = new Path();
-                shirt.moveTo(x + w*.27f, y + h*.28f);
-                shirt.lineTo(x + w*.39f, y + h*.20f);
-                shirt.quadTo(x + w*.50f, y + h*.28f, x + w*.61f, y + h*.20f);
-                shirt.lineTo(x + w*.73f, y + h*.28f);
-                shirt.lineTo(x + w*.84f, y + h*.43f);
-                shirt.lineTo(x + w*.73f, y + h*.53f);
-                shirt.lineTo(x + w*.70f, y + h*.84f);
-                shirt.quadTo(x + w*.70f, y + h*.90f, x + w*.64f, y + h*.90f);
-                shirt.lineTo(x + w*.36f, y + h*.90f);
-                shirt.quadTo(x + w*.30f, y + h*.90f, x + w*.30f, y + h*.84f);
-                shirt.lineTo(x + w*.27f, y + h*.53f);
-                shirt.lineTo(x + w*.16f, y + h*.43f);
+                shirt.moveTo(ix + iw*.25f, iy + ih*.22f);
+                shirt.lineTo(ix + iw*.38f, iy + ih*.10f);
+                shirt.quadTo(ix + iw*.50f, iy + ih*.20f, ix + iw*.62f, iy + ih*.10f);
+                shirt.lineTo(ix + iw*.75f, iy + ih*.22f);
+                shirt.lineTo(ix + iw*.88f, iy + ih*.40f);
+                shirt.lineTo(ix + iw*.76f, iy + ih*.51f);
+                shirt.lineTo(ix + iw*.72f, iy + ih*.86f);
+                shirt.quadTo(ix + iw*.72f, iy + ih*.92f, ix + iw*.66f, iy + ih*.92f);
+                shirt.lineTo(ix + iw*.34f, iy + ih*.92f);
+                shirt.quadTo(ix + iw*.28f, iy + ih*.92f, ix + iw*.28f, iy + ih*.86f);
+                shirt.lineTo(ix + iw*.24f, iy + ih*.51f);
+                shirt.lineTo(ix + iw*.12f, iy + ih*.40f);
                 shirt.close();
 
                 if (selected) {
@@ -8022,30 +8025,42 @@ private int loadingProgressFor(String message) {
                     c.drawPath(shirt, p);
                 } else {
                     p.setStyle(Paint.Style.STROKE);
-                    p.setStrokeWidth(Math.max(2f, m * .072f));
+                    p.setStrokeWidth(Math.max(2f, m * .070f));
                     p.setStrokeJoin(Paint.Join.ROUND);
                     p.setStrokeCap(Paint.Cap.ROUND);
                     p.setColor(color);
                     c.drawPath(shirt, p);
                 }
-            } else if ("heart".equals(type)) {            } else if ("heart".equals(type)) {
+            } else if ("heart".equals(type)) {
                 Path heart = new Path();
-                heart.moveTo(cx, cy + m*.27f);
-                heart.cubicTo(cx - m*.40f, cy + m*.02f, cx - m*.34f, cy - m*.25f, cx - m*.16f, cy - m*.25f);
-                heart.cubicTo(cx - m*.06f, cy - m*.25f, cx, cy - m*.17f, cx, cy - m*.12f);
-                heart.cubicTo(cx, cy - m*.17f, cx + m*.06f, cy - m*.25f, cx + m*.16f, cy - m*.25f);
-                heart.cubicTo(cx + m*.34f, cy - m*.25f, cx + m*.40f, cy + m*.02f, cx, cy + m*.27f);
+                float hr = m * .92f;
+                float hx = cx - hr * .50f;
+                float hy = cy - hr * .47f;
+                heart.moveTo(cx, hy + hr*.78f);
+                heart.cubicTo(hx + hr*.10f, hy + hr*.48f, hx + hr*.12f, hy + hr*.18f, hx + hr*.34f, hy + hr*.18f);
+                heart.cubicTo(hx + hr*.44f, hy + hr*.18f, hx + hr*.50f, hy + hr*.27f, cx, hy + hr*.36f);
+                heart.cubicTo(hx + hr*.50f, hy + hr*.27f, hx + hr*.56f, hy + hr*.18f, hx + hr*.66f, hy + hr*.18f);
+                heart.cubicTo(hx + hr*.88f, hy + hr*.18f, hx + hr*.90f, hy + hr*.48f, cx, hy + hr*.78f);
                 heart.close();
                 if (selected) {
                     p.setStyle(Paint.Style.FILL);
                     p.setColor(color);
                     c.drawPath(heart, p);
                 } else {
+                    p.setStyle(Paint.Style.STROKE);
+                    p.setStrokeWidth(Math.max(2.1f, m * .078f));
+                    p.setStrokeJoin(Paint.Join.ROUND);
+                    p.setStrokeCap(Paint.Cap.ROUND);
+                    p.setColor(color);
                     c.drawPath(heart, p);
                 }
             } else {
                 // Ícone tipo menu/hambúrguer minimalista, mais alto e proporcional aos outros.
                 p.setStrokeWidth(Math.max(2.2f, m*.09f));
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                p.setStrokeJoin(Paint.Join.ROUND);
+                p.setColor(color);
                 float left = x + w*.17f;
                 float right = x + w*.83f;
                 c.drawLine(left, y + h*.27f, right, y + h*.27f, p);
