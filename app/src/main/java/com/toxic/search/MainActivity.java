@@ -8475,7 +8475,7 @@ private int loadingProgressFor(String message) {
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
 
-    public class TutorialOverlayDrawable    public class TutorialOverlayDrawable extends Drawable {
+    public class TutorialOverlayDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         int step;
         TutorialOverlayDrawable(int s) { step = s; }
