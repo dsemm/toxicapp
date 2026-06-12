@@ -3820,7 +3820,7 @@ private int loadingProgressFor(String message) {
         });
     }
 
-    private String avatarMedium    private String avatarMedium(String figure, int direction) {
+    private String avatarMedium(String figure, int direction) {
         return "https://www.habbo.com.br/habbo-imaging/avatarimage?figure=" + enc(figure) + "&size=m&direction=" + direction + "&head_direction=" + direction + "&gesture=std&action=std";
     }
 
@@ -7117,7 +7117,7 @@ private int loadingProgressFor(String message) {
         });
     }
 
-    private void openProfileListItem    private void openProfileListItem(ProfileHistoryItem item, Dialog dialog) {
+    private void openProfileListItem(ProfileHistoryItem item, Dialog dialog) {
         if (dialog != null) dialog.dismiss();
         currentHotelKey = normalizeHotelKey(item.hotelKey);
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_HOTEL, currentHotelKey).apply();
