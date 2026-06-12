@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
     private static final String PREF_OPENED_HISTORY = "opened_profiles_history";
     private static final String PREF_FAVORITES = "favorite_profiles";
     private static final String PREF_NOTIFY_FAVORITE_ONLINE = "notify_favorite_online";
+    private static final String PREF_FAVORITE_ONLINE_STATES = "favorite_online_states";
     private static final String PREF_TUTORIAL_SHOWN = "tutorial_shown";
     private static final long PROFILE_REFRESH_COOLDOWN_MS = 60L * 1000L;
     private ScrollView mainScroll;
@@ -183,6 +184,7 @@ public class MainActivity extends Activity {
         loadRewardedAd();
         requestFavoriteNotificationPermissionIfNeeded();
         startFavoriteOnlineWatcher();
+        updateFavoriteOnlineAlarm();
     }
     private void requestFavoriteNotificationPermissionIfNeeded() {
         try {
@@ -4981,6 +4983,7 @@ private int loadingProgressFor(String message) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(PREF_NOTIFY_FAVORITE_ONLINE, notifyFavoriteOnline).apply();
             favNotifyToggle.setBackground(new AchievementSwitchDrawable(notifyFavoriteOnline));
             startFavoriteOnlineWatcher();
+            updateFavoriteOnlineAlarm();
         });
 
         TextView clear = dialogButton(t("clear_app_cache"));
@@ -6902,6 +6905,35 @@ private int loadingProgressFor(String message) {
 
 
 
+    private void updateFavoriteOnlineAlarm() {
+        try {
+            if (notifyFavoriteOnline) scheduleFavoriteOnlineAlarm();
+            else cancelFavoriteOnlineAlarm();
+        } catch(Exception ignored) {}
+    }
+
+    private PendingIntent favoriteOnlineAlarmIntent(int flags) {
+        Intent intent = new Intent(this, FavoriteOnlineReceiver.class);
+        intent.setAction("com.toxic.search.FAVORITE_ONLINE_CHECK");
+        return PendingIntent.getBroadcast(this, 2607, intent, flags | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+    }
+
+    private void scheduleFavoriteOnlineAlarm() {
+        AlarmManager am = (AlarmManager)getSystemService(ALARM_SERVICE);
+        if (am == null) return;
+        PendingIntent pi = favoriteOnlineAlarmIntent(PendingIntent.FLAG_UPDATE_CURRENT);
+        long first = System.currentTimeMillis() + 60_000L;
+        am.cancel(pi);
+        am.setRepeating(AlarmManager.RTC_WAKEUP, first, 60_000L, pi);
+    }
+
+    private void cancelFavoriteOnlineAlarm() {
+        AlarmManager am = (AlarmManager)getSystemService(ALARM_SERVICE);
+        if (am == null) return;
+        PendingIntent pi = favoriteOnlineAlarmIntent(PendingIntent.FLAG_NO_CREATE);
+        if (pi != null) am.cancel(pi);
+    }
+
     private void startFavoriteOnlineWatcher() {
         if (favoriteOnlineWatcher != null) uiHandler.removeCallbacks(favoriteOnlineWatcher);
         favoriteOnlineWatcher = () -> {
@@ -6921,9 +6953,15 @@ private int loadingProgressFor(String message) {
                 FavoriteStatus st = fetchFavoriteStatus(item);
                 if (st == null) continue;
 
-                Boolean old = favoriteOnlineStates.put(key, st.online);
-                boolean becameOnline = old != null && !old.booleanValue() && st.online;
-                if (becameOnline) {
+                Boolean oldStored = getStoredFavoriteOnlineState(key);
+                Boolean oldMemory = favoriteOnlineStates.get(key);
+                boolean hadPrevious = oldStored != null || oldMemory != null;
+                boolean wasOnline = oldStored != null ? oldStored.booleanValue() : Boolean.TRUE.equals(oldMemory);
+
+                favoriteOnlineStates.put(key, st.online);
+                setStoredFavoriteOnlineState(key, st.online);
+
+                if (hadPrevious && !wasOnline && st.online) {
                     long now = System.currentTimeMillis();
                     Long last = favoriteOnlineLastToast.get(key);
                     if (last == null || now - last > 10L * 60L * 1000L) {
@@ -6933,6 +6971,27 @@ private int loadingProgressFor(String message) {
                 }
             }
         });
+    }
+
+    private Boolean getStoredFavoriteOnlineState(String key) {
+        if (key == null || key.isEmpty()) return null;
+        try {
+            String raw = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_FAVORITE_ONLINE_STATES, "{}");
+            JSONObject obj = new JSONObject(raw == null || raw.trim().isEmpty() ? "{}" : raw);
+            if (!obj.has(key)) return null;
+            return obj.optBoolean(key, false);
+        } catch(Exception ignored) { return null; }
+    }
+
+    private void setStoredFavoriteOnlineState(String key, boolean online) {
+        if (key == null || key.isEmpty()) return;
+        try {
+            SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+            String raw = sp.getString(PREF_FAVORITE_ONLINE_STATES, "{}");
+            JSONObject obj = new JSONObject(raw == null || raw.trim().isEmpty() ? "{}" : raw);
+            obj.put(key, online);
+            sp.edit().putString(PREF_FAVORITE_ONLINE_STATES, obj.toString()).apply();
+        } catch(Exception ignored) {}
     }
 
     private FavoriteStatus fetchFavoriteStatus(ProfileHistoryItem item) {
@@ -6964,7 +7023,7 @@ private int loadingProgressFor(String message) {
             if (nm == null) return;
             String channelId = "favorite_online";
             if (Build.VERSION.SDK_INT >= 26) {
-                NotificationChannel ch = new NotificationChannel(channelId, t("favorites"), NotificationManager.IMPORTANCE_DEFAULT);
+                NotificationChannel ch = new NotificationChannel(channelId, t("favorites"), NotificationManager.IMPORTANCE_HIGH);
                 nm.createNotificationChannel(ch);
             }
             Intent intent = new Intent(this, MainActivity.class);
@@ -6974,6 +7033,7 @@ private int loadingProgressFor(String message) {
             b.setSmallIcon(android.R.drawable.ic_dialog_info)
              .setContentTitle(t("favorites"))
              .setContentText(tr("favorite_online_banner", st.nick))
+             .setPriority(Notification.PRIORITY_HIGH)
              .setContentIntent(pi)
              .setAutoCancel(true);
             nm.notify(Math.abs(favoriteKey(st.hotelKey, st.nick).hashCode()), b.build());
@@ -7121,7 +7181,9 @@ private int loadingProgressFor(String message) {
                 list.addView(centerNote(t("no_favorites")));
                 return;
             }
-            for (ProfileHistoryItem item : new ArrayList<>(favoriteProfiles)) list.addView(favoriteProfileRow(item, dialog, render[0]));
+            ArrayList<ProfileHistoryItem> sortedFavorites = new ArrayList<>(favoriteProfiles);
+            Collections.sort(sortedFavorites, (a, b) -> Boolean.compare(Boolean.TRUE.equals(favoriteOnlineStates.get(favoriteKey(b.hotelKey, b.nick))), Boolean.TRUE.equals(favoriteOnlineStates.get(favoriteKey(a.hotelKey, a.nick)))));
+            for (ProfileHistoryItem item : sortedFavorites) list.addView(favoriteProfileRow(item, dialog, render[0]));
         };
         render[0].run();
 
@@ -7173,6 +7235,7 @@ private int loadingProgressFor(String message) {
             FavoriteStatus st = fetchFavoriteStatus(item);
             if (st == null) return;
             Boolean old = favoriteOnlineStates.put(key, st.online);
+            setStoredFavoriteOnlineState(key, st.online);
             if (old == null || old.booleanValue() != st.online) {
                 runOnUiThread(() -> { if (refresh != null) refresh.run(); });
             }
@@ -7269,6 +7332,151 @@ private int loadingProgressFor(String message) {
 
 
 
+
+    public static class FavoriteOnlineReceiver extends BroadcastReceiver {
+        @Override public void onReceive(Context context, Intent intent) {
+            final PendingResult pending = goAsync();
+            new Thread(() -> {
+                try {
+                    checkFavoritesInBackground(context);
+                } catch(Exception ignored) {
+                } finally {
+                    try { pending.finish(); } catch(Exception ignored) {}
+                }
+            }).start();
+        }
+
+        private static void checkFavoritesInBackground(Context context) {
+            if (context == null) return;
+            SharedPreferences sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            if (!sp.getBoolean(PREF_NOTIFY_FAVORITE_ONLINE, false)) return;
+
+            String rawFavorites = sp.getString(PREF_FAVORITES, "");
+            if (rawFavorites == null || rawFavorites.trim().isEmpty()) return;
+
+            JSONObject states;
+            try {
+                String rawStates = sp.getString(PREF_FAVORITE_ONLINE_STATES, "{}");
+                states = new JSONObject(rawStates == null || rawStates.trim().isEmpty() ? "{}" : rawStates);
+            } catch(Exception e) {
+                states = new JSONObject();
+            }
+
+            try {
+                JSONArray arr = new JSONArray(rawFavorites);
+                for (int i=0; i<arr.length(); i++) {
+                    JSONObject fav = arr.optJSONObject(i);
+                    if (fav == null) continue;
+                    String nick = fav.optString("nick", "").trim();
+                    if (nick.isEmpty()) continue;
+                    String hotel = normalizeHotelKeyStatic(fav.optString("hotel", "br"));
+                    if (hotel.isEmpty()) hotel = "br";
+                    String key = hotel + ":" + normalizeNickKeyStatic(nick);
+
+                    FavoriteStatus st = fetchFavoriteStatusStatic(nick, fav.optString("figure", ""), hotel);
+                    if (st == null) continue;
+
+                    boolean hadPrevious = states.has(key);
+                    boolean wasOnline = states.optBoolean(key, false);
+                    states.put(key, st.online);
+
+                    if (hadPrevious && !wasOnline && st.online) {
+                        showFavoriteOnlineSystemNotificationStatic(context, st);
+                    }
+                }
+                sp.edit().putString(PREF_FAVORITE_ONLINE_STATES, states.toString()).apply();
+            } catch(Exception ignored) {}
+        }
+
+        private static FavoriteStatus fetchFavoriteStatusStatic(String nick, String fallbackFigure, String hotel) {
+            HttpURLConnection c = null;
+            try {
+                URL u = new URL("https://" + hotelDomainStatic(hotel) + "/api/public/users?name=" + URLEncoder.encode(nick, "UTF-8"));
+                c = (HttpURLConnection)u.openConnection();
+                c.setConnectTimeout(12000);
+                c.setReadTimeout(18000);
+                c.setRequestProperty("Accept", "application/json, text/plain, */*");
+                c.setRequestProperty("User-Agent", "ToxicSearchTool/1.0 Android");
+                int code = c.getResponseCode();
+                InputStream is = code >= 200 && code < 400 ? c.getInputStream() : c.getErrorStream();
+                String body = readAllStatic(is);
+                if (body == null || body.trim().isEmpty() || body.trim().startsWith("[")) return null;
+                JSONObject obj = new JSONObject(body);
+                if (obj.has("ok") && !obj.optBoolean("ok", true) && !obj.has("uniqueId")) return null;
+
+                FavoriteStatus st = new FavoriteStatus();
+                st.nick = obj.optString("name", nick);
+                if (st.nick == null || st.nick.trim().isEmpty()) st.nick = nick;
+                st.figure = obj.optString("figureString", fallbackFigure == null ? "" : fallbackFigure);
+                st.hotelKey = hotel;
+                st.online = obj.optBoolean("online", false);
+                return st;
+            } catch(Exception ignored) {
+                return null;
+            } finally {
+                try { if (c != null) c.disconnect(); } catch(Exception ignored) {}
+            }
+        }
+
+        private static void showFavoriteOnlineSystemNotificationStatic(Context context, FavoriteStatus st) {
+            try {
+                NotificationManager nm = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm == null || st == null) return;
+                String channelId = "favorite_online";
+                if (Build.VERSION.SDK_INT >= 26) {
+                    NotificationChannel ch = new NotificationChannel(channelId, "Favoritos", NotificationManager.IMPORTANCE_HIGH);
+                    nm.createNotificationChannel(ch);
+                }
+                Intent open = new Intent(context, MainActivity.class);
+                open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                PendingIntent pi = PendingIntent.getActivity(context, 1207, open, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+                String msg = "Seu favorito " + (st.nick == null ? "" : st.nick) + " acabou de ficar online!";
+                Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(context, channelId) : new Notification.Builder(context);
+                b.setSmallIcon(android.R.drawable.ic_dialog_info)
+                 .setContentTitle("Favoritos")
+                 .setContentText(msg)
+                 .setStyle(new Notification.BigTextStyle().bigText(msg))
+                 .setPriority(Notification.PRIORITY_HIGH)
+                 .setContentIntent(pi)
+                 .setAutoCancel(true);
+                nm.notify(Math.abs((st.hotelKey + ":" + st.nick).hashCode()), b.build());
+            } catch(Exception ignored) {}
+        }
+
+        private static String readAllStatic(InputStream is) throws IOException {
+            if (is == null) return "";
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = is.read(buf)) > 0) out.write(buf, 0, n);
+            return out.toString("UTF-8");
+        }
+
+        private static String normalizeHotelKeyStatic(String hotel) {
+            String h = hotel == null ? "" : hotel.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
+            if ("us".equals(h)) h = "com";
+            String[] allowed = {"br","com","es","de","fr","fi","it","nl","tr"};
+            for (String a : allowed) if (a.equals(h)) return h;
+            return "";
+        }
+
+        private static String normalizeNickKeyStatic(String raw) {
+            return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        }
+
+        private static String hotelDomainStatic(String key) {
+            String h = normalizeHotelKeyStatic(key);
+            if ("com".equals(h)) return "www.habbo.com";
+            if ("es".equals(h)) return "www.habbo.es";
+            if ("de".equals(h)) return "www.habbo.de";
+            if ("fr".equals(h)) return "www.habbo.fr";
+            if ("fi".equals(h)) return "www.habbo.fi";
+            if ("it".equals(h)) return "www.habbo.it";
+            if ("nl".equals(h)) return "www.habbo.nl";
+            if ("tr".equals(h)) return "www.habbo.com.tr";
+            return "www.habbo.com.br";
+        }
+    }
 
     public class HotelFlagDrawable extends Drawable {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
