@@ -7621,7 +7621,9 @@ private int loadingProgressFor(String message) {
             updateFavoriteOnlineBadgeText();
             if (refresh != null) refresh.run();
         });
-        row.setOnClickListener(v -> openProfileListItem(item, dialog));
+        bindProfileCardOpenAndHold(row, item.nick, item.hotelKey, item.figure, () -> {
+            if (!isCurrentProfileListItem(item)) openProfileListItem(item, dialog);
+        });
 
         updateFavoriteOnlineRowAsync(item, refresh);
         return row;
@@ -7640,6 +7642,14 @@ private int loadingProgressFor(String message) {
                 runOnUiThread(() -> { if (refresh != null) refresh.run(); });
             }
         });
+    }
+
+    private boolean isCurrentProfileListItem(ProfileHistoryItem item) {
+        if (item == null) return false;
+        String itemHotel = normalizeHotelKey(item.hotelKey);
+        String currentHotel = activeRenderedProfile != null ? normalizeHotelKey(activeRenderedProfile.hotelKey) : normalizeHotelKey(currentHotelKey);
+        String currentNick = activeRenderedProfile != null && activeRenderedProfile.name != null && !activeRenderedProfile.name.trim().isEmpty() ? activeRenderedProfile.name : currentLoadedNick;
+        return !currentNick.isEmpty() && normalizeNickKey(currentNick).equals(normalizeNickKey(item.nick)) && itemHotel.equals(currentHotel);
     }
 
     private void openProfileListItem(ProfileHistoryItem item, Dialog dialog) {
