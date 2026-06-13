@@ -76,6 +76,7 @@ public class MainActivity extends Activity {
     private static final String PREF_FAVORITES = "favorite_profiles";
     private static final String PREF_NOTIFY_FAVORITE_ONLINE = "notify_favorite_online";
     private static final String PREF_FAVORITE_ONLINE_STATES = "favorite_online_states";
+    private static final String PREF_APP_FOREGROUND = "app_foreground";
     private static final String PREF_VISUAL_EDITOR_FIGURE = "visual_editor_figure";
     private static final String PREF_VISUAL_EDITOR_GENDER = "visual_editor_gender";
     private static final String PREF_VISUAL_EDITOR_TYPE = "visual_editor_type";
@@ -145,6 +146,8 @@ public class MainActivity extends Activity {
     private boolean notifyFavoriteOnline = true;
     private final ConcurrentHashMap<String, Boolean> favoriteOnlineStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> favoriteOnlineLastToast = new ConcurrentHashMap<>();
+    private final ArrayList<TextView> favoriteOnlineBadgeViews = new ArrayList<>();
+    private volatile boolean appInForeground = false;
     private Runnable favoriteOnlineWatcher = null;
     private String visualEditorCachedFigure = DEFAULT_VISUAL_FIGURE;
     private String visualEditorCachedGender = "M";
@@ -182,6 +185,7 @@ public class MainActivity extends Activity {
         }
         loadOpenedProfilesHistory();
         loadFavoriteProfiles();
+        loadFavoriteOnlineStatesFromPrefs();
         notifyFavoriteOnline = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_NOTIFY_FAVORITE_ONLINE, true);
         loadVisualEditorState();
         adFreeUntilMs = getSharedPreferences(PREFS, MODE_PRIVATE).getLong(PREF_AD_FREE_UNTIL_MS, 0L);
@@ -192,6 +196,7 @@ public class MainActivity extends Activity {
         requestFavoriteNotificationPermissionIfNeeded();
         startFavoriteOnlineWatcher();
         updateFavoriteOnlineAlarm();
+        handleFavoriteNotificationIntent(getIntent());
     }
     private void requestFavoriteNotificationPermissionIfNeeded() {
         try {
@@ -486,14 +491,31 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        appInForeground = true;
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(PREF_APP_FOREGROUND, true).apply();
+        loadFavoriteOnlineStatesFromPrefs();
+        updateFavoriteOnlineBadgeText();
         uiHandler.removeCallbacks(adFreeTicker);
         uiHandler.post(adFreeTicker);
     }
 
     @Override protected void onPause() {
+        appInForeground = false;
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(PREF_APP_FOREGROUND, false).apply();
         saveAdFreeUntil();
         uiHandler.removeCallbacks(adFreeTicker);
         super.onPause();
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleFavoriteNotificationIntent(intent);
+    }
+
+    @Override public boolean dispatchTouchEvent(MotionEvent ev) {
+        appInForeground = true;
+        return super.dispatchTouchEvent(ev);
     }
 
     @Override protected void onDestroy() {
@@ -3811,6 +3833,25 @@ private int loadingProgressFor(String message) {
         iv.setBackground(new BottomNavIconDrawable(icon, selected));
         FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER);
         item.addView(iv, ip);
+
+        if ("heart".equals(icon)) {
+            TextView badge = text("", 10, Color.WHITE, true);
+            badge.setGravity(Gravity.CENTER);
+            badge.setIncludeFontPadding(false);
+            badge.setPadding(dp(4), 0, dp(4), 0);
+            int count = favoriteOnlineCount();
+            int bw = count >= 10 ? dp(24) : dp(18);
+            badge.setMinWidth(bw);
+            badge.setBackground(round(lightTheme ? Color.rgb(15, 15, 18) : purple, dp(999), lightTheme ? Color.rgb(255,255,255) : Color.argb(150,0,0,0), 1));
+            badge.setText(count > 0 ? String.valueOf(count) : "");
+            badge.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
+            FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(bw, dp(18), Gravity.CENTER);
+            bp.leftMargin = dp(25);
+            bp.topMargin = -dp(23);
+            item.addView(badge, bp);
+            favoriteOnlineBadgeViews.add(badge);
+            updateFavoriteOnlineBadgeText();
+        }
 
         item.setOnClickListener(v -> {
             if (action != null) action.run();
@@ -7166,6 +7207,90 @@ private int loadingProgressFor(String message) {
         if (pi != null) am.cancel(pi);
     }
 
+
+    private void handleFavoriteNotificationIntent(Intent intent) {
+        if (intent == null) return;
+        boolean openFavorites = "com.toxic.search.OPEN_FAVORITES".equals(intent.getAction()) || intent.getBooleanExtra("open_favorites", false);
+        if (!openFavorites) return;
+        uiHandler.postDelayed(() -> showFavoriteProfilesDialog(true), 350L);
+    }
+
+    private void loadFavoriteOnlineStatesFromPrefs() {
+        try {
+            String raw = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_FAVORITE_ONLINE_STATES, "{}");
+            JSONObject obj = new JSONObject(raw == null || raw.trim().isEmpty() ? "{}" : raw);
+            favoriteOnlineStates.clear();
+            for (ProfileHistoryItem item : favoriteProfiles) {
+                if (item == null) continue;
+                String key = favoriteKey(item.hotelKey, item.nick);
+                if (obj.has(key)) favoriteOnlineStates.put(key, obj.optBoolean(key, false));
+            }
+        } catch(Exception ignored) {}
+    }
+
+    private int favoriteOnlineCount() {
+        int count = 0;
+        for (ProfileHistoryItem item : favoriteProfiles) {
+            if (item == null) continue;
+            if (Boolean.TRUE.equals(favoriteOnlineStates.get(favoriteKey(item.hotelKey, item.nick)))) count++;
+        }
+        return Math.max(0, Math.min(MAX_FAVORITES, count));
+    }
+
+    private void updateFavoriteOnlineBadgeText() {
+        int count = favoriteOnlineCount();
+        for (int i = favoriteOnlineBadgeViews.size() - 1; i >= 0; i--) {
+            TextView badge = favoriteOnlineBadgeViews.get(i);
+            if (badge == null || badge.getParent() == null) {
+                favoriteOnlineBadgeViews.remove(i);
+                continue;
+            }
+            int bw = count >= 10 ? dp(24) : dp(18);
+            ViewGroup.LayoutParams rawLp = badge.getLayoutParams();
+            if (rawLp != null && rawLp.width != bw) {
+                rawLp.width = bw;
+                badge.setLayoutParams(rawLp);
+            }
+            if (count <= 0) {
+                badge.setVisibility(View.GONE);
+            } else {
+                badge.setText(String.valueOf(Math.min(MAX_FAVORITES, count)));
+                badge.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+
+    private void refreshFavoriteOnlineStatesAsync(Runnable refresh, boolean notifyTransitions) {
+        if (favoriteProfiles.isEmpty()) {
+            updateFavoriteOnlineBadgeText();
+            if (refresh != null) refresh.run();
+            return;
+        }
+        ArrayList<ProfileHistoryItem> snapshot = new ArrayList<>(favoriteProfiles);
+        executor.execute(() -> {
+            boolean changed = false;
+            for (ProfileHistoryItem item : snapshot) {
+                if (item == null) continue;
+                String key = favoriteKey(item.hotelKey, item.nick);
+                FavoriteStatus st = fetchFavoriteStatus(item);
+                if (st == null) continue;
+                cacheFavoriteHeadAsync(st);
+                Boolean old = favoriteOnlineStates.put(key, st.online);
+                setStoredFavoriteOnlineState(key, st.online);
+                if (old == null || old.booleanValue() != st.online) changed = true;
+                if (notifyTransitions && old != null && !old.booleanValue() && st.online) {
+                    favoriteOnlineLastToast.put(key, System.currentTimeMillis());
+                    runOnUiThread(() -> showFavoriteOnlineBanner(st));
+                }
+            }
+            boolean finalChanged = changed;
+            runOnUiThread(() -> {
+                updateFavoriteOnlineBadgeText();
+                if (refresh != null && finalChanged) refresh.run();
+            });
+        });
+    }
+
     private void startFavoriteOnlineWatcher() {
         if (favoriteOnlineWatcher != null) uiHandler.removeCallbacks(favoriteOnlineWatcher);
         favoriteOnlineWatcher = () -> {
@@ -7192,13 +7317,14 @@ private int loadingProgressFor(String message) {
 
                 favoriteOnlineStates.put(key, st.online);
                 setStoredFavoriteOnlineState(key, st.online);
+                runOnUiThread(() -> updateFavoriteOnlineBadgeText());
 
                 if (hadPrevious && !wasOnline && st.online) {
                     long now = System.currentTimeMillis();
                     Long last = favoriteOnlineLastToast.get(key);
                     if (last == null || now - last > 10L * 60L * 1000L) {
                         favoriteOnlineLastToast.put(key, now);
-                        runOnUiThread(() -> { showFavoriteOnlineBanner(st); showFavoriteOnlineSystemNotification(st); });
+                        runOnUiThread(() -> { showFavoriteOnlineBanner(st); updateFavoriteOnlineBadgeText(); if (!appInForeground) showFavoriteOnlineSystemNotification(st); });
                     }
                 }
             }
@@ -7458,8 +7584,10 @@ private int loadingProgressFor(String message) {
             ProfileHistoryItem item = favoriteProfiles.get(i);
             if (favoriteKey(item.hotelKey, item.nick).equals(key)) {
                 deleteFavoriteHeadCache(item.hotelKey, item.nick);
+                favoriteOnlineStates.remove(key);
                 favoriteProfiles.remove(i);
                 saveFavoriteProfiles();
+                updateFavoriteOnlineBadgeText();
                 toast(t("favorite_removed"));
                 return;
             }
@@ -7471,10 +7599,15 @@ private int loadingProgressFor(String message) {
         favoriteProfiles.add(0, new ProfileHistoryItem(nick.trim(), r.figure, hotel));
         while (favoriteProfiles.size() > MAX_FAVORITES) favoriteProfiles.remove(favoriteProfiles.size() - 1);
         saveFavoriteProfiles();
+        updateFavoriteOnlineBadgeText();
         toast(t("favorite_added"));
     }
 
     private void showFavoriteProfilesDialog() {
+        showFavoriteProfilesDialog(false);
+    }
+
+    private void showFavoriteProfilesDialog(boolean forceImmediateRefresh) {
         final Dialog dialog = new Dialog(this);
         FrameLayout full = new FrameLayout(this);
         full.setBackground(makeBg());
@@ -7514,6 +7647,11 @@ private int loadingProgressFor(String message) {
             for (ProfileHistoryItem item : sortedFavorites) list.addView(favoriteProfileRow(item, dialog, render[0]));
         };
         render[0].run();
+        if (forceImmediateRefresh) {
+            refreshFavoriteOnlineStatesAsync(render[0], false);
+        } else {
+            uiHandler.postDelayed(() -> refreshFavoriteOnlineStatesAsync(render[0], false), 15000L);
+        }
 
         dialog.show();
         Window w = dialog.getWindow();
@@ -7547,15 +7685,17 @@ private int loadingProgressFor(String message) {
                 ProfileHistoryItem f = favoriteProfiles.get(i);
                 if (favoriteKey(f.hotelKey, f.nick).equals(favoriteKey(item.hotelKey, item.nick))) {
                     deleteFavoriteHeadCache(f.hotelKey, f.nick);
+                    favoriteOnlineStates.remove(favoriteKey(f.hotelKey, f.nick));
                     favoriteProfiles.remove(i);
                 }
             }
             saveFavoriteProfiles();
+            updateFavoriteOnlineBadgeText();
             if (refresh != null) refresh.run();
         });
-        row.setOnClickListener(v -> openProfileListItem(item, dialog));
-
-        updateFavoriteOnlineRowAsync(item, refresh);
+        bindProfileCardOpenAndHold(row, item.nick, item.hotelKey, item.figure, () -> {
+            if (!isCurrentProfileListItem(item)) openProfileListItem(item, dialog);
+        });
         return row;
     }
 
@@ -7572,6 +7712,14 @@ private int loadingProgressFor(String message) {
                 runOnUiThread(() -> { if (refresh != null) refresh.run(); });
             }
         });
+    }
+
+    private boolean isCurrentProfileListItem(ProfileHistoryItem item) {
+        if (item == null) return false;
+        String itemHotel = normalizeHotelKey(item.hotelKey);
+        String currentHotel = activeRenderedProfile != null ? normalizeHotelKey(activeRenderedProfile.hotelKey) : normalizeHotelKey(currentHotelKey);
+        String currentNick = activeRenderedProfile != null && activeRenderedProfile.name != null && !activeRenderedProfile.name.trim().isEmpty() ? activeRenderedProfile.name : currentLoadedNick;
+        return !currentNick.isEmpty() && normalizeNickKey(currentNick).equals(normalizeNickKey(item.nick)) && itemHotel.equals(currentHotel);
     }
 
     private void openProfileListItem(ProfileHistoryItem item, Dialog dialog) {
@@ -8088,6 +8236,7 @@ private int loadingProgressFor(String message) {
 
         private static void showFavoriteOnlineSystemNotificationStatic(Context context, FavoriteStatus st) {
             try {
+                if (context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_APP_FOREGROUND, false)) return;
                 NotificationManager nm = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
                 if (nm == null || st == null) return;
                 String channelId = "favorite_online";
@@ -8096,8 +8245,10 @@ private int loadingProgressFor(String message) {
                     nm.createNotificationChannel(ch);
                 }
                 Intent open = new Intent(context, MainActivity.class);
+                open.setAction("com.toxic.search.OPEN_FAVORITES");
+                open.putExtra("open_favorites", true);
                 open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                PendingIntent pi = PendingIntent.getActivity(context, 1207, open, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+                PendingIntent pi = PendingIntent.getActivity(context, 1207, open, Build.VERSION.SDK_INT >= 23 ? (PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE) : PendingIntent.FLAG_UPDATE_CURRENT);
                 String msg = (st.nick == null ? "" : st.nick) + " acabou de ficar online!";
                 Bitmap largeIcon = loadNotificationHeadBitmapStatic(context, st);
                 Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(context, channelId) : new Notification.Builder(context);
