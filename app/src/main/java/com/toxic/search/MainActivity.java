@@ -148,6 +148,7 @@ public class MainActivity extends Activity {
     private final ConcurrentHashMap<String, Long> favoriteOnlineLastToast = new ConcurrentHashMap<>();
     private final ArrayList<TextView> favoriteOnlineBadgeViews = new ArrayList<>();
     private volatile boolean appInForeground = false;
+    private FrameLayout activeInternalBannerHost;
     private Runnable favoriteOnlineWatcher = null;
     private String visualEditorCachedFigure = DEFAULT_VISUAL_FIGURE;
     private String visualEditorCachedGender = "M";
@@ -3846,8 +3847,8 @@ private int loadingProgressFor(String message) {
             badge.setText(count > 0 ? String.valueOf(count) : "");
             badge.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
             FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(bw, dp(18), Gravity.CENTER);
-            bp.leftMargin = dp(25);
-            bp.topMargin = -dp(23);
+            bp.leftMargin = dp(18);
+            bp.topMargin = -dp(12);
             item.addView(badge, bp);
             favoriteOnlineBadgeViews.add(badge);
             updateFavoriteOnlineBadgeText();
@@ -3959,6 +3960,10 @@ private int loadingProgressFor(String message) {
         final Dialog dialog = new Dialog(this);
         FrameLayout full = new FrameLayout(this);
         full.setBackground(makeBg());
+        activeInternalBannerHost = full;
+        dialog.setOnDismissListener(d -> {
+            if (activeInternalBannerHost == full) activeInternalBannerHost = null;
+        });
 
         ScrollView visualScroll = new ScrollView(this);
         visualScroll.setFillViewport(false);
@@ -7465,14 +7470,17 @@ private int loadingProgressFor(String message) {
             if (st == null) return;
             NotificationManager nm = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
             if (nm == null) return;
-            String channelId = "favorite_online";
+            String channelId = "favorite_online_v2";
             if (Build.VERSION.SDK_INT >= 26) {
                 NotificationChannel ch = new NotificationChannel(channelId, t("favorites"), NotificationManager.IMPORTANCE_HIGH);
                 nm.createNotificationChannel(ch);
             }
             Intent intent = new Intent(this, MainActivity.class);
+            intent.setAction("com.toxic.search.OPEN_FAVORITES");
+            intent.putExtra("open_favorites", true);
             intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            PendingIntent pi = PendingIntent.getActivity(this, 1207, intent, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+            int requestCode = Math.abs(favoriteKey(st.hotelKey, st.nick).hashCode());
+            PendingIntent pi = PendingIntent.getActivity(this, requestCode, intent, Build.VERSION.SDK_INT >= 23 ? (PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE) : PendingIntent.FLAG_UPDATE_CURRENT);
             Bitmap largeIcon = loadNotificationHeadBitmap(st);
             Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, channelId) : new Notification.Builder(this);
             b.setSmallIcon(R.drawable.notification_image)
@@ -7481,6 +7489,8 @@ private int loadingProgressFor(String message) {
              .setWhen(System.currentTimeMillis())
              .setShowWhen(true)
              .setPriority(Notification.PRIORITY_HIGH)
+             .setCategory(Notification.CATEGORY_STATUS)
+             .setVisibility(Notification.VISIBILITY_PUBLIC)
              .setContentIntent(pi)
              .setAutoCancel(true)
              .setStyle(new Notification.BigTextStyle().bigText(tr("favorite_online_banner", st.nick)));
@@ -7490,7 +7500,8 @@ private int loadingProgressFor(String message) {
     }
 
     private void showFavoriteOnlineBanner(FavoriteStatus st) {
-        if (screen == null || st == null) return;
+        final FrameLayout bannerHost = activeInternalBannerHost != null ? activeInternalBannerHost : screen;
+        if (bannerHost == null || st == null) return;
         final LinearLayout banner = new LinearLayout(this);
         banner.setOrientation(LinearLayout.HORIZONTAL);
         banner.setGravity(Gravity.CENTER_VERTICAL);
@@ -7516,13 +7527,13 @@ private int loadingProgressFor(String message) {
         bp.setMargins(dp(14), dp(18), dp(14), 0);
         banner.setTranslationY(-dp(90));
         banner.setAlpha(0f);
-        screen.addView(banner, bp);
+        bannerHost.addView(banner, bp);
         banner.bringToFront();
         banner.animate().translationY(0).alpha(1f).setDuration(220).start();
         uiHandler.postDelayed(() -> {
             try {
                 banner.animate().translationY(-dp(90)).alpha(0f).setDuration(220).withEndAction(() -> {
-                    try { screen.removeView(banner); } catch(Exception ignored) {}
+                    try { bannerHost.removeView(banner); } catch(Exception ignored) {}
                 }).start();
             } catch(Exception ignored) {}
         }, 4200L);
@@ -7650,7 +7661,7 @@ private int loadingProgressFor(String message) {
         if (forceImmediateRefresh) {
             refreshFavoriteOnlineStatesAsync(render[0], false);
         } else {
-            uiHandler.postDelayed(() -> refreshFavoriteOnlineStatesAsync(render[0], false), 15000L);
+            uiHandler.postDelayed(() -> refreshFavoriteOnlineStatesAsync(render[0], true), 15000L);
         }
 
         dialog.show();
@@ -8234,12 +8245,30 @@ private int loadingProgressFor(String message) {
             }
         }
 
+        private static boolean isAppActuallyForegroundStatic(Context context) {
+            try {
+                ActivityManager am = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+                if (am == null) return false;
+                String pkg = context.getPackageName();
+                java.util.List<ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
+                if (processes == null) return false;
+                for (ActivityManager.RunningAppProcessInfo p : processes) {
+                    if (p == null || p.processName == null) continue;
+                    if (p.processName.equals(pkg)) {
+                        return p.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                                || p.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE;
+                    }
+                }
+            } catch(Exception ignored) {}
+            return false;
+        }
+
         private static void showFavoriteOnlineSystemNotificationStatic(Context context, FavoriteStatus st) {
             try {
-                if (context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_APP_FOREGROUND, false)) return;
+                if (isAppActuallyForegroundStatic(context)) return;
                 NotificationManager nm = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
                 if (nm == null || st == null) return;
-                String channelId = "favorite_online";
+                String channelId = "favorite_online_v2";
                 if (Build.VERSION.SDK_INT >= 26) {
                     NotificationChannel ch = new NotificationChannel(channelId, "Favoritos", NotificationManager.IMPORTANCE_HIGH);
                     nm.createNotificationChannel(ch);
@@ -8248,7 +8277,8 @@ private int loadingProgressFor(String message) {
                 open.setAction("com.toxic.search.OPEN_FAVORITES");
                 open.putExtra("open_favorites", true);
                 open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                PendingIntent pi = PendingIntent.getActivity(context, 1207, open, Build.VERSION.SDK_INT >= 23 ? (PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE) : PendingIntent.FLAG_UPDATE_CURRENT);
+                int requestCode = Math.abs((st.hotelKey + ":" + st.nick).hashCode());
+                PendingIntent pi = PendingIntent.getActivity(context, requestCode, open, Build.VERSION.SDK_INT >= 23 ? (PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE) : PendingIntent.FLAG_UPDATE_CURRENT);
                 String msg = (st.nick == null ? "" : st.nick) + " acabou de ficar online!";
                 Bitmap largeIcon = loadNotificationHeadBitmapStatic(context, st);
                 Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(context, channelId) : new Notification.Builder(context);
